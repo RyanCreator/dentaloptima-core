@@ -7,6 +7,7 @@ import Login from "@/pages/Login";
 import Overview from "@/pages/Overview";
 import Tenants from "@/pages/Tenants";
 import TenantDetail from "@/pages/TenantDetail";
+import AuditLog from "@/pages/AuditLog";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ export default function App() {
                     <Route path="/" element={<Overview />} />
                     <Route path="/tenants" element={<Tenants />} />
                     <Route path="/tenants/:id" element={<TenantDetail />} />
+                    <Route path="/audit" element={<AuditLog />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Layout>

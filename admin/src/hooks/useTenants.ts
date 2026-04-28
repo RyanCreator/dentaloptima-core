@@ -73,6 +73,71 @@ export interface CreatePracticeResult {
   message: string;
 }
 
+export type PracticeRole = "OWNER" | "ADMIN" | "DENTIST" | "HYGIENIST" | "NURSE" | "RECEPTIONIST";
+
+export interface InviteMemberInput {
+  practice_id: string;
+  email: string;
+  role: PracticeRole;
+  full_name: string;
+  redirect_to?: string;
+}
+
+export function useInviteMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: InviteMemberInput) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/invite-member`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(input),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to invite");
+      return json;
+    },
+    onSuccess: (_data, vars) =>
+      qc.invalidateQueries({ queryKey: ["practice-members", vars.practice_id] }),
+  });
+}
+
+export interface UpdatePracticeInput {
+  id: string;
+  patch: Partial<Pick<Practice,
+    | "name" | "primary_email" | "primary_phone"
+    | "address_line1" | "address_line2" | "city" | "postcode"
+    | "nhs_contract_number" | "cqc_provider_id"
+    | "status" | "plan" | "trial_ends_at"
+  >>;
+}
+
+export function useUpdatePractice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, patch }: UpdatePracticeInput) => {
+      const { data, error } = await supabase
+        .from("practice")
+        .update(patch)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Practice;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["practice", vars.id] });
+      qc.invalidateQueries({ queryKey: ["practices"] });
+    },
+  });
+}
+
 // Calls the create-practice-with-owner edge function. The operator token is
 // sent in a custom header (the function does its own auth check).
 export function useCreatePractice() {

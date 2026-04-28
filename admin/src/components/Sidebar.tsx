@@ -21,7 +21,9 @@ const SECTIONS: {
   },
   {
     label: "Platform",
-    items: [{ to: "/audit", label: "Audit log", icon: Activity }],
+    items: [
+      { to: "/audit", label: "Audit log", icon: Activity },
+    ],
   },
 ];
 
