@@ -1,0 +1,38 @@
+# supabase/config.toml — dentaloptima-core
+# Shared multi-tenant DB. All practices live in one Postgres database with
+# practice_id RLS isolation. See supabase/migrations/0001_identity_layer.sql
+# for the foundation.
+
+project_id = "dentaloptima-core"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_signup = false  # signup is invite-only, gated by practice_member rows
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
