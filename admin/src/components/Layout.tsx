@@ -1,42 +1,38 @@
-import { useState, type ReactNode } from "react";
-import { Menu } from "lucide-react";
-import { Sidebar } from "@/components/Sidebar";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import type { ReactNode } from "react";
 
-export function Layout({ children }: { children: ReactNode }) {
-  const auth = useAuth();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const adminEmail = auth.session?.user?.email ?? null;
-
+// Per-page Layout: renders a title + description header with the page body
+// underneath. The app shell (sidebar, mobile bar) is in AppShell.tsx and is
+// applied once at the App level.
+//
+// This signature matches the legacy admin's Layout so lifted pages work
+// without code changes: <Layout title="..." description="..."><body /></Layout>
+export function Layout({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title?: string;
+  description?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <div className="min-h-screen flex">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:block w-64 border-r flex-shrink-0">
-        <Sidebar adminEmail={adminEmail} />
-      </aside>
-
-      {/* Mobile drawer */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="p-0 w-64">
-          <Sidebar adminEmail={adminEmail} onNavigate={() => setMobileOpen(false)} />
-        </SheetContent>
-      </Sheet>
-
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile top bar */}
-        <header className="md:hidden flex items-center gap-2 px-4 py-3 border-b bg-card">
-          <SheetTrigger asChild onClick={() => setMobileOpen(true)}>
-            <Button variant="ghost" size="icon" aria-label="Open menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <div className="text-sm font-semibold">Dentaloptima Core</div>
-        </header>
-
-        <main className="flex-1 overflow-auto">{children}</main>
-      </div>
+    <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {(title || description || actions) && (
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            {title && (
+              <h1 className="text-2xl font-semibold tracking-tight truncate">{title}</h1>
+            )}
+            {description && (
+              <p className="text-sm text-muted-foreground mt-1">{description}</p>
+            )}
+          </div>
+          {actions && <div className="flex items-center gap-2">{actions}</div>}
+        </div>
+      )}
+      {children}
     </div>
   );
 }

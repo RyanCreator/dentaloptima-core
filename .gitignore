@@ -3,6 +3,8 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.migration
+scripts/.env.migration
 .DS_Store
 *.log
 .vscode/

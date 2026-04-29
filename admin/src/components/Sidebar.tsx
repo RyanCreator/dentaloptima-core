@@ -1,8 +1,12 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Building2, Activity, LogOut, Plus, Home } from "lucide-react";
+import {
+  Building2, Activity, LogOut, Plus, Home, Inbox, Megaphone,
+  Mail, Contact, FileText, Send,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { signOutCleanly } from "@/hooks/useAuth";
+import { useNewLeadsCount } from "@/hooks/useLeads";
 import { toast } from "sonner";
 
 const SECTIONS: {
@@ -17,13 +21,21 @@ const SECTIONS: {
     label: "Practices",
     items: [
       { to: "/tenants", label: "Tenants", icon: Building2 },
+      { to: "/announcements", label: "Announcements", icon: Megaphone },
+    ],
+  },
+  {
+    label: "Outreach",
+    items: [
+      { to: "/outreach/contacts", label: "Contacts", icon: Contact },
+      { to: "/outreach/templates", label: "Templates", icon: FileText },
+      { to: "/outreach/campaigns", label: "Campaigns", icon: Send },
+      { to: "/leads", label: "Leads", icon: Inbox },
     ],
   },
   {
     label: "Platform",
-    items: [
-      { to: "/audit", label: "Audit log", icon: Activity },
-    ],
+    items: [{ to: "/audit", label: "Audit log", icon: Activity }],
   },
 ];
 
@@ -34,6 +46,10 @@ interface SidebarProps {
 
 export function Sidebar({ adminEmail, onNavigate }: SidebarProps) {
   const navigate = useNavigate();
+  const { data: newLeadsCount = 0 } = useNewLeadsCount();
+  const badges: Record<string, number> = {
+    "/leads": newLeadsCount,
+  };
 
   async function handleLogout() {
     try {
@@ -77,25 +93,37 @@ export function Sidebar({ adminEmail, onNavigate }: SidebarProps) {
                 {section.label}
               </div>
             )}
-            {section.items.map(({ to, label, icon: Icon, exact }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={exact}
-                onClick={() => onNavigate?.()}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
-                    isActive
-                      ? "bg-secondary text-secondary-foreground font-medium"
-                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                  )
-                }
-              >
-                <Icon className="h-4 w-4" />
-                <span className="flex-1">{label}</span>
-              </NavLink>
-            ))}
+            {section.items.map(({ to, label, icon: Icon, exact }) => {
+              const badge = badges[to] ?? 0;
+              return (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={exact}
+                  onClick={() => onNavigate?.()}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                      isActive
+                        ? "bg-secondary text-secondary-foreground font-medium"
+                        : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                    )
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="flex-1">{label}</span>
+                  {badge > 0 && (
+                    <span
+                      className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] font-semibold tabular-nums"
+                      aria-label={`${badge} unread`}
+                      title={`${badge} unread`}
+                    >
+                      {badge > 99 ? "99+" : badge}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            })}
           </div>
         ))}
       </nav>
