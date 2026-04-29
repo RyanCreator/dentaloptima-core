@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, Activity, LogOut, Plus, Home, Inbox, Megaphone,
-  Mail, Contact, FileText, Send,
+  Mail, Contact, FileText, Send, MessageCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,17 @@ const SECTIONS: {
     items: [{ to: "/", label: "Overview", icon: Home, exact: true }],
   },
   {
-    label: "Practices",
+    label: "Clients",
     items: [
       { to: "/tenants", label: "Tenants", icon: Building2 },
+      { to: "/support", label: "Support inbox", icon: MessageCircle },
       { to: "/announcements", label: "Announcements", icon: Megaphone },
     ],
   },
   {
     label: "Outreach",
     items: [
+      { to: "/messaging", label: "Email inbox", icon: Mail },
       { to: "/outreach/contacts", label: "Contacts", icon: Contact },
       { to: "/outreach/templates", label: "Templates", icon: FileText },
       { to: "/outreach/campaigns", label: "Campaigns", icon: Send },
