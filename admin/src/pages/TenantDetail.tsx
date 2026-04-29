@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Pencil, UserPlus, Pause, Play } from "lucide-react";
+import { ArrowLeft, Pencil, UserPlus, Pause, Play, CreditCard } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EditTenantSheet } from "@/components/EditTenantSheet";
 import { InviteMemberSheet } from "@/components/InviteMemberSheet";
+import { TrialExpiryBanner } from "@/components/TrialExpiryBanner";
+import { RecordPaymentDialog } from "@/components/RecordPaymentDialog";
+import { PaymentHistoryList } from "@/components/PaymentHistoryList";
 import { format } from "date-fns";
 
 export default function TenantDetail() {
@@ -17,6 +20,7 @@ export default function TenantDetail() {
   const update = useUpdatePractice();
   const [editOpen, setEditOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [paymentOpen, setPaymentOpen] = useState(false);
 
   const { data: members, refetch: refetchMembers } = useQuery({
     queryKey: ["practice-members", id],
@@ -81,6 +85,8 @@ export default function TenantDetail() {
           )}
         </div>
       </div>
+
+      <TrialExpiryBanner practice={practice} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Section title="Subscription">
@@ -153,6 +159,22 @@ export default function TenantDetail() {
         </div>
       </div>
 
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-medium">Payments</h2>
+          <Button size="sm" onClick={() => setPaymentOpen(true)}>
+            <CreditCard className="h-3.5 w-3.5 mr-1.5" />Record payment
+          </Button>
+        </div>
+        <PaymentHistoryList practiceId={practice.id} />
+      </div>
+
+      <RecordPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        practiceId={practice.id}
+        practiceName={practice.name}
+      />
       <EditTenantSheet open={editOpen} onOpenChange={setEditOpen} tenant={practice} />
       <InviteMemberSheet
         open={inviteOpen}

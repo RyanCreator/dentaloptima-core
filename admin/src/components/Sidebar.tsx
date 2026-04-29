@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, Activity, LogOut, Plus, Home, Inbox, Megaphone,
-  Mail, Contact, FileText, Send, MessageCircle,
+  Mail, Contact, FileText, Send, MessageCircle, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,10 @@ const SECTIONS: {
   },
   {
     label: "Platform",
-    items: [{ to: "/audit", label: "Audit log", icon: Activity }],
+    items: [
+      { to: "/admins", label: "Admins", icon: Users },
+      { to: "/audit", label: "Audit log", icon: Activity },
+    ],
   },
 ];
 

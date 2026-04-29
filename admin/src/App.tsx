@@ -16,6 +16,7 @@ import Leads from "@/pages/Leads";
 import Announcements from "@/pages/Announcements";
 import Messaging from "@/pages/Messaging";
 import Support from "@/pages/Support";
+import Admins from "@/pages/Admins";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -54,6 +55,7 @@ export default function App() {
                     <Route path="/messaging/:threadId" element={<Messaging />} />
                     <Route path="/support" element={<Support />} />
                     <Route path="/support/:threadId" element={<Support />} />
+                    <Route path="/admins" element={<Admins />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </AppShell>
