@@ -4,7 +4,7 @@ Living checklist. Tick as we go. Latest at top within each section.
 
 ## ✅ Done
 
-### Schema (16 migrations)
+### Schema (17 migrations)
 - [x] 0001 identity layer (practice, practice_member, RLS helpers)
 - [x] 0002 tighten function security
 - [x] 0003 consolidate member update policies
@@ -21,6 +21,7 @@ Living checklist. Tick as we go. Latest at top within each section.
 - [x] 0014 operator role (app_metadata-driven)
 - [x] 0015 audit FK SET NULL (precursor — 0016 dropped them entirely)
 - [x] 0016 drop audit FKs entirely (audit must outlive what it references)
+- [x] 0017 operations_tables (ops schema with outreach/email/support/leads/announcements/payments)
 
 ### Edge functions
 - [x] create-practice-with-owner (operator-token auth, atomic create + invite)
@@ -47,28 +48,33 @@ Living checklist. Tick as we go. Latest at top within each section.
 ## 🚧 Admin app — gaps to fill
 
 ### Edit + actions
-- [ ] **Edit tenant**: name, contact, NHS/CQC IDs, plan, status. Status changes (TRIAL → ACTIVE → SUSPENDED → OFFBOARDED) need an audit context tag
-- [ ] **Suspend tenant** action with confirm dialog
-- [ ] **Restore tenant** action
+- [x] **Edit tenant**: name, contact, NHS/CQC IDs (EditTenantSheet)
+- [x] **Suspend tenant** action with confirm prompt (TenantDetail)
+- [x] **Restore tenant** action (same control flips status)
+- [ ] **Status change audit context tag** (currently logs as generic UPDATE, no special action code)
 - [ ] **Trial expiry banner** on tenant rows nearing expiry
 - [ ] **Operator impersonate** — view one tenant's clinical data via session-mode helper (needs schema work — `app_private.set_impersonate_practice(uuid)` style)
 
 ### Pages still to build
-- [ ] **Audit log** — paginated table of `audit` + `clinical_audit`, filter by practice / actor / time / action / entity
-- [ ] **Practice members** edit — invite new staff to existing practice (needs `invite-member` edge function too)
-- [ ] **Settings → Admins** — list operators, grant/revoke `is_operator` flag
+- [x] **Audit log** — combined audit + clinical_audit, search, paginated
+- [x] **Practice members** invite — InviteMemberSheet on TenantDetail
+- [ ] **Settings → Admins** — list operators, grant/revoke `is_operator` flag (needs new edge function)
 - [ ] **Settings → Onboarding checklist** — per-tenant 8-item progress (NHS performer set up, services configured, hours set, etc.)
 
 ### Modules to migrate from the existing admin-dashboard
-- [ ] **Outreach → Contacts** (lift wholesale, swap Supabase URL)
-- [ ] **Outreach → Templates** (same)
-- [ ] **Outreach → Campaigns** (same)
-- [ ] **Leads** (with new-leads-count green pill badge)
-- [ ] **Email inbox / Messaging** (lift)
-- [ ] **Support inbox + bell** (lift)
-- [ ] **Announcements** (lift)
-- [ ] **Cross-tenant aggregates** richer version (MRR, trial pipeline, etc.)
-- [ ] **Payment history** (Stripe integration — see `roadmap`)
+- [x] **Outreach → Contacts** (lifted to ops schema, supabaseOps client)
+- [x] **Outreach → Templates** (lifted)
+- [x] **Outreach → Campaigns + detail** (lifted)
+- [x] **Leads** (with new-leads-count green pill badge)
+- [x] **Email inbox / Messaging** (lifted)
+- [x] **Support inbox + bell** (lifted; bell badge component copied)
+- [x] **Announcements** (lifted)
+- [ ] **Cross-tenant aggregates** richer version (MRR, trial pipeline, etc.) — Overview has 4 cards; richer version pending
+- [ ] **Payment history** UI — schema migrated, no UI yet (RecordPaymentDialog needs rewrite for non-admin_user model)
+- [ ] **Admins management** — needs full rewrite (legacy uses admin_user table; new model uses auth.users.raw_app_meta_data.is_operator)
+- [ ] **Operator impersonate** — needs schema work (`app_private.set_impersonate_practice` GUC) + new dialog
+- [ ] **Onboarding checklist** on TenantDetail — needs rewrite (legacy model used per-tenant health; new model is one-DB)
+- [ ] **Trial expiry banner** on tenant rows — small rewrite (Tenant → Practice type)
 
 ### Polish
 - [ ] **Sonner toast styling** — dark mode follow-up if needed
@@ -81,7 +87,7 @@ Living checklist. Tick as we go. Latest at top within each section.
 
 ## 🚧 Edge functions still to build
 
-- [ ] **invite-member** — practice OWNER/ADMIN invites a new staff member; sends magic link, creates pending practice_member row
+- [x] **invite-member** — auth-required edge function; operator OR practice OWNER/ADMIN can invite
 - [ ] **accept-invite** — handler called from invite link landing page; sets up password, links auth.users to practice_member
 - [ ] **request-password-reset** — for operators
 - [ ] **change-tenant-status** — wraps status updates with audit context tagging
