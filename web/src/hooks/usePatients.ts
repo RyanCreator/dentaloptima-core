@@ -15,9 +15,16 @@ export function usePatients() {
 
     // Only select fields used in list views (id, full_name, phone, no_show_count)
     // Email and notes are loaded separately on patient detail page
+    // The new patient schema doesn't have `no_show_count` — that legacy
+    // denormalised column is gone. List view shows id + full_name + phone.
+    // No-show signals will come back via the medical_alert / patient
+    // history features when those are wired up.
+    // preferred_dentist_id is included so booking forms can auto-select
+    // the patient's assigned dentist when a patient is picked. Cheap
+    // addition — single uuid column, no extra round-trip.
     const { data, error: fetchError } = await supabase
       .from("patient")
-      .select("id, full_name, phone, no_show_count")
+      .select("id, full_name, phone, preferred_dentist_id")
       .is("deleted_at", null)
       .order("full_name");
 

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
-import { useRequireAuth } from "@/hooks/useAuth";
+import { useAuth, useRequireAuth } from "@/hooks/useAuth";
 import { LoadingState } from "@/components/LoadingState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   markThreadRead,
   uploadAttachment,
   type SupportThread,
+  type SupportSendContext,
 } from "@/hooks/useSupport";
 import { Plus, Mail, Paperclip, X, Download } from "lucide-react";
 
@@ -29,11 +30,25 @@ const STATUS_LABEL: Record<SupportThread["status"], string> = {
 
 export default function Support() {
   const { loading: authLoading } = useRequireAuth();
+  const auth = useAuth();
   const { threads, loading, reload } = useSupportThreads();
   const [activeThread, setActiveThread] = useState<SupportThread | null>(null);
   const [newOpen, setNewOpen] = useState(false);
 
-  if (authLoading) return <LoadingState />;
+  // Author context required to INSERT messages — RLS will reject any insert
+  // where these don't match the caller's session. Memoised so the sheets'
+  // useEffect dependencies don't churn.
+  const sendCtx: SupportSendContext | null = useMemo(() => {
+    if (!auth.member || !auth.user) return null;
+    return {
+      practice_id: auth.member.practice_id,
+      user_id: auth.user.id,
+      email: auth.member.email,
+      full_name: auth.member.full_name,
+    };
+  }, [auth.member, auth.user]);
+
+  if (authLoading || !sendCtx) return <LoadingState />;
 
   return (
     <Layout title="Support">
@@ -84,6 +99,7 @@ export default function Support() {
 
       <ThreadSheet
         thread={activeThread}
+        sendCtx={sendCtx}
         onClose={() => {
           setActiveThread(null);
           reload();
@@ -92,6 +108,7 @@ export default function Support() {
 
       <NewThreadSheet
         open={newOpen}
+        sendCtx={sendCtx}
         onClose={() => setNewOpen(false)}
         onCreated={() => {
           setNewOpen(false);
@@ -102,7 +119,15 @@ export default function Support() {
   );
 }
 
-function ThreadSheet({ thread, onClose }: { thread: SupportThread | null; onClose: () => void }) {
+function ThreadSheet({
+  thread,
+  sendCtx,
+  onClose,
+}: {
+  thread: SupportThread | null;
+  sendCtx: SupportSendContext;
+  onClose: () => void;
+}) {
   const open = thread !== null;
   const { messages, loading, reload } = useSupportMessages(thread?.id ?? null);
   const [reply, setReply] = useState("");
@@ -125,11 +150,11 @@ function ThreadSheet({ thread, onClose }: { thread: SupportThread | null; onClos
       if (pendingFiles.length > 0) {
         setUploading(true);
         attachmentIds = await Promise.all(
-          pendingFiles.map((f) => uploadAttachment(thread.id, f))
+          pendingFiles.map((f) => uploadAttachment(sendCtx, thread.id, f))
         );
         setUploading(false);
       }
-      await sendSupportMessage(thread.id, reply.trim() || "(attachment)", attachmentIds);
+      await sendSupportMessage(sendCtx, thread.id, reply.trim() || "(attachment)", attachmentIds);
       setReply("");
       setPendingFiles([]);
       await reload();
@@ -255,10 +280,12 @@ function ThreadSheet({ thread, onClose }: { thread: SupportThread | null; onClos
 
 function NewThreadSheet({
   open,
+  sendCtx,
   onClose,
   onCreated,
 }: {
   open: boolean;
+  sendCtx: SupportSendContext;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -270,7 +297,7 @@ function NewThreadSheet({
     if (!subject.trim() || !body.trim()) return;
     setCreating(true);
     try {
-      await createSupportThread(subject.trim(), body.trim());
+      await createSupportThread(sendCtx, subject.trim(), body.trim());
       setSubject("");
       setBody("");
       onCreated();

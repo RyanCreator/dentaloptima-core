@@ -1,0 +1,20 @@
+{
+  "name": "dentaloptima-core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dentaloptima multi-tenant platform — admin dashboard + booking app + marketing site, sharing one Supabase project.",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names admin,web,marketing --prefix-colors blue,green,magenta \"npm:dev:admin\" \"npm:dev:web\" \"npm:dev:marketing\"",
+    "dev:admin": "cd admin && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "dev:marketing": "cd marketing && npm run dev",
+    "build:admin": "cd admin && npm run build",
+    "build:web": "cd web && npm run build",
+    "build:marketing": "cd marketing && npm run build",
+    "build": "npm run build:admin && npm run build:web && npm run build:marketing",
+    "install:all": "cd admin && npm install && cd ../web && npm install && cd ../marketing && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

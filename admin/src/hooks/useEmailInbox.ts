@@ -26,6 +26,8 @@ export interface EmailThread {
   status: EmailThreadStatus;
   last_message_at: string;
   message_count: number;
+  claimed_by_email: string | null;
+  claimed_at: string | null;
   account?: EmailAccount;
   preview?: {
     // The other party in the conversation — who you're talking to. For
@@ -176,12 +178,12 @@ export function useEmailThreads(accountId: string | null, status: EmailThreadSta
       .channel(`email-threads-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "email_message" },
+        { event: "*", schema: "ops", table: "email_message" },
         () => debouncedReload()
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "email_thread" },
+        { event: "*", schema: "ops", table: "email_thread" },
         () => debouncedReload()
       )
       .subscribe();
@@ -243,7 +245,7 @@ export function useEmailMessages(threadId: string | null) {
         "postgres_changes",
         {
           event: "*",
-          schema: "public",
+          schema: "ops",
           table: "email_message",
           filter: `thread_id=eq.${threadId}`,
         },
@@ -263,6 +265,25 @@ export async function updateEmailThreadStatus(threadId: string, status: EmailThr
   const { error } = await supabase
     .from("email_thread")
     .update({ status })
+    .eq("id", threadId);
+  if (error) throw error;
+}
+
+// Mirror of the support claim flow — see migration 0026. Stored as the
+// operator's email at claim time (snapshot). Multiple operators reading
+// the inbox at once can use this to avoid double-replying.
+export async function claimEmailThread(threadId: string, operatorEmail: string) {
+  const { error } = await supabase
+    .from("email_thread")
+    .update({ claimed_by_email: operatorEmail, claimed_at: new Date().toISOString() })
+    .eq("id", threadId);
+  if (error) throw error;
+}
+
+export async function unclaimEmailThread(threadId: string) {
+  const { error } = await supabase
+    .from("email_thread")
+    .update({ claimed_by_email: null, claimed_at: null })
     .eq("id", threadId);
   if (error) throw error;
 }
@@ -327,7 +348,7 @@ export function useEmailAccountCounts() {
       .channel(`email-counts-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "email_thread" },
+        { event: "*", schema: "ops", table: "email_thread" },
         () => debouncedReload()
       )
       .subscribe();
@@ -359,7 +380,7 @@ export function useTotalOpenThreads() {
       .channel(`email-total-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "email_thread" },
+        { event: "*", schema: "ops", table: "email_thread" },
         () => debouncedRefresh()
       )
       .subscribe();

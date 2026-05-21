@@ -70,7 +70,7 @@ export function useOutreachCampaigns(opts: { showArchived?: boolean } = {}) {
       .channel(`outreach-campaigns-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "outreach_campaign" },
+        { event: "*", schema: "ops", table: "outreach_campaign" },
         () => debouncedReload()
       )
       .subscribe();
@@ -168,4 +168,48 @@ export async function restoreCampaign(id: string) {
     .update({ archived_at: null })
     .eq("id", id);
   if (error) throw error;
+}
+
+// Duplicate an existing campaign as a fresh DRAFT. Copies the template,
+// from/reply addresses, and send pace; the operator picks a new recipient
+// list before sending. Returns the new campaign so the caller can route
+// to its compose page (`/outreach/campaigns/new?from=<id>`) or directly
+// open it for editing.
+export async function duplicateCampaign(id: string): Promise<OutreachCampaign> {
+  const source = await fetchCampaign(id);
+  if (!source) throw new Error("Source campaign not found");
+  const { data: created, error } = await supabase
+    .from("outreach_campaign")
+    .insert({
+      name: `${source.name} (copy)`,
+      template_id: source.template_id,
+      from_address: source.from_address,
+      reply_to_address: source.reply_to_address,
+      send_interval_seconds: source.send_interval_seconds,
+      status: "DRAFT",
+    })
+    .select("*")
+    .single();
+  if (error || !created) throw error ?? new Error("Duplicate failed");
+  return created as OutreachCampaign;
+}
+
+// Mark failed/skipped sends as QUEUED so the cron picks them up again.
+// Useful when transient SMTP issues cause a batch of failures and the
+// underlying problem (rate limit, DNS hiccup) has cleared.
+export async function retryFailedSends(campaignId: string): Promise<number> {
+  const { error, count } = await supabase
+    .from("outreach_send")
+    .update(
+      {
+        status: "QUEUED",
+        failed_at: null,
+        failure_reason: null,
+      },
+      { count: "exact" },
+    )
+    .eq("campaign_id", campaignId)
+    .in("status", ["FAILED", "SKIPPED"]);
+  if (error) throw error;
+  return count ?? 0;
 }

@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, Activity, LogOut, Plus, Home, Inbox, Megaphone,
-  Mail, Contact, FileText, Send, MessageCircle, Users,
+  Mail, Contact, FileText, Send, MessageCircle, Users, KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { signOutCleanly } from "@/hooks/useAuth";
 import { useNewLeadsCount } from "@/hooks/useLeads";
+import { ChangePasswordSheet } from "@/components/ChangePasswordSheet";
 import { toast } from "sonner";
 
 const SECTIONS: {
@@ -52,6 +54,7 @@ interface SidebarProps {
 export function Sidebar({ adminEmail, onNavigate }: SidebarProps) {
   const navigate = useNavigate();
   const { data: newLeadsCount = 0 } = useNewLeadsCount();
+  const [changePwOpen, setChangePwOpen] = useState(false);
   const badges: Record<string, number> = {
     "/leads": newLeadsCount,
   };
@@ -133,12 +136,24 @@ export function Sidebar({ adminEmail, onNavigate }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="px-3 py-3 border-t space-y-2">
+      <div className="px-3 py-3 border-t space-y-1">
         {adminEmail && (
           <div className="px-3 py-1 text-xs text-muted-foreground truncate" title={adminEmail}>
             {adminEmail}
           </div>
         )}
+        <Button
+          onClick={() => {
+            setChangePwOpen(true);
+            onNavigate?.();
+          }}
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-muted-foreground"
+        >
+          <KeyRound className="h-4 w-4 mr-2" />
+          Change password
+        </Button>
         <Button
           onClick={handleLogout}
           variant="ghost"
@@ -149,6 +164,8 @@ export function Sidebar({ adminEmail, onNavigate }: SidebarProps) {
           Sign out
         </Button>
       </div>
+
+      <ChangePasswordSheet open={changePwOpen} onOpenChange={setChangePwOpen} />
     </div>
   );
 }

@@ -7,8 +7,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Loader2, Plus, AlertTriangle, Heart } from "lucide-react";
+import { Search, Loader2, Plus, AlertTriangle, Heart, Upload, Users, Trash2, Lock } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
+import { useSelection } from "@/hooks/useSelection";
+import { BulkActionBar } from "@/components/BulkActionBar";
 import { LoadingState } from "@/components/LoadingState";
+import { ImportPatientsSheet } from "@/components/patient/ImportPatientsSheet";
+import { useAuth } from "@/hooks/useAuth";
 import { ErrorMessage } from "@/components/ErrorMessage";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
@@ -17,14 +22,14 @@ import { subMonths, differenceInYears, parseISO, format } from "date-fns";
 interface Patient {
   id: string;
   full_name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
-  date_of_birth: string | null;
+  // dob (date-of-birth) replaces legacy `date_of_birth`. The medical
+  // flags + no-show count + do-not-contact fields are gone — they'll
+  // be reintroduced via medical_alert + marketing_consent_* when those
+  // surfaces are wired up.
+  dob: string | null;
   nhs_number: string | null;
-  no_show_count: number;
-  is_pregnant: boolean | null;
-  takes_anticoagulant: boolean | null;
-  do_not_contact: boolean;
 }
 
 type ActivityFilter = "active" | "all";
@@ -36,7 +41,21 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 export default function Patients() {
   const { loading: authLoading } = useRequireAuth();
+  const auth = useAuth();
   const navigate = useNavigate();
+  // CSV import is admin-side. Patient records carry PII / clinical weight,
+  // and bulk inserts are usually a migration task driven by the practice
+  // owner — we don't gate it server-side beyond the existing patient-table
+  // RLS, but we hide the button from non-admins to avoid accidents.
+  const callerRole = auth.member?.role;
+  const canImport = callerRole === "OWNER" || callerRole === "ADMIN";
+  const isAdmin = callerRole === "OWNER" || callerRole === "ADMIN";
+  const [importOpen, setImportOpen] = useState(false);
+  // Bulk actions are admin-only — patient data is sensitive enough that
+  // soft-deleting / flipping legal holds shouldn't be available to
+  // reception or clinicians. RLS still backs this server-side.
+  const selection = useSelection();
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -79,9 +98,15 @@ export default function Patients() {
     setError(null);
 
     try {
+      // Patient schema diverged from legacy:
+      //   date_of_birth → dob
+      //   no_show_count → gone (denormalised; reconstruct from appointments
+      //                  if needed, or use medical_alert table)
+      //   is_pregnant / takes_anticoagulant / do_not_contact → gone
+      //                  (use medical_alert + marketing_consent_* instead)
       let query = supabase
         .from("patient")
-        .select("id, full_name, phone, email, date_of_birth, nhs_number, no_show_count, is_pregnant, takes_anticoagulant, do_not_contact", { count: 'exact' })
+        .select("id, full_name, phone, email, dob, nhs_number", { count: 'exact' })
         .is("deleted_at", null);
 
       // Apply activity filter (patients with recent appointments)
@@ -169,6 +194,60 @@ export default function Patients() {
     }
   };
 
+  const bulkArchive = async () => {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    if (!confirm(
+      `Archive ${ids.length} patient${ids.length === 1 ? "" : "s"}? They'll be soft-deleted — clinical records stay for retention, but the patients won't show in the active list.`,
+    )) return;
+    setBulkBusy(true);
+    const { error } = await supabase
+      .from("patient")
+      .update({ deleted_at: new Date().toISOString() })
+      .in("id", ids);
+    setBulkBusy(false);
+    if (error) { toast.error(`Bulk archive failed: ${error.message}`); return; }
+    toast.success(`Archived ${ids.length} patient${ids.length === 1 ? "" : "s"}`, {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const { error: undoErr } = await supabase
+            .from("patient")
+            .update({ deleted_at: null })
+            .in("id", ids);
+          if (undoErr) { toast.error("Couldn't undo"); return; }
+          toast.success("Restored");
+          void loadPatients(true);
+        },
+      },
+    });
+    selection.clear();
+    void loadPatients(true);
+  };
+
+  const bulkLegalHold = async (apply: boolean) => {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    const { error } = await supabase
+      .from("patient")
+      .update({
+        legal_hold: apply,
+        legal_hold_reason: apply ? "Applied in bulk from patients list" : null,
+      })
+      .in("id", ids);
+    setBulkBusy(false);
+    if (error) { toast.error(`Bulk action failed: ${error.message}`); return; }
+    toast.success(
+      apply
+        ? `Applied legal hold to ${ids.length} patient${ids.length === 1 ? "" : "s"}`
+        : `Cleared legal hold from ${ids.length} patient${ids.length === 1 ? "" : "s"}`,
+    );
+    selection.clear();
+    void loadPatients(true);
+  };
+
   if (authLoading || loading) {
     return (
       <Layout title="Patients">
@@ -215,6 +294,17 @@ export default function Patients() {
               <SelectItem value="active">Active (6 months)</SelectItem>
             </SelectContent>
           </Select>
+
+          {canImport && (
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="w-full sm:w-auto"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload CSV
+            </Button>
+          )}
         </div>
 
         {/* Alphabet Filter */}
@@ -249,21 +339,24 @@ export default function Patients() {
 
         {/* Patient List */}
         {patients.length === 0 && !searching ? (
-          <div className="bg-card rounded-lg border p-12">
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                <Search className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">No patients found</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {searchTerm || alphabetFilter !== "all"
-                    ? "Try adjusting your search or filters"
-                    : "No patients in the system yet"}
-                </p>
-              </div>
-            </div>
-          </div>
+          searchTerm || alphabetFilter !== "all" ? (
+            <EmptyState
+              icon={Search}
+              title="No patients match"
+              body="Try a different name, email, or alphabet letter — or clear the filters."
+            />
+          ) : (
+            <EmptyState
+              icon={Users}
+              title="No patients yet"
+              body="Patients are created automatically when you book an appointment from an enquiry, or you can bulk-import an existing list from CSV."
+              action={canImport ? {
+                label: "Upload CSV",
+                onClick: () => setImportOpen(true),
+                icon: Upload,
+              } : undefined}
+            />
+          )
         ) : (
           <>
             <div className="divide-y bg-card rounded-lg border relative">
@@ -277,33 +370,58 @@ export default function Patients() {
                 </div>
               )}
 
+              {/* Admin-only "select all visible" — partial selection
+                  shows the box as unchecked so the click is deterministic
+                  ("now everything is selected"). */}
+              {isAdmin && patients.length > 0 && (
+                <div className="flex items-center gap-3 p-2 px-4 bg-muted/20 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded"
+                    aria-label="Select all visible patients"
+                    checked={patients.length > 0 && patients.every((p) => selection.isSelected(p.id))}
+                    onChange={(e) => {
+                      selection.setAll(e.target.checked ? patients.map((p) => p.id) : []);
+                    }}
+                  />
+                  <span>Select all visible</span>
+                </div>
+              )}
+
               {patients.map((patient) => {
-                const age = patient.date_of_birth
-                  ? differenceInYears(new Date(), parseISO(patient.date_of_birth))
+                const age = patient.dob
+                  ? differenceInYears(new Date(), parseISO(patient.dob))
                   : null;
 
                 return (
-                  <button
+                  <div
                     key={patient.id}
-                    onClick={() => navigate(`/patients/${patient.id}`)}
-                    className="w-full flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors text-left"
+                    className="w-full flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors"
                   >
+                    {isAdmin && (
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded shrink-0"
+                        aria-label={`Select ${patient.full_name}`}
+                        checked={selection.isSelected(patient.id)}
+                        // Stop propagation so the click doesn't trigger
+                        // the row navigate handler.
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => selection.toggle(patient.id)}
+                      />
+                    )}
+                    <button
+                      onClick={() => navigate(`/patients/${patient.id}`)}
+                      className="flex-1 min-w-0 text-left"
+                    >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <h3 className="font-medium">{patient.full_name}</h3>
-                        {patient.is_pregnant && (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 font-medium">
-                            <AlertTriangle className="h-3 w-3" />Pregnant
-                          </span>
-                        )}
-                        {patient.takes_anticoagulant && (
-                          <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-800 rounded px-1.5 py-0.5 font-medium">
-                            <Heart className="h-3 w-3" />Anticoagulant
-                          </span>
-                        )}
+                        {/* Pregnant / anticoagulant pills will return when
+                            we wire medical_alert into the patient list. */}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                        <span>{patient.phone}</span>
+                        <span>{patient.phone ?? "—"}</span>
                         {age !== null && (
                           <>
                             <span>&middot;</span>
@@ -318,14 +436,8 @@ export default function Patients() {
                         )}
                       </div>
                     </div>
-                    {patient.no_show_count >= 3 && (
-                      <div className="shrink-0">
-                        <span className="text-xs px-2 py-1 rounded-md bg-destructive/10 text-destructive font-medium">
-                          {patient.no_show_count} no-shows
-                        </span>
-                      </div>
-                    )}
-                  </button>
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -364,6 +476,33 @@ export default function Patients() {
           </>
         )}
       </div>
+
+      {canImport && (
+        <ImportPatientsSheet
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          onImported={() => {
+            // Force a refresh of the list after import.
+            setCurrentPage(0);
+            setHasMore(true);
+            void loadPatients(true);
+          }}
+        />
+      )}
+
+      {isAdmin && (
+        <BulkActionBar
+          count={selection.count}
+          noun={selection.count === 1 ? "patient" : "patients"}
+          busy={bulkBusy}
+          onClear={selection.clear}
+          actions={[
+            { key: "hold-on",  label: "Apply legal hold", icon: Lock, variant: "outline",  onClick: () => bulkLegalHold(true) },
+            { key: "hold-off", label: "Clear hold",       icon: Lock, variant: "ghost",    onClick: () => bulkLegalHold(false) },
+            { key: "archive",  label: "Archive",          icon: Trash2, variant: "destructive", onClick: bulkArchive },
+          ]}
+        />
+      )}
     </Layout>
   );
 }

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { supabaseRegistry } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,14 +16,28 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await supabaseRegistry.auth.signInWithPassword({
+        email,
+        password,
+      });
       if (error) throw error;
       // Verify operator status before redirecting — if not, sign back out
-      // immediately so they don't see a flicker of the dashboard.
-      const { data: isOperator } = await supabase.rpc("is_operator");
-      if (!isOperator) {
-        await supabase.auth.signOut();
-        toast.error("That account isn't an operator. Use the booking app instead.");
+      // immediately so they don't see a flicker of the dashboard. Operator
+      // status = an active row in tenant-registry's `admin_user` table.
+      if (!signInData.user) {
+        throw new Error("Sign in succeeded but no user was returned.");
+      }
+      const { data: adminRow } = await supabaseRegistry
+        .from("admin_user")
+        .select("id, active")
+        .eq("user_id", signInData.user.id)
+        .eq("active", true)
+        .maybeSingle();
+      if (!adminRow) {
+        await supabaseRegistry.auth.signOut();
+        toast.error(
+          "That account isn't an active operator. Contact a Dentaloptima admin if this is wrong.",
+        );
         return;
       }
       navigate("/", { replace: true });
@@ -42,7 +56,7 @@ export default function Login() {
     }
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
+      const { error } = await supabaseRegistry.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: window.location.origin },
       });

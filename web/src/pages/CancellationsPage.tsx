@@ -10,9 +10,11 @@ import { formatDistanceToNow, format, subDays } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Calendar as CalendarIcon, Loader2 } from "lucide-react";
+import { Search, Calendar as CalendarIcon, Loader2, XCircle } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
+import { PageLoading } from "@/components/PageLoading";
 
 interface CancelledRequest {
   id: string;
@@ -30,7 +32,8 @@ interface CancelledAppointment {
   id: string;
   status: string;
   starts_at: string;
-  notes: string | null;
+  cancellation_reason: string | null;
+  cancellation_notes: string | null;
   patient_id: string;
   patient: {
     full_name: string;
@@ -39,9 +42,11 @@ interface CancelledAppointment {
   staff: {
     full_name: string;
   };
-  service: {
-    name: string;
-  };
+  // Multi-service: appointment_service rows are joined in. The shape comes
+  // from the embedded select below.
+  services: Array<{
+    service: { name: string } | null;
+  }>;
 }
 
 type ViewTab = "appointments" | "requests";
@@ -215,29 +220,41 @@ export default function CancellationsPage() {
         }
       }
 
-      // Load cancelled appointments
+      // Load cancelled appointments. The new schema has no `notes` column
+      // (use `cancellation_notes` for cancellations + `treatment_summary`
+      // for completed) and services come via the appointment_service join.
       let appointmentsQuery = supabase
         .from("appointment")
         .select(`
           id,
           status,
           starts_at,
-          notes,
+          cancellation_reason,
+          cancellation_notes,
           patient_id,
           patient:patient_id (full_name, phone),
           staff:staff_id (full_name),
-          service:service_id (name)
+          services:appointment_service (
+            service:service_id (name)
+          )
         `, { count: 'exact' })
+        .is("deleted_at", null)
         .eq("status", "CANCELLED");
 
       if (dateFilter) {
         appointmentsQuery = appointmentsQuery.gte("starts_at", dateFilter);
       }
 
-      // Apply server-side search for appointments
+      // Apply server-side search for appointments. The new schema removed
+      // the direct `notes` and `service.name` columns from `appointment` —
+      // services come via `appointment_service`, which can't be ORed in a
+      // top-level filter. So we limit server-side search to fields directly
+      // on appointment + first-degree embeds.
       if (debouncedSearchTerm.trim()) {
         const searchPattern = `%${debouncedSearchTerm.trim()}%`;
-        appointmentsQuery = appointmentsQuery.or(`patient.full_name.ilike.${searchPattern},patient.phone.ilike.${searchPattern},staff.full_name.ilike.${searchPattern},service.name.ilike.${searchPattern},notes.ilike.${searchPattern}`);
+        appointmentsQuery = appointmentsQuery.or(
+          `patient.full_name.ilike.${searchPattern},patient.phone.ilike.${searchPattern},staff.full_name.ilike.${searchPattern},cancellation_notes.ilike.${searchPattern}`,
+        );
       }
 
       // Apply pagination for appointments
@@ -296,7 +313,7 @@ export default function CancellationsPage() {
   if (loading || loadingData) {
     return (
       <Layout title="Cancellations & Rejections">
-        <div>Loading...</div>
+        <PageLoading />
       </Layout>
     );
   }
@@ -340,7 +357,7 @@ export default function CancellationsPage() {
               type="text"
               placeholder={
                 activeTab === "appointments"
-                  ? "Search by patient, staff, service, or notes..."
+                  ? "Search by patient, staff, or notes..."
                   : "Search by patient, phone, or reason..."
               }
               value={searchTerm}
@@ -377,26 +394,25 @@ export default function CancellationsPage() {
 
         {/* Content */}
         {currentData.length === 0 && !searching ? (
-          <div className="bg-card rounded-lg border p-12 text-center">
-            <div className="space-y-2">
-              {searchTerm ? (
-                <>
-                  <Search className="h-8 w-8 text-muted-foreground mx-auto" />
-                  <p className="font-medium">No results found</p>
-                  <p className="text-sm text-muted-foreground">Try adjusting your search terms or filters</p>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium">
-                    No {activeTab === "appointments" ? "cancelled appointments" : "cancelled or rejected requests"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {dateRange !== "all" && "Try selecting a different date range"}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
+          searchTerm ? (
+            <EmptyState
+              icon={Search}
+              title="No results found"
+              body="Try adjusting your search terms or filters."
+            />
+          ) : (
+            <EmptyState
+              icon={XCircle}
+              title={`No ${activeTab === "appointments" ? "cancelled appointments" : "cancelled or rejected requests"}`}
+              body={
+                dateRange !== "all"
+                  ? "Nothing in this date range — try widening the window."
+                  : activeTab === "appointments"
+                    ? "Cancellations show up here when an appointment is cancelled from the calendar or patient page."
+                    : "Rejected enquiries appear here so you can keep a record of declined requests."
+              }
+            />
+          )
         ) : (
           <>
             <div className="divide-y bg-card rounded-lg border relative">
@@ -428,7 +444,10 @@ export default function CancellationsPage() {
                       </div>
                       <p className="text-sm text-muted-foreground">
                         {format(new Date(appointment.starts_at), "PPp")} • {appointment.staff?.full_name} •{" "}
-                        {appointment.service?.name}
+                        {appointment.services
+                          ?.map((s) => s.service?.name)
+                          .filter(Boolean)
+                          .join(", ") || "—"}
                       </p>
                     </div>
                     <div className="text-right shrink-0">

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import Papa from "papaparse";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -10,9 +12,30 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Mail } from "lucide-react";
-import { fetchCampaign, type OutreachCampaign } from "@/hooks/useOutreachCampaigns";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Pause,
+  Play,
+  Search,
+  Send,
+  Square,
+  RotateCw,
+} from "lucide-react";
+import { toast } from "sonner";
+import {
+  cancelCampaign,
+  fetchCampaign,
+  pauseCampaign,
+  retryFailedSends,
+  startCampaign,
+  type OutreachCampaign,
+} from "@/hooks/useOutreachCampaigns";
 import { useCampaignSends, type CampaignSend } from "@/hooks/useCampaignSends";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { cn } from "@/lib/utils";
 
 const SENDS_PAGE_SIZE = 50;
 
@@ -27,13 +50,49 @@ const SEND_STATUS_TONE: Record<string, string> = {
   SKIPPED:     "bg-slate-100 text-slate-500 border-slate-200",
 };
 
+type SendFilter = "all" | "queued" | "sent" | "opened" | "clicked" | "bounced" | "failed";
+
+const SEND_FILTERS: Array<{ key: SendFilter; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "queued", label: "Queued" },
+  { key: "sent", label: "Sent" },
+  { key: "opened", label: "Opened" },
+  { key: "clicked", label: "Clicked" },
+  { key: "bounced", label: "Bounced" },
+  { key: "failed", label: "Failed" },
+];
+
+function matchesFilter(send: CampaignSend, filter: SendFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "queued") return send.status === "QUEUED" || send.status === "SENDING";
+  if (filter === "sent") return send.status === "SENT" || send.status === "DELIVERED";
+  if (filter === "opened") return send.open_count > 0;
+  if (filter === "clicked") return send.click_count > 0;
+  if (filter === "bounced") return send.status === "BOUNCED" || send.status === "COMPLAINED";
+  if (filter === "failed") return send.status === "FAILED" || send.status === "SKIPPED";
+  return true;
+}
+
 export default function OutreachCampaignDetail() {
   const { id } = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<OutreachCampaign | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(true);
-  const { sends, loading: sendsLoading } = useCampaignSends(id ?? null);
+  const { sends, loading: sendsLoading, reload: reloadSends } = useCampaignSends(id ?? null);
   const [previewSend, setPreviewSend] = useState<CampaignSend | null>(null);
+
+  const [filter, setFilter] = useState<SendFilter>("all");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
   const [page, setPage] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmRetry, setConfirmRetry] = useState(false);
+
+  const reloadCampaign = async () => {
+    if (!id) return;
+    const c = await fetchCampaign(id);
+    setCampaign(c);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -43,19 +102,127 @@ export default function OutreachCampaignDetail() {
     });
   }, [id]);
 
-  // Slice the sends list — campaigns can have thousands of recipients, and
-  // rendering that many rows tanks first paint and scroll perf.
-  const pageCount = Math.max(1, Math.ceil(sends.length / SENDS_PAGE_SIZE));
+  // Reset to page 0 whenever filter/search changes — otherwise you might
+  // be on page 5 of "all" and switch to "failed" which has only one page.
+  useEffect(() => {
+    setPage(0);
+  }, [filter, debouncedSearch]);
+
+  // Status counts driven by the current sends array.
+  const filterCounts = useMemo(() => {
+    const acc: Record<SendFilter, number> = {
+      all: sends.length,
+      queued: 0,
+      sent: 0,
+      opened: 0,
+      clicked: 0,
+      bounced: 0,
+      failed: 0,
+    };
+    for (const s of sends) {
+      if (matchesFilter(s, "queued")) acc.queued++;
+      if (matchesFilter(s, "sent")) acc.sent++;
+      if (matchesFilter(s, "opened")) acc.opened++;
+      if (matchesFilter(s, "clicked")) acc.clicked++;
+      if (matchesFilter(s, "bounced")) acc.bounced++;
+      if (matchesFilter(s, "failed")) acc.failed++;
+    }
+    return acc;
+  }, [sends]);
+
+  const filteredSends = useMemo(() => {
+    let rows = sends.filter((s) => matchesFilter(s, filter));
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
+      rows = rows.filter((s) => {
+        const hay = [
+          s.contact?.email ?? "",
+          s.contact?.first_name ?? "",
+          s.contact?.last_name ?? "",
+          s.contact?.practice_name ?? "",
+        ].join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return rows;
+  }, [sends, filter, debouncedSearch]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredSends.length / SENDS_PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const pagedSends = useMemo(
-    () => sends.slice(safePage * SENDS_PAGE_SIZE, (safePage + 1) * SENDS_PAGE_SIZE),
-    [sends, safePage]
+    () => filteredSends.slice(safePage * SENDS_PAGE_SIZE, (safePage + 1) * SENDS_PAGE_SIZE),
+    [filteredSends, safePage],
   );
+
+  const wrap = async (fn: () => Promise<void>, success: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.success(success);
+      await reloadCampaign();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (filteredSends.length === 0) {
+      toast.error("Nothing to export");
+      return;
+    }
+    const flat = filteredSends.map((s) => ({
+      email: s.contact?.email ?? "",
+      first_name: s.contact?.first_name ?? "",
+      last_name: s.contact?.last_name ?? "",
+      practice_name: s.contact?.practice_name ?? "",
+      status: s.status,
+      sent_at: s.sent_at ?? "",
+      delivered_at: s.delivered_at ?? "",
+      first_opened_at: s.first_opened_at ?? "",
+      open_count: s.open_count,
+      first_clicked_at: s.first_clicked_at ?? "",
+      click_count: s.click_count,
+      bounced_at: s.bounced_at ?? "",
+      complained_at: s.complained_at ?? "",
+      failed_at: s.failed_at ?? "",
+      failure_reason: s.failure_reason ?? "",
+    }));
+    const csv = Papa.unparse(flat);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const slug = (campaign?.name ?? "campaign").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${slug}-${filter}-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${flat.length} send${flat.length === 1 ? "" : "s"}`);
+  };
+
+  const handleRetry = async () => {
+    if (!id) return;
+    setBusy(true);
+    try {
+      const n = await retryFailedSends(id);
+      toast.success(n > 0 ? `Re-queued ${n} send${n === 1 ? "" : "s"}` : "Nothing to retry");
+      reloadSends();
+      await reloadCampaign();
+      setConfirmRetry(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Retry failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   if (campaignLoading) {
     return (
       <Layout title="Campaign" description="">
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </Layout>
     );
   }
@@ -68,23 +235,51 @@ export default function OutreachCampaignDetail() {
     );
   }
 
+  const failedCount = campaign.failed_count + campaign.skipped_count;
+
   return (
     <Layout
       title={campaign.name}
       description={`From ${campaign.from_address} · ${campaign.template?.name ?? "(no template)"} · ${campaign.status.toLowerCase()}`}
       actions={
-        <Link to="/outreach/campaigns">
-          <Button variant="outline" size="sm">
-            <ChevronLeft className="h-4 w-4 mr-1.5" />
-            Back
-          </Button>
-        </Link>
+        <>
+          {/* Status-aware controls — operators can pause/resume/cancel
+              without going back to the list. */}
+          {campaign.status === "DRAFT" && campaign.total_count > 0 && (
+            <Button size="sm" onClick={() => wrap(() => startCampaign(campaign.id), "Started")} disabled={busy}>
+              <Send className="h-3.5 w-3.5 mr-1.5" />Start sending
+            </Button>
+          )}
+          {campaign.status === "SENDING" && (
+            <Button size="sm" variant="outline" onClick={() => wrap(() => pauseCampaign(campaign.id), "Paused")} disabled={busy}>
+              <Pause className="h-3.5 w-3.5 mr-1.5" />Pause
+            </Button>
+          )}
+          {campaign.status === "PAUSED" && (
+            <Button size="sm" onClick={() => wrap(() => startCampaign(campaign.id), "Resumed")} disabled={busy}>
+              <Play className="h-3.5 w-3.5 mr-1.5" />Resume
+            </Button>
+          )}
+          {(campaign.status === "SENDING" || campaign.status === "PAUSED") && (
+            <Button size="sm" variant="ghost" onClick={() => setConfirmCancel(true)} disabled={busy}>
+              <Square className="h-3.5 w-3.5 mr-1.5" />Cancel
+            </Button>
+          )}
+          {failedCount > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setConfirmRetry(true)} disabled={busy}>
+              <RotateCw className="h-3.5 w-3.5 mr-1.5" />Retry {failedCount} failed
+            </Button>
+          )}
+          <Link to="/outreach/campaigns">
+            <Button variant="ghost" size="sm">
+              <ChevronLeft className="h-4 w-4 mr-1.5" />Back
+            </Button>
+          </Link>
+        </>
       }
     >
-      {/* Stat tiles with rate percentages. Rates are computed against the
-          most meaningful denominator for each: delivery vs sent, opens vs
-          delivered (opens without delivery don't happen), etc. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-4">
+      {/* Stat tiles. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-2">
         <StatTile label="Total" value={campaign.total_count} />
         <StatTile label="Sent" value={campaign.sent_count} rate={pct(campaign.sent_count, campaign.total_count)} />
         <StatTile label="Delivered" value={campaign.delivered_count} tone="emerald" rate={pct(campaign.delivered_count, campaign.sent_count)} />
@@ -93,81 +288,219 @@ export default function OutreachCampaignDetail() {
         <StatTile label="Bounced" value={campaign.bounced_count} tone="amber" rate={pct(campaign.bounced_count, campaign.sent_count)} />
         <StatTile
           label="Failed"
-          value={campaign.failed_count + campaign.complained_count + campaign.skipped_count}
+          value={failedCount + campaign.complained_count}
           tone="red"
-          rate={pct(campaign.failed_count + campaign.complained_count + campaign.skipped_count, campaign.total_count)}
+          rate={pct(failedCount + campaign.complained_count, campaign.total_count)}
         />
       </div>
 
-      {sendsLoading ? (
-        <p className="text-sm text-muted-foreground">Loading recipients...</p>
-      ) : sends.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No recipients on this campaign.</p>
-      ) : (
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="text-left px-4 py-2.5 font-medium">Recipient</th>
-                <th className="text-left px-4 py-2.5 font-medium">Status</th>
-                <th className="text-left px-4 py-2.5 font-medium">Sent</th>
-                <th className="text-left px-4 py-2.5 font-medium">Opens</th>
-                <th className="text-left px-4 py-2.5 font-medium">Clicks</th>
-                <th className="text-left px-4 py-2.5 font-medium">Detail</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pagedSends.map((s) => (
-                <SendRow key={s.id} send={s} onPreview={() => setPreviewSend(s)} />
-              ))}
-            </tbody>
-          </table>
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between px-4 py-2.5 border-t bg-muted/20 text-xs">
-              <span className="text-muted-foreground">
-                {safePage * SENDS_PAGE_SIZE + 1}–{Math.min((safePage + 1) * SENDS_PAGE_SIZE, sends.length)} of {sends.length}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={safePage === 0}
-                  aria-label="Previous page"
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        {/* Sends table */}
+        <div className="lg:col-span-3 space-y-3">
+          {/* Sends toolbar — search + export */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search recipient name, email, practice…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExport}
+              disabled={filteredSends.length === 0}
+            >
+              <Download className="h-4 w-4 mr-1.5" />
+              Export {filter === "all" ? "all" : filter} ({filteredSends.length})
+            </Button>
+          </div>
+
+          {/* Sends filter pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {SEND_FILTERS.map((f) => {
+              const isActive = filter === f.key;
+              const n = filterCounts[f.key];
+              return (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[32px]",
+                    isActive
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-card hover:bg-muted/60 text-muted-foreground",
+                  )}
                 >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <span className="px-2 text-muted-foreground">
-                  Page {safePage + 1} of {pageCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7"
-                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                  disabled={safePage >= pageCount - 1}
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
+                  {f.label}
+                  <span
+                    className={cn(
+                      "text-[10px] rounded px-1 tabular-nums",
+                      isActive ? "bg-background/20 text-background" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {sendsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading recipients…</p>
+          ) : sends.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No recipients on this campaign.</p>
+          ) : filteredSends.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No sends match the current filter / search.
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[720px]">
+                  <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-medium">Recipient</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Status</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Sent</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Opens</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Clicks</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedSends.map((s) => (
+                      <SendRow key={s.id} send={s} onPreview={() => setPreviewSend(s)} />
+                    ))}
+                  </tbody>
+                </table>
               </div>
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-t bg-muted/20 text-xs">
+                  <span className="text-muted-foreground">
+                    {safePage * SENDS_PAGE_SIZE + 1}–{Math.min((safePage + 1) * SENDS_PAGE_SIZE, filteredSends.length)} of {filteredSends.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                      disabled={safePage === 0}
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <span className="px-2 text-muted-foreground">
+                      Page {safePage + 1} of {pageCount}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                      disabled={safePage >= pageCount - 1}
+                      aria-label="Next page"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+
+        {/* Metadata sidebar */}
+        <div className="lg:col-span-1">
+          <CampaignMetadata campaign={campaign} />
+        </div>
+      </div>
 
       {previewSend && (
         <PreviewSheet send={previewSend} onClose={() => setPreviewSend(null)} />
       )}
+
+      <ConfirmDialog
+        open={confirmCancel}
+        onOpenChange={setConfirmCancel}
+        title={`Cancel "${campaign.name}"?`}
+        description="Already-sent emails stay sent. Queued ones won't go out."
+        confirmLabel="Cancel campaign"
+        cancelLabel="Keep sending"
+        variant="destructive"
+        onConfirm={() => wrap(async () => {
+          await cancelCampaign(campaign.id);
+          setConfirmCancel(false);
+        }, "Campaign cancelled")}
+      />
+      <ConfirmDialog
+        open={confirmRetry}
+        onOpenChange={setConfirmRetry}
+        title={`Retry ${failedCount} failed send${failedCount === 1 ? "" : "s"}?`}
+        description="Resets failed/skipped sends to QUEUED. The cron worker will pick them up on its next pass. Already-delivered sends are not affected."
+        confirmLabel={`Re-queue ${failedCount}`}
+        onConfirm={handleRetry}
+      />
     </Layout>
+  );
+}
+
+// Read-only metadata sidebar — surfaces all the campaign config that
+// otherwise lives in the description line, plus full timestamps.
+function CampaignMetadata({ campaign }: { campaign: OutreachCampaign }) {
+  const elapsed = campaign.started_at && !campaign.completed_at ? "in progress" : null;
+  const totalSent = campaign.sent_count;
+  const eta =
+    campaign.status === "SENDING" && campaign.total_count > totalSent
+      ? Math.ceil(((campaign.total_count - totalSent) * campaign.send_interval_seconds) / 60)
+      : null;
+
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-3 text-xs lg:sticky lg:top-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        Campaign info
+      </h3>
+      <div className="space-y-1.5">
+        <Field label="Status" value={campaign.status.toLowerCase()} />
+        <Field label="Template" value={campaign.template?.name ?? "(none)"} />
+        <Field label="From" value={campaign.from_address} mono />
+        {campaign.reply_to_address && <Field label="Reply-to" value={campaign.reply_to_address} mono />}
+        <Field label="Send pace" value={`1 every ${campaign.send_interval_seconds}s`} />
+        <Field label="Recipients" value={campaign.total_count.toLocaleString("en-GB")} />
+      </div>
+
+      <div className="border-t pt-3 space-y-1.5">
+        <Field label="Created" value={format(new Date(campaign.created_at), "d MMM yyyy HH:mm")} />
+        {campaign.started_at && (
+          <Field label="Started" value={format(new Date(campaign.started_at), "d MMM yyyy HH:mm")} />
+        )}
+        {campaign.completed_at && (
+          <Field label="Completed" value={format(new Date(campaign.completed_at), "d MMM yyyy HH:mm")} />
+        )}
+        {elapsed && eta !== null && (
+          <Field label="ETA" value={`~${eta} min remaining`} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className={cn("text-right break-all", mono && "font-mono text-[11px]")}>{value}</span>
+    </div>
   );
 }
 
 function pct(part: number, whole: number): string | null {
   if (!whole) return null;
   const n = (part / whole) * 100;
-  // One decimal below 10%, whole number above — keeps things compact.
   return n < 10 ? `${n.toFixed(1)}%` : `${Math.round(n)}%`;
 }
 
@@ -192,7 +525,7 @@ function StatTile({
     <div className="rounded-md border bg-card px-3 py-2">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
       <div className="flex items-baseline gap-2">
-        <p className={`text-lg font-semibold ${toneClass}`}>{value}</p>
+        <p className={cn("text-lg font-semibold", toneClass)}>{value}</p>
         {rate && <p className="text-xs text-muted-foreground">{rate}</p>}
       </div>
     </div>
@@ -201,14 +534,12 @@ function StatTile({
 
 function SendRow({ send, onPreview }: { send: CampaignSend; onPreview: () => void }) {
   const fullName = [send.contact?.first_name, send.contact?.last_name].filter(Boolean).join(" ");
-  // Contact may have been archived after the campaign sent to them, or
-  // hard-deleted entirely (shouldn't happen — we soft-delete — but defensive).
   const isArchived = !!send.contact?.archived_at;
   const contactMissing = !send.contact;
   return (
     <tr className="border-t hover:bg-accent/30 transition-colors">
       <td className="px-4 py-2.5">
-        <div className={`text-sm ${isArchived || contactMissing ? "text-muted-foreground" : ""}`}>
+        <div className={cn("text-sm", (isArchived || contactMissing) && "text-muted-foreground")}>
           {contactMissing ? (
             <span className="italic">(contact deleted)</span>
           ) : (
@@ -230,7 +561,7 @@ function SendRow({ send, onPreview }: { send: CampaignSend; onPreview: () => voi
         </div>
       </td>
       <td className="px-4 py-2.5">
-        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${SEND_STATUS_TONE[send.status]}`}>
+        <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border", SEND_STATUS_TONE[send.status])}>
           {send.status.toLowerCase()}
         </span>
         {send.failure_reason && (
@@ -295,7 +626,6 @@ function PreviewSheet({ send, onClose }: { send: CampaignSend; onClose: () => vo
             </p>
           </div>
 
-          {/* Tracking detail block */}
           <div className="mt-4 rounded-md bg-muted/40 p-3 text-xs space-y-1">
             <p><span className="text-muted-foreground">Status:</span> {send.status}</p>
             {send.delivered_at && <p><span className="text-muted-foreground">Delivered:</span> {format(new Date(send.delivered_at), "d MMM yyyy HH:mm")}</p>}

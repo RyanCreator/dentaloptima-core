@@ -5,13 +5,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// dentaloptima-core's `note` is polymorphic via `parent_type` (enum) +
+// `parent_id`. Author lives on `author_id` (filled by the audit trigger).
+// Callers pass `entityType` matching one of the note_parent_type enum
+// values: PATIENT, APPOINTMENT, BOOKING_REQUEST, TREATMENT_PLAN,
+// MEDICAL_HISTORY_ENTRY, CONSENT_RECORD, REFERRAL, INCIDENT_REPORT, COMPLAINT.
 interface Note {
   id: string;
   body: string;
   created_at: string;
-  staff: {
-    full_name: string;
-  };
+  author?: {
+    full_name: string | null;
+  } | null;
 }
 
 interface NotesSectionProps {
@@ -26,7 +31,6 @@ export function NotesSection({
   notes,
   entityType,
   entityId,
-  userId,
   onNotesUpdated,
 }: NotesSectionProps) {
   const [newNote, setNewNote] = useState("");
@@ -34,19 +38,11 @@ export function NotesSection({
   const addNote = async () => {
     if (!newNote.trim()) return;
 
-    const { data: staffData } = await supabase
-      .from("app_staff")
-      .select("id")
-      .eq("user_id", userId)
-      .single();
-
-    if (!staffData) return;
-
     const { error } = await supabase.from("note").insert({
-      entity_type: entityType,
-      entity_id: entityId,
-      staff_id: staffData.id,
-      body: newNote,
+      parent_type: entityType,
+      parent_id: entityId,
+      body: newNote.trim(),
+      note_type: "ADMIN",
     });
 
     if (error) {
@@ -76,10 +72,10 @@ export function NotesSection({
         {notes.map((note) => (
           <div key={note.id} className="bg-muted rounded-lg p-3 space-y-2">
             <div className="flex items-start justify-between gap-2">
-              <p className="text-sm flex-1">{note.body}</p>
+              <p className="text-sm flex-1 whitespace-pre-wrap">{note.body}</p>
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{note.staff.full_name}</span>
+              <span>{note.author?.full_name ?? "—"}</span>
               <span>{format(new Date(note.created_at), "PPp")}</span>
             </div>
           </div>

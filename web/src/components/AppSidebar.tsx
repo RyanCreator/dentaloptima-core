@@ -7,7 +7,9 @@ import {
   ListChecks,
   XCircle,
   RotateCcw,
+  Receipt,
   UserCog,
+  ShieldCheck,
   Settings,
   LogOut,
   X,
@@ -32,6 +34,8 @@ import { useTheme } from "next-themes";
 import logoLight from "@/assets/logo-light.webp";
 import logoDark from "@/assets/logo-dark.webp";
 import { useNewEnquiriesCount } from "@/hooks/useNewEnquiriesCount";
+import { useNhsPendingRequestCount } from "@/hooks/useNhsPerformerRequests";
+import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -41,7 +45,9 @@ const menuItems = [
   { title: "Waiting List", url: "/waiting-list", icon: ListChecks },
   { title: "Recalls", url: "/recalls", icon: RotateCcw },
   { title: "Cancellations", url: "/cancellations", icon: XCircle },
+  { title: "NHS Claims", url: "/claims", icon: Receipt },
   { title: "Staff", url: "/staff", icon: UserCog },
+  { title: "Governance", url: "/governance", icon: ShieldCheck },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -51,6 +57,14 @@ export const AppSidebar = () => {
   const { resolvedTheme } = useTheme();
   const location = useLocation();
   const { count: newEnquiriesCount } = useNewEnquiriesCount();
+  const auth = useAuth();
+  // Pending NHS performer requests — only meaningful for OWNER/ADMIN
+  // (clinicians have no queue to manage). RLS would scope it for them too,
+  // but skipping the query saves a round-trip on every sidebar render.
+  const callerRole = auth.member?.role;
+  const isAdmin = callerRole === "OWNER" || callerRole === "ADMIN";
+  const { count: nhsRequestCount } = useNhsPendingRequestCount();
+  const showNhsBadge = isAdmin && nhsRequestCount > 0;
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -98,7 +112,10 @@ export const AppSidebar = () => {
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const showBadge = item.title === "Enquiries" && newEnquiriesCount > 0;
+                const enquiriesBadge = item.title === "Enquiries" && newEnquiriesCount > 0;
+                const staffBadge = item.title === "Staff" && showNhsBadge;
+                const showBadge = enquiriesBadge || staffBadge;
+                const badgeCount = enquiriesBadge ? newEnquiriesCount : staffBadge ? nhsRequestCount : 0;
 
                 return (
                   <SidebarMenuItem key={item.title}>
@@ -115,16 +132,28 @@ export const AppSidebar = () => {
                           <span className="text-base truncate text-inherit flex items-center gap-2">
                             {item.title}
                             {showBadge && (
-                              <span className="inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-xs font-semibold text-white bg-green-500 rounded-full">
-                                {newEnquiriesCount}
+                              <span
+                                className={`inline-flex items-center justify-center h-5 min-w-[20px] px-1.5 text-xs font-semibold text-white rounded-full ${
+                                  enquiriesBadge ? "bg-green-500" : "bg-amber-500"
+                                }`}
+                              >
+                                {badgeCount}
                               </span>
                             )}
                           </span>
                         )}
                         {shouldShowIconOnly && showBadge && (
                           <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            <span
+                              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                enquiriesBadge ? "bg-green-400" : "bg-amber-400"
+                              }`}
+                            ></span>
+                            <span
+                              className={`relative inline-flex rounded-full h-3 w-3 ${
+                                enquiriesBadge ? "bg-green-500" : "bg-amber-500"
+                              }`}
+                            ></span>
                           </span>
                         )}
                       </NavLink>

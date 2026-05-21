@@ -68,7 +68,6 @@ export function InviteMemberSheet({ open, onOpenChange, practiceId, practiceName
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Dr Jane Smith"
               disabled={invite.isPending}
             />
           </div>

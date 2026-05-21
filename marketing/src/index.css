@@ -1,0 +1,61 @@
+@import "@fontsource-variable/inter/index.css";
+@import "@fontsource-variable/fraunces/index.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Colour tokens — each practice can override these via their config's
+       branding block. Values are space-separated RGB triplets so Tailwind's
+       `rgb(var(--brand) / <alpha-value>)` works correctly. */
+    --brand: 15 118 110;       /* #0F766E */
+    --brand-fg: 255 255 255;
+    --brand-soft: 204 251 241; /* #CCFBF1 */
+
+    --accent: 20 184 166;      /* #14B8A6 */
+    --accent-fg: 255 255 255;
+
+    --surface: 255 255 255;
+    --ink: 17 24 39;           /* gray-900 */
+    --ink-muted: 107 114 128;  /* gray-500 */
+
+    --radius: 0.75rem;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-surface text-ink font-sans;
+  }
+}
+
+@layer components {
+  .section-padding {
+    @apply py-16 md:py-20 lg:py-24;
+  }
+
+  .link-underline {
+    position: relative;
+  }
+  .link-underline::after {
+    content: "";
+    position: absolute;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.25rem;
+    height: 2px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.25s ease;
+  }
+  .link-underline:hover::after {
+    transform: scaleX(1);
+  }
+}

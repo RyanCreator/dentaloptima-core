@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { PageLoading } from "@/components/PageLoading";
 import { Home, ArrowLeft, Search } from "lucide-react";
 
 export default function NotFound() {
@@ -10,8 +11,8 @@ export default function NotFound() {
 
   if (loading) {
     return (
-      <Layout title="Loading...">
-        <div>Loading...</div>
+      <Layout title="Page Not Found">
+        <PageLoading />
       </Layout>
     );
   }

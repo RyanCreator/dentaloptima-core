@@ -38,6 +38,62 @@ export function useOutreachTemplates(opts: { showArchived?: boolean } = {}) {
   return { templates, loading, reload };
 }
 
+// Fetch a single template by id. Used by the editor route at
+// /outreach/templates/:id — list-view doesn't have all the data we need
+// for editing (it doesn't matter today, but we'd rather decouple the two).
+export function useTemplate(id: string | undefined) {
+  const [template, setTemplate] = useState<OutreachTemplate | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) {
+      setTemplate(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      const { data } = await supabase
+        .from("outreach_template")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (!cancelled) {
+        setTemplate((data as OutreachTemplate) ?? null);
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  return { template, loading };
+}
+
+// Stats for the header counts strip: total active + archived.
+export function useTemplateCounts() {
+  const [counts, setCounts] = useState({ active: 0, archived: 0 });
+  const reload = useCallback(async () => {
+    const [activeQ, archivedQ] = await Promise.all([
+      supabase
+        .from("outreach_template")
+        .select("id", { count: "exact", head: true })
+        .is("archived_at", null),
+      supabase
+        .from("outreach_template")
+        .select("id", { count: "exact", head: true })
+        .not("archived_at", "is", null),
+    ]);
+    setCounts({ active: activeQ.count ?? 0, archived: archivedQ.count ?? 0 });
+  }, []);
+  useEffect(() => {
+    reload();
+  }, [reload]);
+  return { counts, reload };
+}
+
 export interface TemplateInput {
   name: string;
   subject: string;

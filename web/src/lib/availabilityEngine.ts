@@ -178,6 +178,9 @@ export const getEffectiveWorkingHours = (
       return null;
     }
 
+    // The fetcher normalises the dentaloptima-core open_time/close_time
+    // columns onto the legacy start_time/end_time names declared on the
+    // PracticeHours type, so the engine reads them via the unified field.
     const [practiceStartHour, practiceStartMin] = practiceHour.start_time.split(":").map(Number);
     const [practiceEndHour, practiceEndMin] = practiceHour.end_time.split(":").map(Number);
 
@@ -682,16 +685,16 @@ export const findSlotsWithFilters = async (
 
   // Load services
   const { data: services } = await supabase
-    .from("services")
+    .from("service")
     .select("*")
     .in("id", serviceIds)
-    .eq("active", true);
+    .eq("is_active", true);
 
   if (!services || services.length === 0) return [];
 
   // Get staff to check (all available for booking if not specified)
   const staffQuery = supabase
-    .from("app_staff")
+    .from("practice_member")
     .select("id, full_name")
     .eq("available_for_booking", true)
     .is("deleted_at", null)
@@ -724,30 +727,38 @@ export const findSlotsWithFilters = async (
       .select("*")
       .in("staff_id", staffIdsToCheck)
       .order("weekday"),
-    supabase.from("staff_breaks").select("*").in("staff_id", staffIdsToCheck),
+    supabase.from("staff_break").select("*").in("staff_id", staffIdsToCheck),
+    // staff_time_off uses date-only starts_on/ends_on (not timestamp) — the
+    // dentaloptima-core schema renamed these from the legacy starts_at/ends_at.
     supabase
       .from("staff_time_off")
-      .select("starts_at, ends_at, staff_id")
+      .select("starts_on, ends_on, staff_id")
       .in("staff_id", staffIdsToCheck)
-      .lte("starts_at", endDate.toISOString())
-      .gte("ends_at", now.toISOString()),
+      .lte("starts_on", endDate.toISOString().slice(0, 10))
+      .gte("ends_on", now.toISOString().slice(0, 10)),
+    // appointment no longer has service_id — services moved to the
+    // appointment_service join table when the schema went many-to-many.
+    // The engine only uses starts_at/ends_at for collision detection.
     supabase
       .from("appointment")
-      .select("starts_at, ends_at, staff_id, service_id")
+      .select("starts_at, ends_at, staff_id")
       .in("staff_id", staffIdsToCheck)
-      .eq("status", "SCHEDULED")
+      .in("status", ["SCHEDULED", "CONFIRMED", "ARRIVED", "IN_PROGRESS"])
+      .is("deleted_at", null)
       .gte("starts_at", now.toISOString())
       .lte("starts_at", endDate.toISOString())
       .order("starts_at"),
     supabase
       .from("practice_hours")
-      .select("weekday, start_time, end_time")
+      .select("weekday, open_time, close_time")
+      .is("effective_to", null)
       .order("weekday"),
+    // practice_closure also uses date-only starts_on/ends_on.
     supabase
-      .from("practice_closures")
-      .select("starts_at, ends_at, reason")
-      .gte("ends_at", now.toISOString())
-      .lte("starts_at", endDate.toISOString()),
+      .from("practice_closure")
+      .select("starts_on, ends_on, reason")
+      .gte("ends_on", now.toISOString().slice(0, 10))
+      .lte("starts_on", endDate.toISOString().slice(0, 10)),
     supabase
       .from("blocked_time")
       .select("starts_at, ends_at, staff_id")
@@ -755,6 +766,47 @@ export const findSlotsWithFilters = async (
       .gte("ends_at", now.toISOString())
       .lte("starts_at", endDate.toISOString()),
   ]);
+
+  // The engine downstream still speaks the legacy column shape: weekday as
+  // ISO int (1-7, not 'MON'/'TUE'/...), starts_at/ends_at on time-off and
+  // closures (not date-only). Translate once here so the engine doesn't
+  // need to know about the schema rename. Mirrors availabilityDataFetcher.
+  const WEEKDAY_TO_INT: Record<string, number> = {
+    MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7,
+  };
+  const weekdayInt = (w: unknown): number =>
+    typeof w === "number" ? w : typeof w === "string" ? (WEEKDAY_TO_INT[w] ?? 0) : 0;
+  const dateStartIso = (d: string) => `${d}T00:00:00`;
+  const dateEndIso = (d: string) => `${d}T23:59:59`;
+
+  // Mutate the result rows in place so the existing grouping below stays
+  // unchanged — staff_id is preserved, only the timestamp/weekday fields
+  // are reshaped to the engine's expected names.
+  schedulesRes.data = (schedulesRes.data ?? []).map((r: any) => ({
+    ...r,
+    weekday: weekdayInt(r.weekday),
+  }));
+  breaksRes.data = (breaksRes.data ?? []).map((r: any) => ({
+    ...r,
+    weekday: weekdayInt(r.weekday),
+  }));
+  timeOffRes.data = (timeOffRes.data ?? []).map((r: any) => ({
+    staff_id: r.staff_id,
+    starts_at: dateStartIso(r.starts_on),
+    ends_at: dateEndIso(r.ends_on),
+  }));
+  practiceHoursRes.data = (practiceHoursRes.data ?? [])
+    .filter((r: any) => r.open_time && r.close_time)
+    .map((r: any) => ({
+      weekday: weekdayInt(r.weekday),
+      start_time: r.open_time,
+      end_time: r.close_time,
+    }));
+  practiceClosuresRes.data = (practiceClosuresRes.data ?? []).map((r: any) => ({
+    starts_at: dateStartIso(r.starts_on),
+    ends_at: dateEndIso(r.ends_on),
+    reason: r.reason ?? null,
+  }));
 
   // Group data by staff_id
   const schedulesByStaff: Record<string, any[]> = {};

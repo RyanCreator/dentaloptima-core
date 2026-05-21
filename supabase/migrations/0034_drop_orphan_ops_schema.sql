@@ -1,0 +1,34 @@
+-- ============================================================================
+-- 0034_drop_orphan_ops_schema.sql
+--
+-- Removes the `ops` schema from dentaloptima-core. The tables it contained
+-- (announcements, support, email, outreach, leads, payments, audit) duplicate
+-- what already lives in tenant-registry (project ref hbsuhalvececxvusrqlh)
+-- and were created here by mistake while we were still working out the
+-- two-DB architecture.
+--
+-- Architectural recap:
+--   * tenant-registry → operator/internal data (admin auth, support, email,
+--     outreach, leads, payments, audit, announcements). Single source of
+--     truth for everything WE care about as operators.
+--   * dentaloptima-core (this DB) → tenant/client data (practice,
+--     practice_member, patient, appointment, NHS, CQC, treatment plans,
+--     etc.). RLS-isolated by practice_id.
+--
+-- The two databases never share auth or query paths. Operators reach
+-- dentaloptima-core only via edge functions that verify their tenant-registry
+-- JWT and use service-role to perform tenant-CRUD on operator's behalf —
+-- so a leaked operator password is useless against client data.
+--
+-- DROP SCHEMA ... CASCADE removes all 19 tables, all enums, all triggers,
+-- all functions defined inside ops. Nothing outside ops references it
+-- (verified via pg_depend before applying), so no FKs / RPCs / RLS policies
+-- in public are broken.
+--
+-- The improvements that had been built in core/ops (soft-delete, claimed_by
+-- columns, relaxed NOT NULLs) were forward-ported to tenant-registry first
+-- via supabase/tenant-registry-migrations/0001_align_with_dentaloptima_core_ops.sql
+-- — so we don''t lose anything by dropping here.
+-- ============================================================================
+
+DROP SCHEMA IF EXISTS ops CASCADE;

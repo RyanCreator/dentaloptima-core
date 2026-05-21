@@ -8,7 +8,11 @@ project_id = "dentaloptima-core"
 [api]
 enabled = true
 port = 54321
-schemas = ["public", "graphql_public"]
+# `ops` is the operator-only platform schema (outreach, leads, support, payments).
+# It must be exposed here AND in the hosted project's Dashboard → Settings → API
+# → Exposed schemas list. PostgREST returns 401 for any non-exposed schema even
+# when grants + RLS are correct.
+schemas = ["public", "graphql_public", "ops"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000
 

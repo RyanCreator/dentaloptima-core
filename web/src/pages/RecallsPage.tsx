@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNavigate } from "react-router-dom";
 import { RotateCcw, Search, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { useSelection } from "@/hooks/useSelection";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import { EmptyState } from "@/components/EmptyState";
 
 interface RecallRow {
   id: string;
@@ -34,6 +37,8 @@ export default function RecallsPage() {
   const [loadingRecalls, setLoadingRecalls] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
+  const selection = useSelection();
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     if (!loading) loadRecalls();
@@ -80,6 +85,63 @@ export default function RecallsPage() {
       toast.success("Recall cancelled");
       loadRecalls();
     }
+  };
+
+  // Bulk handlers — apply the same transition to every selected row in one
+  // round-trip. RLS scopes the .in() to the caller's practice; the UI
+  // restricts selection to ACTIVE rows, so the undo can safely flip every
+  // affected row back to ACTIVE.
+  const undoBulkToActive = async (ids: string[], label: string) => {
+    if (ids.length === 0) return;
+    const { error } = await supabase
+      .from("recall")
+      .update({ status: "ACTIVE", completed_at: null })
+      .in("id", ids);
+    if (error) { toast.error("Couldn't undo"); return; }
+    toast.success(`Restored ${ids.length} ${label}`);
+    loadRecalls();
+  };
+
+  const bulkMarkComplete = async () => {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    const { error } = await supabase
+      .from("recall")
+      .update({ status: "COMPLETED", completed_at: new Date().toISOString() })
+      .in("id", ids);
+    setBulkBusy(false);
+    if (error) { toast.error("Bulk action failed"); return; }
+    toast.success(`Marked ${ids.length} recall${ids.length === 1 ? "" : "s"} as complete`, {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: () => undoBulkToActive(ids, ids.length === 1 ? "recall" : "recalls"),
+      },
+    });
+    selection.clear();
+    loadRecalls();
+  };
+
+  const bulkCancel = async () => {
+    const ids = Array.from(selection.selected);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    const { error } = await supabase
+      .from("recall")
+      .update({ status: "CANCELLED" })
+      .in("id", ids);
+    setBulkBusy(false);
+    if (error) { toast.error("Bulk action failed"); return; }
+    toast.success(`Cancelled ${ids.length} recall${ids.length === 1 ? "" : "s"}`, {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: () => undoBulkToActive(ids, ids.length === 1 ? "recall" : "recalls"),
+      },
+    });
+    selection.clear();
+    loadRecalls();
   };
 
   const today = startOfDay(new Date());
@@ -152,21 +214,62 @@ export default function RecallsPage() {
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-            <RotateCcw className="h-8 w-8 mx-auto mb-3 opacity-40" />
-            <p className="font-medium text-foreground">No recalls found</p>
-            <p className="text-sm mt-1">
-              {statusFilter === "OVERDUE" ? "No overdue recalls — great!" : "Recalls are auto-created when appointments with recall-enabled services are completed."}
-            </p>
-          </div>
+          <EmptyState
+            icon={RotateCcw}
+            title="No recalls found"
+            body={
+              statusFilter === "OVERDUE"
+                ? "No overdue recalls — great!"
+                : "Recalls are auto-created when appointments with recall-enabled services are completed."
+            }
+          />
         ) : (
           <div className="bg-card rounded-lg border divide-y">
+            {/* Select-all-active row — checkboxes only appear when there's
+                at least one active recall in the current filter. Inactive
+                rows aren't bulk-actionable so they're not selectable. */}
+            {filtered.some((r) => r.status === "ACTIVE") && (
+              <div className="flex items-center gap-3 p-2 px-4 bg-muted/20 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded"
+                  aria-label="Select all active recalls"
+                  checked={
+                    filtered
+                      .filter((r) => r.status === "ACTIVE")
+                      .every((r) => selection.isSelected(r.id)) &&
+                    filtered.some((r) => r.status === "ACTIVE")
+                  }
+                  onChange={(e) => {
+                    const activeIds = filtered
+                      .filter((r) => r.status === "ACTIVE")
+                      .map((r) => r.id);
+                    selection.setAll(e.target.checked ? activeIds : []);
+                  }}
+                />
+                <span>Select all active</span>
+              </div>
+            )}
             {filtered.map((recall) => {
               const isOverdue = recall.status === "ACTIVE" && isBefore(parseISO(recall.due_date), today);
               const dueDate = parseISO(recall.due_date);
+              const canSelect = recall.status === "ACTIVE";
 
               return (
                 <div key={recall.id} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
+                  {canSelect ? (
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded shrink-0"
+                      aria-label={`Select recall for ${recall.patient?.full_name ?? "patient"}`}
+                      checked={selection.isSelected(recall.id)}
+                      onChange={() => selection.toggle(recall.id)}
+                    />
+                  ) : (
+                    // Reserve the column width so non-active rows align
+                    // with the active ones above/below.
+                    <span className="h-4 w-4 shrink-0" />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <button
@@ -219,6 +322,17 @@ export default function RecallsPage() {
           </div>
         )}
       </div>
+
+      <BulkActionBar
+        count={selection.count}
+        noun={selection.count === 1 ? "recall" : "recalls"}
+        busy={bulkBusy}
+        onClear={selection.clear}
+        actions={[
+          { key: "complete", label: "Mark complete", icon: Check, variant: "default", onClick: bulkMarkComplete },
+          { key: "cancel",   label: "Cancel",                                          onClick: bulkCancel },
+        ]}
+      />
     </Layout>
   );
 }

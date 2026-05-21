@@ -1,46 +1,27 @@
 // invite-member
 //
-// Adds a new member to an existing practice. Caller must be either:
-//   * An operator (is_operator() === true), OR
-//   * An OWNER or ADMIN of the target practice
+// Invites a new practice member into a target practice. Sends an invite
+// email via Supabase Auth admin and creates the practice_member row.
 //
-// Auth: standard JWT in Authorization header. Edge function reads the user's
-// session and verifies their role server-side via the same RLS helpers used
-// by the rest of the schema.
+// Auth (dual-mode): the function accepts EITHER
+//   1. A practice OWNER/ADMIN JWT (booking app's self-service invite flow).
+//      Verified against dentaloptima-core auth via verifyPracticeAdmin —
+//      RLS scopes them to their own practice, so they can only invite
+//      into the practice they're already a member of. ADMINs additionally
+//      can't grant the OWNER role; only OWNERs can hand out OWNER.
+//   2. An operator JWT (admin dashboard). Verified against tenant-registry
+//      via verifyOperator — operators can invite any role into any practice.
 //
-// POST body:
-//   { practice_id, email, role, full_name, redirect_to? }
+// We try (1) first because the booking-app caller is the more frequent path.
+// If the JWT isn't a practice admin (or the body's practice_id doesn't match
+// their practice), we fall through to the operator check before rejecting.
 //
-// On success: creates auth user via inviteUserByEmail (sends invite email)
-// + creates practice_member row with the given role. Rolls back on failure.
+// POST body: { practice_id, email, role, full_name, redirect_to? }
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-
-const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "*")
-  .split(",")
-  .map((s) => s.trim());
-
-function corsHeaders(req: Request): HeadersInit {
-  const origin = req.headers.get("origin") ?? "";
-  const allow =
-    ALLOWED_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes(origin)
-      ? origin || "*"
-      : ALLOWED_ORIGINS[0] ?? "*";
-  return {
-    "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Max-Age": "86400",
-    Vary: "Origin",
-  };
-}
-
-function jsonResponse(req: Request, body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders(req), "content-type": "application/json" },
-  });
-}
+import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { verifyOperator } from "../_shared/verify-operator.ts";
+import { verifyPracticeAdmin } from "../_shared/verify-practice-admin.ts";
 
 const VALID_ROLES = ["OWNER", "ADMIN", "DENTIST", "HYGIENIST", "NURSE", "RECEPTIONIST"] as const;
 type Role = typeof VALID_ROLES[number];
@@ -64,29 +45,9 @@ Deno.serve(async (req) => {
     return jsonResponse(req, { error: "method not allowed" }, 405);
   }
 
-  // ---- caller identity ----------------------------------------------------
-  const authHeader = req.headers.get("authorization") ?? "";
-  if (!authHeader.startsWith("Bearer ")) {
-    return jsonResponse(req, { error: "missing bearer token" }, 401);
-  }
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-
-  // Caller-scoped client (RLS-enforced) for permission checks
-  const callerClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-    auth: { persistSession: false },
-  });
-
-  const { data: userData, error: userErr } = await callerClient.auth.getUser();
-  if (userErr || !userData?.user) {
-    return jsonResponse(req, { error: "invalid session" }, 401);
-  }
-  const callerUserId = userData.user.id;
-
-  // ---- validate input -----------------------------------------------------
+  // Body parsed BEFORE auth so practice-admin verification can scope the
+  // RLS check to body.practice_id. (Operator auth doesn't need this, but
+  // we share the parse step for symmetry.)
   let body: InviteMemberRequest;
   try { body = await req.json(); } catch { return jsonResponse(req, { error: "invalid JSON" }, 400); }
 
@@ -108,31 +69,33 @@ Deno.serve(async (req) => {
     return jsonResponse(req, { error: "full_name required" }, 400);
   }
 
-  // ---- permission check ---------------------------------------------------
-  // Operators can invite to any practice; otherwise caller must be OWNER/ADMIN
-  // of the target practice.
-  const { data: isOp } = await callerClient.rpc("is_operator");
-  let allowed = Boolean(isOp);
-
-  if (!allowed) {
-    const { data: callerMembership } = await callerClient
-      .from("practice_member")
-      .select("role")
-      .eq("user_id", callerUserId)
-      .eq("practice_id", practiceId)
-      .maybeSingle();
-    allowed = callerMembership && (callerMembership.role === "OWNER" || callerMembership.role === "ADMIN");
+  // ---- dual-mode auth ----------------------------------------------------
+  // Try practice-admin first; fall back to operator. Either way, by the
+  // time we get past this block, `caller` is a verified principal with a
+  // role gate that matches the action.
+  const practiceAdmin = await verifyPracticeAdmin(req, practiceId);
+  let caller: { kind: "practice_admin" | "operator"; role?: "OWNER" | "ADMIN" };
+  if (practiceAdmin) {
+    // ADMINs cannot hand out OWNER. Only OWNERs (and operators) can.
+    if (role === "OWNER" && practiceAdmin.role !== "OWNER") {
+      return jsonResponse(req, {
+        error: "Only the practice owner can invite another OWNER. Ask Dentaloptima support if you need to transfer ownership.",
+      }, 403);
+    }
+    caller = { kind: "practice_admin", role: practiceAdmin.role };
+  } else {
+    const opAuth = await verifyOperator(req);
+    if (opAuth instanceof Response) return opAuth;
+    caller = { kind: "operator" };
   }
 
-  if (!allowed) {
-    return jsonResponse(req, { error: "not authorised to invite for this practice" }, 403);
-  }
-
-  // ---- check email isn't already a member somewhere ----------------------
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
+  // ---- check email isn't already a member somewhere ----------------------
   {
     const { data: existing } = await admin
       .from("practice_member")
@@ -144,6 +107,43 @@ Deno.serve(async (req) => {
         error: "email is already a member of a practice",
         existing_practice_id: existing.practice_id,
       }, 409);
+    }
+  }
+
+  // ---- check practice has a free seat ------------------------------------
+  // The DB trigger trg_enforce_staff_seat_limit is the hard guarantee, but
+  // checking here means we don't create an auth.users row + send an invite
+  // email only to roll it all back when the trigger fires. Friendlier UX
+  // for the operator and avoids a stray "you've been invited" email.
+  {
+    const { data: practiceRow, error: practiceErr } = await admin
+      .from("practice")
+      .select("staff_seat_limit")
+      .eq("id", practiceId)
+      .maybeSingle();
+    if (practiceErr || !practiceRow) {
+      return jsonResponse(req, { error: "practice not found" }, 404);
+    }
+    const limit: number | null = practiceRow.staff_seat_limit;
+    if (limit !== null) {
+      const { count, error: countErr } = await admin
+        .from("practice_member")
+        .select("id", { count: "exact", head: true })
+        .eq("practice_id", practiceId)
+        .is("deleted_at", null);
+      if (countErr) {
+        return jsonResponse(req, {
+          error: "failed to verify seat limit",
+          detail: countErr.message,
+        }, 500);
+      }
+      if ((count ?? 0) >= limit) {
+        return jsonResponse(req, {
+          error: `Staff seat limit reached: this practice allows ${limit} active member(s).`,
+          seat_limit: limit,
+          active_count: count ?? 0,
+        }, 409);
+      }
     }
   }
 
@@ -184,6 +184,10 @@ Deno.serve(async (req) => {
       detail: memberError.message,
     }, 500);
   }
+
+  console.log(
+    `[invite-member] invited ${email} as ${role} into ${practiceId} via ${caller.kind}`,
+  );
 
   return jsonResponse(req, {
     user_id: invited.user.id,

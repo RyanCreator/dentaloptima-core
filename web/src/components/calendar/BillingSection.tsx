@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
-import { Plus, CreditCard, Send, Receipt } from "lucide-react";
+import { Plus, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 
 interface BillingItem {
@@ -19,8 +19,6 @@ interface BillingItem {
   amount_paid: number;
   payment_status: string;
   payment_method: string | null;
-  invoice_number: string | null;
-  invoice_sent_at: string | null;
   notes: string | null;
   service?: { name: string } | null;
 }
@@ -92,37 +90,6 @@ export function BillingSection({ appointmentId, serviceName, serviceId, serviceP
     else { toast.success("Payment recorded"); await load(); }
   };
 
-  const [sendingInvoice, setSendingInvoice] = useState<string | null>(null);
-
-  // Calls the send-invoice edge function. The function mints an invoice
-  // number if the row doesn't already have one, creates a Stripe Checkout
-  // session, and emails the patient with the pay link. We just refresh
-  // afterwards so the new invoice_number / invoice_sent_at appear in the UI.
-  const sendInvoice = async (itemId: string) => {
-    setSendingInvoice(itemId);
-    try {
-      const { data, error } = await supabase.functions.invoke("send-invoice", {
-        body: { billing_item_id: itemId },
-      });
-      if (error) {
-        const fnMessage =
-          (data as { error?: string } | null)?.error ?? error.message ?? "Failed to send invoice";
-        toast.error(fnMessage);
-        return;
-      }
-      if (!data?.success) {
-        toast.error(data?.error ?? "Failed to send invoice");
-        return;
-      }
-      toast.success(`Invoice ${data.invoice_number} sent`);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send invoice");
-    } finally {
-      setSendingInvoice(null);
-    }
-  };
-
   const total = items.reduce((sum, i) => sum + Number(i.amount), 0);
   const totalPaid = items.reduce((sum, i) => sum + Number(i.amount_paid), 0);
   const outstanding = total - totalPaid;
@@ -155,61 +122,33 @@ export function BillingSection({ appointmentId, serviceName, serviceId, serviceP
       ) : (
         <>
           <div className="space-y-1.5">
-            {items.map((item) => {
-              const canSendInvoice = item.payment_status !== "PAID" && Number(item.amount) > 0;
-              const isSendingThis = sendingInvoice === item.id;
-              return (
-                <div key={item.id} className="flex items-center gap-2 text-sm p-2 rounded bg-muted/30">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-medium">{item.description}</span>
-                      {item.invoice_number && (
-                        <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground font-mono">
-                          <Receipt className="h-3 w-3" />
-                          {item.invoice_number}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-muted-foreground">£{Number(item.amount).toFixed(2)}</span>
-                      {item.payment_method && (
-                        <span className="text-[10px] text-muted-foreground capitalize">{item.payment_method.replace("_", " ")}</span>
-                      )}
-                      {item.invoice_sent_at && item.payment_status !== "PAID" && (
-                        <span className="text-[10px] text-blue-600">Invoice sent</span>
-                      )}
-                    </div>
+            {items.map((item) => (
+              <div key={item.id} className="flex items-center gap-2 text-sm p-2 rounded bg-muted/30">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium">{item.description}</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-xs text-muted-foreground">£{Number(item.amount).toFixed(2)}</span>
+                    {item.payment_method && (
+                      <span className="text-[10px] text-muted-foreground capitalize">{item.payment_method.replace("_", " ")}</span>
+                    )}
                   </div>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[item.payment_status] || ""}`}>
-                    {item.payment_status.replace("_", " ")}
-                  </span>
-                  {canSendInvoice && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => sendInvoice(item.id)}
-                      disabled={isSendingThis}
-                      className="h-6 text-[10px] px-2 text-blue-700 shrink-0"
-                      title={item.invoice_sent_at ? "Resend with a fresh pay link" : "Email invoice with Stripe pay link"}
-                    >
-                      <Send className="h-3 w-3 mr-1" />
-                      {isSendingThis ? "Sending…" : item.invoice_sent_at ? "Resend" : "Send invoice"}
-                    </Button>
-                  )}
-                  {item.payment_status === "UNPAID" && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => markPaid(item.id, Number(item.amount))}
-                      className="h-6 text-[10px] px-2 text-green-700 shrink-0"
-                      title="Mark paid manually (cash, card-in-person, etc.)"
-                    >
-                      Mark paid
-                    </Button>
-                  )}
                 </div>
-              );
-            })}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${STATUS_COLORS[item.payment_status] || ""}`}>
+                  {item.payment_status.replace("_", " ")}
+                </span>
+                {item.payment_status === "UNPAID" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => markPaid(item.id, Number(item.amount))}
+                    className="h-6 text-[10px] px-2 text-green-700 shrink-0"
+                    title="Mark paid (cash, card-in-person, etc.)"
+                  >
+                    Mark paid
+                  </Button>
+                )}
+              </div>
+            ))}
           </div>
 
           {/* Totals */}

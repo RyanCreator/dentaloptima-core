@@ -12,7 +12,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Inbox } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { toast } from "sonner";
 import type { BookingRequestStatus } from "@/lib/constants";
 
@@ -20,10 +21,19 @@ interface BookingRequest {
   id: string;
   status: BookingRequestStatus;
   created_at: string;
+  // Direct fields on booking_request — populated for public-form
+  // submissions where there's no existing patient record yet.
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  // Linked patient — populated when an existing patient submitted
+  // (patient_id was set at insert time). Public-form submissions leave
+  // this null until reception triages and links/creates a patient.
   patient: {
     full_name: string;
     phone: string;
-  };
+  } | null;
   assignee: {
     full_name: string;
   } | null;
@@ -31,6 +41,16 @@ interface BookingRequest {
 
 type FilterTab = "ALL" | "NEW" | "VIEWED";
 type TimeFilter = "all" | "7days" | "30days" | "90days";
+
+// Picks the best display name for a row. Existing patients link via
+// patient.full_name; public-form submissions only have the first_name +
+// last_name fields directly on booking_request. "—" is reserved for
+// truly empty rows (shouldn't happen — the form requires both names).
+function displayNameFor(r: { first_name: string | null; last_name: string | null; patient: { full_name: string } | null }): string {
+  if (r.patient?.full_name) return r.patient.full_name;
+  const composed = [r.first_name, r.last_name].filter(Boolean).join(" ").trim();
+  return composed || "—";
+}
 
 const PAGE_SIZE = 50;
 
@@ -118,15 +138,23 @@ export default function Enquiries() {
     setError(null);
 
     try {
+      // The new booking_request schema doesn't have an `assignee_id` column —
+      // the legacy assignee concept is replaced by `responded_by` (the
+      // member who responded). For now we just drop the embed; ownership/
+      // assignment UI can come back when we adapt the assignment flow.
       let query = supabase
         .from("booking_request")
         .select(`
           id,
           status,
           created_at,
-          patient:patient_id (full_name, phone),
-          assignee:assignee_id (full_name)
+          first_name,
+          last_name,
+          email,
+          phone,
+          patient:patient_id (full_name, phone)
         `, { count: 'exact' })
+        .is("deleted_at", null)
         .not("status", "in", "(WAITLIST,REJECTED,CANCELLED,CONFIRMED)");
 
       // Apply status filter based on selected tab
@@ -143,11 +171,21 @@ export default function Enquiries() {
         query = query.gte("created_at", cutoffDate.toISOString());
       }
 
-      // Apply server-side search if search term exists
+      // Apply server-side search if search term exists. Search across
+      // both the booking_request's own first_name/last_name/email/phone
+      // (public-form submissions) and the linked patient's name/phone
+      // (existing-patient submissions). PostgREST .or() takes a CSV of
+      // filters so we list each field.
       if (debouncedSearchTerm.trim()) {
         const searchPattern = `%${debouncedSearchTerm.trim()}%`;
-        // Search in patient name or phone - need to use inner join for this
-        query = query.or(`patient.full_name.ilike.${searchPattern},patient.phone.ilike.${searchPattern}`);
+        query = query.or(
+          [
+            `first_name.ilike.${searchPattern}`,
+            `last_name.ilike.${searchPattern}`,
+            `email.ilike.${searchPattern}`,
+            `phone.ilike.${searchPattern}`,
+          ].join(","),
+        );
       }
 
       // Apply pagination
@@ -294,40 +332,19 @@ export default function Enquiries() {
         )}
 
         {requests.length === 0 && !searching ? (
-          <div className="bg-card rounded-lg border p-12">
-            <div className="text-center space-y-3">
-              <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-                {searchTerm ? (
-                  <Search className="h-6 w-6 text-muted-foreground" />
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6 text-muted-foreground"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                )}
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold">
-                  {searchTerm ? "No results found" : "No active enquiries"}
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {searchTerm
-                    ? "Try adjusting your search terms"
-                    : "All enquiries have been processed"}
-                </p>
-              </div>
-            </div>
-          </div>
+          searchTerm ? (
+            <EmptyState
+              icon={Search}
+              title="No results found"
+              body="Try adjusting your search terms."
+            />
+          ) : (
+            <EmptyState
+              icon={Inbox}
+              title="No active enquiries"
+              body="New booking requests from your public site land here for review. Confirm them to create an appointment, or move them to the waiting list."
+            />
+          )
         ) : (
           <>
             <div className="divide-y bg-card rounded-lg border relative">
@@ -350,15 +367,23 @@ export default function Enquiries() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h3 className="font-medium truncate">
-                        {request.patient?.full_name || "—"}
+                        {displayNameFor(request)}
                       </h3>
                       <StatusBadge status={request.status} />
                     </div>
-                    {request.assignee && (
+                    {/* Show contact info as the secondary line so the
+                        operator can scan-and-call without opening the
+                        record. Falls back to assignee for legacy rows
+                        with linked patients. */}
+                    {(request.phone || request.email) ? (
+                      <p className="text-sm text-muted-foreground truncate">
+                        {request.phone || request.email}
+                      </p>
+                    ) : request.assignee ? (
                       <p className="text-sm text-muted-foreground truncate">
                         {request.assignee.full_name}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-muted-foreground">

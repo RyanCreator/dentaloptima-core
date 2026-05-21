@@ -13,14 +13,28 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { usePractice } from "@/contexts/PracticeContext";
+// Aliased to avoid the shadow with the local createAppointment handler.
+import { createAppointment as createAppointmentRecord } from "@/lib/createAppointment";
+import { ensurePatientForBookingRequest } from "@/lib/ensurePatientForBookingRequest";
 
 interface BookingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   services: any[];
   staff: any[];
-  patientId: string;
+  // Null when the enquiry came in via the public form — no patient row
+  // exists yet. We auto-create one from the booking_request fields below.
+  patientId: string | null;
   requestId: string;
+  // Fallback contact details from the booking_request itself, used to
+  // create a patient on the fly when patientId is null.
+  patientFallback?: {
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
   onSuccess: () => void;
   prefilledData?: {
     staffId: string;
@@ -37,6 +51,7 @@ export function BookingDialog({
   staff,
   patientId,
   requestId,
+  patientFallback,
   onSuccess,
   prefilledData,
 }: BookingDialogProps) {
@@ -46,6 +61,8 @@ export function BookingDialog({
   const [selectedTime, setSelectedTime] = useState("");
   const [loading, setLoading] = useState(false);
   const { sendAppointmentConfirmedNotification } = useNotifications();
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
 
   // Apply prefilled data when dialog opens with prefilled values
   useEffect(() => {
@@ -79,54 +96,53 @@ export function BookingDialog({
     setLoading(true);
 
     try {
-      // Prepare appointment time
+      // Public-form enquiries arrive with no patient_id — auto-create one
+      // from the request fallback fields so the appointment FK resolves.
+      const ensured = await ensurePatientForBookingRequest({
+        practiceId,
+        requestId,
+        existingPatientId: patientId,
+        fallback: patientFallback,
+      });
+      if (!ensured.ok) {
+        toast.error(ensured.error);
+        setLoading(false);
+        return;
+      }
+      const resolvedPatientId = ensured.patientId;
+      // Tell reception when we reused an existing patient row instead of
+      // creating one — they need to know in case the match is wrong.
+      if (ensured.matched && ensured.matchedName) {
+        toast.message(
+          `Linked to existing patient: ${ensured.matchedName}`,
+          { description: `Matched by ${ensured.matchedBy}` },
+        );
+      }
+
       const [hours, minutes] = selectedTime.split(":");
-      const appointmentTime = new Date(selectedDate);
-      appointmentTime.setHours(parseInt(hours), parseInt(minutes), 0);
+      const startsAt = new Date(selectedDate);
+      startsAt.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      // Build request payload for edge function
-      const payload = {
-        patient_id: patientId,
-        staff_id: selectedStaff,
-        service_id: selectedService,
-        starts_at: appointmentTime.toISOString(),
-        allow_overlap: false, // No override for enquiry bookings
-      };
-
-      logger.info("Creating appointment from enquiry via edge function", { payload });
-
-      // Call secure edge function with atomic booking logic
-      const { data, error } = await supabase.functions.invoke('create-appointment', {
-        body: payload,
+      const result = await createAppointmentRecord({
+        practiceId,
+        patientId: resolvedPatientId,
+        staffId: selectedStaff,
+        serviceId: selectedService,
+        startsAt,
       });
 
-      if (error) {
-        logger.error("Create appointment error from enquiry", error);
-
-        // Handle overlap conflict
-        if (error.message?.includes('overlaps') || error.message?.includes('409')) {
-          toast.error("This time slot overlaps with an existing appointment. Please choose a different time.");
-          setLoading(false);
-          return;
-        }
-
-        // Handle room capacity
-        if (error.message?.includes('capacity') || error.message?.includes('Room')) {
-          toast.error(error.message || "Room capacity exceeded for this time slot");
-          setLoading(false);
-          return;
-        }
-
-        throw error;
+      if (!result.success) {
+        toast.error(result.error || "Failed to create appointment");
+        setLoading(false);
+        return;
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to create appointment");
-      }
+      logger.info("Appointment created from enquiry", {
+        appointmentId: result.appointment?.id,
+      });
 
-      logger.info("Appointment created successfully from enquiry", { appointmentId: data.appointment?.id });
-
-      // Update booking request status
+      // Mirror the booking request status so the enquiry list shows it as
+      // confirmed once we've successfully booked.
       const { error: statusError } = await supabase
         .from("booking_request")
         .update({ status: "CONFIRMED" })
@@ -134,15 +150,12 @@ export function BookingDialog({
 
       if (statusError) {
         logger.error("Failed to update booking request status", statusError);
-        toast.error("Failed to update status");
+        toast.error("Booked, but failed to update enquiry status");
       } else {
         toast.success("Appointment booked successfully");
-
-        // Send confirmation notification to patient
-        if (data.appointment?.id) {
-          await sendAppointmentConfirmedNotification(patientId, data.appointment.id);
+        if (result.appointment?.id) {
+          await sendAppointmentConfirmedNotification(resolvedPatientId, result.appointment.id);
         }
-
         onSuccess();
         onOpenChange(false);
       }

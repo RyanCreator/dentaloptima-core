@@ -74,7 +74,7 @@ export function useCampaignSends(campaignId: string | null) {
       .channel(`campaign-sends-${campaignId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "outreach_send", filter: `campaign_id=eq.${campaignId}` },
+        { event: "*", schema: "ops", table: "outreach_send", filter: `campaign_id=eq.${campaignId}` },
         () => debouncedReload()
       )
       .subscribe();

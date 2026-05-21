@@ -3,18 +3,32 @@ import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
 
+// Adapted to dentaloptima-core's `medical_history_entry` table.
+//   - recorded_by_staff_id → created_by (filled by the audit trigger)
+//   - details → notes
+//   - entry_type enum values are now uppercase: CONDITION, MEDICATION,
+//     ALLERGY, PROCEDURE, EVENT
+//   - severity enum values uppercase: LOW, MEDIUM, HIGH, CRITICAL
+export type MedicalHistoryEntryType =
+  | "CONDITION"
+  | "MEDICATION"
+  | "ALLERGY"
+  | "PROCEDURE"
+  | "EVENT";
+
+export type MedicalSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
 export interface MedicalHistoryEntry {
   id: string;
   patient_id: string;
-  entry_type: "condition" | "medication" | "allergy" | "procedure" | "event";
-  title: string;
-  details: string | null;
-  severity: "low" | "medium" | "high" | "critical" | null;
+  entry_type: MedicalHistoryEntryType;
+  description: string;
+  notes: string | null;
+  severity: MedicalSeverity | null;
   is_active: boolean;
   onset_date: string | null;
   resolved_date: string | null;
   recorded_at: string;
-  recorded_by_staff_id: string | null;
   created_at: string;
   staff?: { full_name: string } | null;
 }
@@ -28,44 +42,41 @@ export function useMedicalHistory(patientId: string | undefined) {
     setLoading(true);
     const { data, error } = await supabase
       .from("medical_history_entry")
-      .select("*, staff:recorded_by_staff_id(full_name)")
+      .select("*, staff:created_by(full_name)")
       .eq("patient_id", patientId)
+      .is("deleted_at", null)
       .order("is_active", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
       logger.error("Error loading medical history", error);
     } else {
-      setEntries(data || []);
+      setEntries((data as MedicalHistoryEntry[]) ?? []);
     }
     setLoading(false);
   }, [patientId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const addEntry = async (entry: {
-    entry_type: string;
-    title: string;
-    details?: string;
-    severity?: string;
+    entry_type: MedicalHistoryEntryType;
+    description: string;
+    notes?: string;
+    severity?: MedicalSeverity;
     onset_date?: string;
   }) => {
     if (!patientId) return false;
 
-    const { data: staffData } = await supabase
-      .from("app_staff")
-      .select("id")
-      .eq("user_id", (await supabase.auth.getUser()).data.user?.id)
-      .single();
-
+    // created_by is filled by app_private.fn_set_audit_columns trigger.
     const { error } = await supabase.from("medical_history_entry").insert({
       patient_id: patientId,
       entry_type: entry.entry_type,
-      title: entry.title,
-      details: entry.details || null,
+      description: entry.description,
+      notes: entry.notes || null,
       severity: entry.severity || null,
       onset_date: entry.onset_date || null,
-      recorded_by_staff_id: staffData?.id || null,
     });
 
     if (error) {

@@ -1,24 +1,52 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreatePractice } from "@/hooks/useTenants";
+import { markLeadConverted } from "@/hooks/useLeads";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: (practiceId: string) => void;
+  // Optional pre-fill — used when the sheet is opened from a lead's
+  // "Convert" button. The lead id is also captured so we can mark the
+  // lead CONVERTED + link it to the new practice on success.
+  initialPracticeName?: string;
+  initialOwnerEmail?: string;
+  initialOwnerFullName?: string;
+  fromLeadId?: string;
 }
 
-export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
+export function NewTenantSheet({
+  open,
+  onOpenChange,
+  onCreated,
+  initialPracticeName,
+  initialOwnerEmail,
+  initialOwnerFullName,
+  fromLeadId,
+}: Props) {
   const create = useCreatePractice();
-  const [practiceName, setPracticeName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [ownerEmail, setOwnerEmail] = useState("");
-  const [ownerFullName, setOwnerFullName] = useState("");
+  const [practiceName, setPracticeName] = useState(initialPracticeName ?? "");
+  const [slug, setSlug] = useState(initialPracticeName ? slugify(initialPracticeName) : "");
+  const [ownerEmail, setOwnerEmail] = useState(initialOwnerEmail ?? "");
+  const [ownerFullName, setOwnerFullName] = useState(initialOwnerFullName ?? "");
   const [trialDays, setTrialDays] = useState("30");
+
+  // Re-prefill when the sheet (re-)opens with new initial values — e.g.
+  // user navigates from a different lead's convert flow.
+  useEffect(() => {
+    if (!open) return;
+    if (initialPracticeName !== undefined) {
+      setPracticeName(initialPracticeName);
+      setSlug(slugify(initialPracticeName));
+    }
+    if (initialOwnerEmail !== undefined) setOwnerEmail(initialOwnerEmail);
+    if (initialOwnerFullName !== undefined) setOwnerFullName(initialOwnerFullName);
+  }, [open, initialPracticeName, initialOwnerEmail, initialOwnerFullName]);
 
   function reset() {
     setPracticeName("");
@@ -39,6 +67,15 @@ export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
         trial_days: Number(trialDays) || 30,
       });
       toast.success(`Practice created. Invite emailed to ${ownerEmail}.`);
+      // Best-effort lead linkage — don't fail the create if this errors.
+      if (fromLeadId) {
+        try {
+          await markLeadConverted(fromLeadId, result.practice_id);
+        } catch (err) {
+          console.warn("[NewTenantSheet] markLeadConverted failed", err);
+          toast.warning("Practice created, but couldn't mark the lead converted. Update it manually on the Leads page.");
+        }
+      }
       reset();
       onOpenChange(false);
       onCreated?.(result.practice_id);
@@ -74,7 +111,6 @@ export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
               required
               value={practiceName}
               onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="Optima Dental"
               maxLength={200}
               disabled={create.isPending}
             />
@@ -87,8 +123,9 @@ export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
               required
               value={slug}
               onChange={(e) => setSlug(e.target.value.toLowerCase())}
-              placeholder="optima-dental"
-              pattern="^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])?$"
+              placeholder="lowercase-with-hyphens"
+              minLength={3}
+              maxLength={50}
               disabled={create.isPending}
             />
             <p className="text-xs text-muted-foreground">
@@ -103,7 +140,6 @@ export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
               required
               value={ownerFullName}
               onChange={(e) => setOwnerFullName(e.target.value)}
-              placeholder="Dr Jane Smith"
               disabled={create.isPending}
             />
           </div>
@@ -116,7 +152,6 @@ export function NewTenantSheet({ open, onOpenChange, onCreated }: Props) {
               required
               value={ownerEmail}
               onChange={(e) => setOwnerEmail(e.target.value)}
-              placeholder="jane@optimadental.co.uk"
               disabled={create.isPending}
             />
           </div>

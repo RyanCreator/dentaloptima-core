@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { Sidebar } from "@/components/Sidebar";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -30,11 +30,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="md:hidden flex items-center gap-2 px-4 py-3 border-b bg-card">
-          <SheetTrigger asChild onClick={() => setMobileOpen(true)}>
-            <Button variant="ghost" size="icon" aria-label="Open menu">
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Open menu"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
           <div className="text-sm font-semibold">Dentaloptima Core</div>
         </header>
 

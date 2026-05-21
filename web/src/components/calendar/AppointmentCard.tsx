@@ -1,6 +1,6 @@
-import { format } from "date-fns";
+import { format, differenceInMinutes } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { AlertTriangle, Heart } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusColor, getStatusTextColor } from "@/lib/appointmentUtils";
 import type { Appointment } from "@/hooks/useAppointments";
@@ -14,6 +14,25 @@ interface AppointmentCardProps {
   variant?: "day" | "week" | "month";
 }
 
+// Convenience: an appointment may have many services in the new schema.
+// Pull the primary one (lowest display_order) for the headline label,
+// and count the rest for a "+N more" badge.
+function summariseServices(appt: Appointment): {
+  primaryName: string;
+  extraCount: number;
+  anyNhs: boolean;
+} {
+  const services = appt.services ?? [];
+  if (services.length === 0) {
+    return { primaryName: "(no service)", extraCount: 0, anyNhs: false };
+  }
+  return {
+    primaryName: services[0].service.name,
+    extraCount: services.length - 1,
+    anyNhs: services.some((s) => s.service.is_nhs),
+  };
+}
+
 export function AppointmentCard({
   appointment,
   hasOverlap,
@@ -24,6 +43,11 @@ export function AppointmentCard({
   const statusColors = getStatusColor(appointment.status, hasOverlap);
   const startTime = toZonedTime(new Date(appointment.starts_at), UK_TIMEZONE);
   const endTime = toZonedTime(new Date(appointment.ends_at), UK_TIMEZONE);
+  // Duration from the actual booked window — more reliable than per-service
+  // duration when there are multiple services on the appointment.
+  const durationMinutes = differenceInMinutes(endTime, startTime);
+  const summary = summariseServices(appointment);
+  const accentColor = appointment.staff.color_hex || "hsl(var(--primary))";
 
   if (variant === "day") {
     return (
@@ -33,7 +57,7 @@ export function AppointmentCard({
           "w-full text-left p-3 sm:p-4 transition-colors flex items-start gap-3 sm:gap-4 border-l-4",
           statusColors.bg,
           statusColors.hover,
-          statusColors.border
+          statusColors.border,
         )}
       >
         <div className="flex flex-col items-start min-w-[70px] sm:min-w-[85px] pt-1">
@@ -41,48 +65,36 @@ export function AppointmentCard({
             {format(startTime, "HH:mm")} - {format(endTime, "HH:mm")}
           </div>
           <div className="text-[10px] text-muted-foreground">
-            {appointment.service.duration_minutes} min
+            {durationMinutes} min
           </div>
         </div>
         <div
           className="w-1 rounded-full flex-shrink-0 self-stretch"
-          style={{
-            backgroundColor: hasOverlap ? "#ef4444" : (appointment.staff.colour_tag || "hsl(var(--primary))"),
-          }}
+          style={{ backgroundColor: hasOverlap ? "#ef4444" : accentColor }}
         />
         <div className="flex-1 min-w-0 py-0.5">
-          <div className="font-medium mb-1 text-sm sm:text-base flex items-center gap-1.5">
+          <div className="font-medium mb-1 text-sm sm:text-base">
             {appointment.patient.full_name}
-            {appointment.patient.is_pregnant && (
-              <span className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-800 rounded px-1.5 py-0.5 font-medium leading-none">
-                <AlertTriangle className="h-3 w-3" />Pregnant
-              </span>
-            )}
-            {appointment.patient.takes_anticoagulant && (
-              <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-800 rounded px-1.5 py-0.5 font-medium leading-none">
-                <Heart className="h-3 w-3" />Anticoagulant
-              </span>
-            )}
-            {appointment.patient.no_show_count >= 3 && (
-              <span className="inline-flex items-center text-[10px] bg-gray-200 text-gray-800 rounded px-1.5 py-0.5 font-medium leading-none">
-                {appointment.patient.no_show_count} no-shows
-              </span>
-            )}
           </div>
-          <div className="text-xs sm:text-sm text-muted-foreground mb-1 flex items-center gap-1.5">
-            {appointment.service.name}
-            {appointment.service.is_nhs && (
+          <div className="text-xs sm:text-sm text-muted-foreground mb-1 flex items-center gap-1.5 flex-wrap">
+            <span>{summary.primaryName}</span>
+            {summary.extraCount > 0 && (
+              <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-muted text-muted-foreground">
+                +{summary.extraCount} more
+              </span>
+            )}
+            {summary.anyNhs && (
               <span className="text-[9px] bg-blue-100 text-blue-700 rounded px-1 py-0.5 font-medium leading-none">NHS</span>
             )}
           </div>
           <div className="text-xs text-muted-foreground">
-            {appointment.staff.full_name}
+            {appointment.staff.full_name ?? "Unassigned"}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
           <div className={cn(
             "text-[10px] sm:text-xs whitespace-nowrap font-medium",
-            getStatusTextColor(appointment.status)
+            getStatusTextColor(appointment.status),
           )}>
             {appointment.status}
           </div>
@@ -101,10 +113,10 @@ export function AppointmentCard({
         className={cn(
           "w-full text-left p-1.5 sm:p-2 rounded text-xs transition-colors",
           statusColors.bg,
-          statusColors.hover
+          statusColors.hover,
         )}
         style={{
-          borderLeft: `3px solid ${hasOverlap ? "#ef4444" : (appointment.staff.colour_tag || "hsl(var(--primary))")}`,
+          borderLeft: `3px solid ${hasOverlap ? "#ef4444" : accentColor}`,
         }}
       >
         <div className="font-medium truncate text-xs">
@@ -127,7 +139,7 @@ export function AppointmentCard({
       className={cn(
         "w-full text-left px-0.5 sm:px-1 py-0.5 rounded text-[10px] sm:text-xs transition-colors truncate",
         statusColors.bg,
-        statusColors.hover
+        statusColors.hover,
       )}
     >
       <span className="hidden sm:inline">

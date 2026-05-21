@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useBlockedTime, CreateBlockedTimeParams } from "@/hooks/useBlockedTime";
+import { toast } from "sonner";
 
 interface BlockTimeDialogProps {
   open: boolean;
@@ -93,18 +94,12 @@ export function BlockTimeDialog({
     const endsAt = new Date(selectedDate);
     endsAt.setHours(endHours, endMinutes, 0, 0);
 
-    // Validation
+    // Validation. The form has its own UI states for the rest; the
+    // time-range check is the last gate before submit.
     if (endsAt <= startsAt) {
-      console.error("Invalid time range:", { startsAt, endsAt, startTime, endTime });
-      return; // Invalid time range
+      toast.error("End time must be after start time");
+      return;
     }
-
-    console.log("Creating blocked time:", {
-      staff_id: selectedStaff,
-      starts_at: startsAt.toISOString(),
-      ends_at: endsAt.toISOString(),
-      reason: reason === "Other" ? customReason : reason,
-    });
 
     const finalReason = reason === "Other" ? customReason : reason;
 

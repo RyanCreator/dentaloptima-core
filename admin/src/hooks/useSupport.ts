@@ -1,13 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabaseOps as supabase } from "@/integrations/supabase/client";
-import { debounce } from "@/lib/debounce";
+import { supabaseCore as supabase } from "@/integrations/supabase/client";
 
-// Coalesce realtime-triggered reloads — bursts of inserts/updates within this
-// window collapse into a single fetch.
+// Operator-side support inbox.
+//
+// Reads/writes go directly against dentaloptima-core (migration 0038) using
+// the service-role client — operators don't have a JWT against core, so
+// service role is the canonical access path. RLS is bypassed by service
+// role; the security perimeter is the operator login at the admin app.
+//
+// Realtime works with the service-role client (postgres_changes channel
+// auth accepts service-role keys, RLS is bypassed for the channel).
+
 const REALTIME_DEBOUNCE_MS = 300;
+const ATTACHMENT_BUCKET = "support-attachments";
+const SIGNED_DOWNLOAD_TTL_SECONDS = 60 * 60;
 
-// Direct registry queries — RLS policies restrict to admin_user-active sessions.
-// Realtime subscription on support_message gives us the live bell badge.
+function debounce<T extends (...args: unknown[]) => void>(fn: T, ms: number) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  const wrapped = (...args: Parameters<T>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+  wrapped.cancel = () => {
+    if (t) clearTimeout(t);
+    t = null;
+  };
+  return wrapped;
+}
 
 export type SupportThreadStatus =
   | "OPEN"
@@ -18,13 +37,14 @@ export type SupportThreadStatus =
 
 export interface SupportThread {
   id: string;
-  tenant_id: string;
+  practice_id: string;
   subject: string;
   status: SupportThreadStatus;
   last_message_at: string;
   created_at: string;
   updated_at: string;
-  tenant?: { practice_name: string; hostname: string } | null;
+  claimed_by_email: string | null;
+  claimed_at: string | null;
   unread_count?: number;
 }
 
@@ -40,6 +60,7 @@ export interface SupportAttachment {
 export interface SupportMessage {
   id: string;
   thread_id: string;
+  practice_id: string;
   direction: "INBOUND" | "OUTBOUND";
   author_email: string;
   author_name: string | null;
@@ -49,10 +70,7 @@ export interface SupportMessage {
   attachments?: SupportAttachment[];
 }
 
-const ATTACHMENT_BUCKET = "support-attachments";
-// 1-hour TTL — keeps download links live even if an operator leaves a
-// thread open while reading, without giving stolen URLs a long shelf life.
-const SIGNED_DOWNLOAD_TTL_SECONDS = 60 * 60;
+// ----- Threads --------------------------------------------------------------
 
 export function useSupportThreads() {
   const [threads, setThreads] = useState<SupportThread[]>([]);
@@ -62,29 +80,30 @@ export function useSupportThreads() {
     setLoading(true);
     const { data, error } = await supabase
       .from("support_thread")
-      .select("*, tenant:tenant_id(practice_name, hostname)")
+      .select("*")
+      .is("deleted_at", null)
       .order("last_message_at", { ascending: false })
       .limit(200);
     if (!error && data) {
-      // Annotate with unread inbound count per thread
       const ids = data.map((t) => t.id);
       let unreadByThread = new Map<string, number>();
       if (ids.length > 0) {
+        // Operator-side unread = INBOUND (practice → us) messages with no read_at.
         const { data: unread } = await supabase
           .from("support_message")
           .select("thread_id")
           .in("thread_id", ids)
           .eq("direction", "INBOUND")
           .is("read_at", null);
-        for (const m of unread || []) {
-          unreadByThread.set(m.thread_id, (unreadByThread.get(m.thread_id) || 0) + 1);
+        for (const m of unread ?? []) {
+          unreadByThread.set(m.thread_id, (unreadByThread.get(m.thread_id) ?? 0) + 1);
         }
       }
       setThreads(
         (data as SupportThread[]).map((t) => ({
           ...t,
-          unread_count: unreadByThread.get(t.id) || 0,
-        }))
+          unread_count: unreadByThread.get(t.id) ?? 0,
+        })),
       );
     }
     setLoading(false);
@@ -98,12 +117,12 @@ export function useSupportThreads() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_message" },
-        () => debouncedReload()
+        () => debouncedReload(),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_thread" },
-        () => debouncedReload()
+        () => debouncedReload(),
       )
       .subscribe();
     return () => {
@@ -127,22 +146,23 @@ export function useSupportMessages(threadId: string | null) {
     setLoading(true);
     const { data } = await supabase
       .from("support_message")
-      .select("*, attachments:support_attachment(id, file_name, file_size_bytes, mime_type, file_path)")
+      .select(
+        "*, attachments:support_attachment(id, file_name, file_size_bytes, mime_type, file_path)",
+      )
       .eq("thread_id", threadId)
       .order("created_at", { ascending: true });
-    // Mint signed download URLs client-side (admin has direct storage access).
     const enriched = await Promise.all(
-      ((data as any[]) || []).map(async (m) => {
+      ((data as any[]) ?? []).map(async (m) => {
         const atts = await Promise.all(
-          (m.attachments || []).map(async (a: SupportAttachment) => {
+          (m.attachments ?? []).map(async (a: SupportAttachment) => {
             const { data: signed } = await supabase.storage
               .from(ATTACHMENT_BUCKET)
               .createSignedUrl(a.file_path, SIGNED_DOWNLOAD_TTL_SECONDS);
             return { ...a, download_url: signed?.signedUrl ?? null };
-          })
+          }),
         );
         return { ...m, attachments: atts };
-      })
+      }),
     );
     setMessages(enriched as SupportMessage[]);
     setLoading(false);
@@ -156,8 +176,13 @@ export function useSupportMessages(threadId: string | null) {
       .channel(`support-messages-${threadId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "support_message", filter: `thread_id=eq.${threadId}` },
-        () => debouncedReload()
+        {
+          event: "*",
+          schema: "public",
+          table: "support_message",
+          filter: `thread_id=eq.${threadId}`,
+        },
+        () => debouncedReload(),
       )
       .subscribe();
     return () => {
@@ -169,12 +194,29 @@ export function useSupportMessages(threadId: string | null) {
   return { messages, loading, reload };
 }
 
+// ----- Attachments + send ---------------------------------------------------
+
+// Operator-side upload. Path mirrors the practice-side convention so RLS
+// on storage.objects scopes the right way:
+//   {practice_id}/{thread_id}/<random>-<safe filename>
+// We need the practice_id (looked up from the thread) to build the path.
+async function lookupPracticeId(threadId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from("support_thread")
+    .select("practice_id")
+    .eq("id", threadId)
+    .single();
+  if (error || !data) throw new Error("Thread not found");
+  return data.practice_id as string;
+}
+
 export async function uploadAdminAttachment(threadId: string, file: File): Promise<string> {
+  const practiceId = await lookupPracticeId(threadId);
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const path = `${threadId}/${crypto.randomUUID()}-${safeName}`;
+  const objectName = `${practiceId}/${threadId}/${crypto.randomUUID()}-${safeName}`;
   const { error: uploadErr } = await supabase.storage
     .from(ATTACHMENT_BUCKET)
-    .upload(path, file, {
+    .upload(objectName, file, {
       contentType: file.type || "application/octet-stream",
     });
   if (uploadErr) throw uploadErr;
@@ -183,7 +225,8 @@ export async function uploadAdminAttachment(threadId: string, file: File): Promi
     .insert({
       thread_id: threadId,
       message_id: null,
-      file_path: path,
+      practice_id: practiceId,
+      file_path: objectName,
       file_name: file.name,
       file_size_bytes: file.size,
       mime_type: file.type || null,
@@ -191,7 +234,7 @@ export async function uploadAdminAttachment(threadId: string, file: File): Promi
     .select("id")
     .single();
   if (insertErr) throw insertErr;
-  return row.id;
+  return row.id as string;
 }
 
 async function linkAttachments(attachmentIds: string[], threadId: string, messageId: string) {
@@ -209,12 +252,14 @@ export async function sendAdminReply(
   threadId: string,
   body: string,
   adminEmail: string,
-  attachmentIds: string[] = []
+  attachmentIds: string[] = [],
 ) {
+  const practiceId = await lookupPracticeId(threadId);
   const { data: message, error: msgErr } = await supabase
     .from("support_message")
     .insert({
       thread_id: threadId,
+      practice_id: practiceId,
       direction: "OUTBOUND",
       author_email: adminEmail,
       body,
@@ -223,11 +268,8 @@ export async function sendAdminReply(
     .single();
   if (msgErr) throw msgErr;
   await linkAttachments(attachmentIds, threadId, message.id);
-  const { error: threadErr } = await supabase
-    .from("support_thread")
-    .update({ status: "AWAITING_TENANT", last_message_at: new Date().toISOString() })
-    .eq("id", threadId);
-  if (threadErr) throw threadErr;
+  // The touch_thread trigger handles last_message_at + status, but we don't
+  // need to update them ourselves any more.
 }
 
 export async function markInboundRead(threadId: string) {
@@ -240,19 +282,20 @@ export async function markInboundRead(threadId: string) {
 }
 
 export async function startThreadFromAdmin(
-  tenantId: string,
+  practiceId: string,
   subject: string,
   body: string,
-  adminEmail: string
+  adminEmail: string,
 ) {
   const { data: thread, error: threadErr } = await supabase
     .from("support_thread")
-    .insert({ tenant_id: tenantId, subject, status: "AWAITING_TENANT" })
+    .insert({ practice_id: practiceId, subject, status: "OPEN" })
     .select("*")
     .single();
   if (threadErr) throw threadErr;
   const { error: msgErr } = await supabase.from("support_message").insert({
     thread_id: thread.id,
+    practice_id: practiceId,
     direction: "OUTBOUND",
     author_email: adminEmail,
     body,
@@ -261,13 +304,26 @@ export async function startThreadFromAdmin(
   return thread as SupportThread;
 }
 
-export async function updateThreadStatus(
-  threadId: string,
-  status: SupportThreadStatus
-) {
+export async function updateThreadStatus(threadId: string, status: SupportThreadStatus) {
   const { error } = await supabase
     .from("support_thread")
     .update({ status })
+    .eq("id", threadId);
+  if (error) throw error;
+}
+
+export async function claimThread(threadId: string, operatorEmail: string) {
+  const { error } = await supabase
+    .from("support_thread")
+    .update({ claimed_by_email: operatorEmail, claimed_at: new Date().toISOString() })
+    .eq("id", threadId);
+  if (error) throw error;
+}
+
+export async function unclaimThread(threadId: string) {
+  const { error } = await supabase
+    .from("support_thread")
+    .update({ claimed_by_email: null, claimed_at: null })
     .eq("id", threadId);
   if (error) throw error;
 }
@@ -291,7 +347,7 @@ export function useUnreadInboundCount() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "support_message" },
-        () => debouncedRefresh()
+        () => debouncedRefresh(),
       )
       .subscribe();
     return () => {

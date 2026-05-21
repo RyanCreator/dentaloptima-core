@@ -104,20 +104,56 @@ export function CalendarGridView({
             New Appointment
           </Button>
 
-          {/* Staff Filter */}
-          <Select value={selectedStaffId} onValueChange={onStaffChange}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Filter by staff" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Staff</SelectItem>
-              {staff.map((member) => (
-                <SelectItem key={member.id} value={member.id}>
-                  {member.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Staff filter + cycler. When a specific staff member is
+              selected we add prev/next arrows so users can sweep through
+              the team one column at a time without re-opening the
+              dropdown — meaningful on smaller tablets where the multi
+              -column view is cramped. */}
+          <div className="flex items-center gap-1 w-full sm:w-auto">
+            {selectedStaffId !== "all" && staff.length > 1 && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Previous staff member"
+                onClick={() => {
+                  const idx = staff.findIndex((m) => m.id === selectedStaffId);
+                  const prev = idx > 0 ? staff[idx - 1] : staff[staff.length - 1];
+                  if (prev) onStaffChange(prev.id);
+                }}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <Select value={selectedStaffId} onValueChange={onStaffChange}>
+              <SelectTrigger className="flex-1 sm:w-[180px]">
+                <SelectValue placeholder="Filter by staff" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Staff</SelectItem>
+                {staff.map((member) => (
+                  <SelectItem key={member.id} value={member.id}>
+                    {member.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedStaffId !== "all" && staff.length > 1 && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Next staff member"
+                onClick={() => {
+                  const idx = staff.findIndex((m) => m.id === selectedStaffId);
+                  const next = idx < staff.length - 1 ? staff[idx + 1] : staff[0];
+                  if (next) onStaffChange(next.id);
+                }}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
 
           {/* View Mode Buttons */}
           <div className="flex gap-2 sm:ml-auto">

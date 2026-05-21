@@ -1,0 +1,6 @@
+# Booking app — practice-member-facing, never meant to appear in search
+# results. Combined with the <meta name="robots"> in index.html and the
+# X-Robots-Tag header in .htaccess, this is belt-and-braces against any
+# crawler that respects only one of the three signals.
+User-agent: *
+Disallow: /

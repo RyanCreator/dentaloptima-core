@@ -4,29 +4,42 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/Badge";
 import { format, parseISO } from "date-fns";
 import { Plus, Pill, AlertTriangle, Bug, Stethoscope, FileText } from "lucide-react";
-import { useMedicalHistory, type MedicalHistoryEntry } from "@/hooks/useMedicalHistory";
+import {
+  useMedicalHistory,
+  type MedicalHistoryEntry,
+  type MedicalHistoryEntryType,
+  type MedicalSeverity,
+} from "@/hooks/useMedicalHistory";
 
-const ENTRY_TYPES = [
-  { value: "condition", label: "Condition", icon: Stethoscope },
-  { value: "medication", label: "Medication", icon: Pill },
-  { value: "allergy", label: "Allergy", icon: AlertTriangle },
-  { value: "procedure", label: "Procedure", icon: FileText },
-  { value: "event", label: "Event", icon: Bug },
-] as const;
+// dentaloptima-core medical_history_entry_type enum values are uppercase.
+const ENTRY_TYPES: { value: MedicalHistoryEntryType; label: string; icon: any }[] = [
+  { value: "CONDITION", label: "Condition", icon: Stethoscope },
+  { value: "MEDICATION", label: "Medication", icon: Pill },
+  { value: "ALLERGY", label: "Allergy", icon: AlertTriangle },
+  { value: "PROCEDURE", label: "Procedure", icon: FileText },
+  { value: "EVENT", label: "Event", icon: Bug },
+];
 
-const SEVERITIES = [
-  { value: "low", label: "Low", color: "bg-blue-100 text-blue-700" },
-  { value: "medium", label: "Medium", color: "bg-amber-100 text-amber-700" },
-  { value: "high", label: "High", color: "bg-orange-100 text-orange-700" },
-  { value: "critical", label: "Critical", color: "bg-red-100 text-red-700" },
+const SEVERITIES: { value: MedicalSeverity; label: string; color: string }[] = [
+  { value: "LOW", label: "Low", color: "bg-blue-100 text-blue-700" },
+  { value: "MEDIUM", label: "Medium", color: "bg-amber-100 text-amber-700" },
+  { value: "HIGH", label: "High", color: "bg-orange-100 text-orange-700" },
+  { value: "CRITICAL", label: "Critical", color: "bg-red-100 text-red-700" },
 ];
 
 function getTypeIcon(type: string) {
@@ -46,37 +59,47 @@ interface MedicalHistorySectionProps {
 export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps) {
   const { entries, loading, addEntry, toggleActive } = useMedicalHistory(patientId);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({
-    entry_type: "condition",
-    title: "",
-    details: "",
+  const [form, setForm] = useState<{
+    entry_type: MedicalHistoryEntryType;
+    description: string;
+    notes: string;
+    severity: MedicalSeverity | "";
+    onset_date: string;
+  }>({
+    entry_type: "CONDITION",
+    description: "",
+    notes: "",
     severity: "",
     onset_date: "",
   });
   const [saving, setSaving] = useState(false);
 
   const handleAdd = async () => {
-    if (!form.title.trim()) return;
+    if (!form.description.trim()) return;
     setSaving(true);
     const success = await addEntry({
       entry_type: form.entry_type,
-      title: form.title.trim(),
-      details: form.details.trim(),
+      description: form.description.trim(),
+      notes: form.notes.trim() || undefined,
       severity: form.severity || undefined,
       onset_date: form.onset_date || undefined,
     });
     if (success) {
       setShowAdd(false);
-      setForm({ entry_type: "condition", title: "", details: "", severity: "", onset_date: "" });
+      setForm({
+        entry_type: "CONDITION",
+        description: "",
+        notes: "",
+        severity: "",
+        onset_date: "",
+      });
     }
     setSaving(false);
   };
 
-  // Group entries by type
   const active = entries.filter((e) => e.is_active);
   const resolved = entries.filter((e) => !e.is_active);
 
-  // Group active by type
   const grouped = ENTRY_TYPES.map((type) => ({
     ...type,
     entries: active.filter((e) => e.entry_type === type.value),
@@ -101,7 +124,6 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
         </p>
       ) : (
         <div className="space-y-4">
-          {/* Active entries grouped by type */}
           {grouped.map(({ value, label, icon: Icon, entries: typeEntries }) => (
             <div key={value}>
               <div className="flex items-center gap-1.5 mb-2">
@@ -118,7 +140,6 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
             </div>
           ))}
 
-          {/* Resolved entries */}
           {resolved.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
@@ -139,7 +160,6 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
         </div>
       )}
 
-      {/* Add entry Sheet */}
       <Sheet open={showAdd} onOpenChange={setShowAdd}>
         <SheetContent className="overflow-y-auto w-full sm:max-w-md">
           <SheetHeader>
@@ -152,36 +172,49 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
           <div className="space-y-4 mt-6">
             <div className="space-y-1.5">
               <Label>Type</Label>
-              <Select value={form.entry_type} onValueChange={(v) => setForm((f) => ({ ...f, entry_type: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={form.entry_type}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, entry_type: v as MedicalHistoryEntryType }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {ENTRY_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Title</Label>
+              <Label>Description</Label>
               <Input
-                value={form.title}
-                onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder={
-                  form.entry_type === "condition" ? "e.g. Type 2 diabetes" :
-                  form.entry_type === "medication" ? "e.g. Warfarin 5mg" :
-                  form.entry_type === "allergy" ? "e.g. Penicillin" :
-                  form.entry_type === "procedure" ? "e.g. Root canal, UR6" :
-                  "e.g. Hospital admission"
+                  form.entry_type === "CONDITION"
+                    ? "e.g. Type 2 diabetes"
+                    : form.entry_type === "MEDICATION"
+                    ? "e.g. Warfarin 5mg"
+                    : form.entry_type === "ALLERGY"
+                    ? "e.g. Penicillin"
+                    : form.entry_type === "PROCEDURE"
+                    ? "e.g. Root canal, UR6"
+                    : "e.g. Hospital admission"
                 }
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Details (optional)</Label>
+              <Label>Notes (optional)</Label>
               <Textarea
-                value={form.details}
-                onChange={(e) => setForm((f) => ({ ...f, details: e.target.value }))}
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Additional notes..."
                 rows={2}
               />
@@ -190,11 +223,20 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Severity</Label>
-                <Select value={form.severity} onValueChange={(v) => setForm((f) => ({ ...f, severity: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
+                <Select
+                  value={form.severity}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, severity: v as MedicalSeverity }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Optional" />
+                  </SelectTrigger>
                   <SelectContent>
                     {SEVERITIES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      <SelectItem key={s.value} value={s.value}>
+                        {s.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -209,7 +251,7 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
               </div>
             </div>
 
-            <Button onClick={handleAdd} disabled={saving || !form.title.trim()} className="w-full">
+            <Button onClick={handleAdd} disabled={saving || !form.description.trim()} className="w-full">
               {saving ? "Saving..." : "Add Entry"}
             </Button>
           </div>
@@ -219,9 +261,6 @@ export function MedicalHistorySection({ patientId }: MedicalHistorySectionProps)
   );
 }
 
-// ---------------------------------------------------------------------------
-// Entry row component
-// ---------------------------------------------------------------------------
 function EntryRow({
   entry,
   onToggle,
@@ -233,14 +272,16 @@ function EntryRow({
   const sevStyle = getSeverityStyle(entry.severity);
 
   return (
-    <div className={`flex items-start gap-2.5 p-2.5 rounded-md border text-sm ${
-      entry.is_active ? "bg-background" : "bg-muted/30 opacity-70"
-    }`}>
+    <div
+      className={`flex items-start gap-2.5 p-2.5 rounded-md border text-sm ${
+        entry.is_active ? "bg-background" : "bg-muted/30 opacity-70"
+      }`}
+    >
       <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className={`font-medium ${!entry.is_active ? "line-through" : ""}`}>
-            {entry.title}
+            {entry.description}
           </span>
           {sevStyle && (
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${sevStyle.color}`}>
@@ -248,8 +289,8 @@ function EntryRow({
             </span>
           )}
         </div>
-        {entry.details && (
-          <p className="text-xs text-muted-foreground mt-0.5">{entry.details}</p>
+        {entry.notes && (
+          <p className="text-xs text-muted-foreground mt-0.5">{entry.notes}</p>
         )}
         <div className="text-[10px] text-muted-foreground mt-1">
           {entry.onset_date && <>Since {format(parseISO(entry.onset_date), "MMM yyyy")} &middot; </>}

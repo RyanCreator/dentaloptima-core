@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -8,47 +9,32 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, ChevronRight, Search, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
-import { DetailSheet } from "@/components/DetailSheet";
-import { ServiceForm } from "./ServiceForm";
+import { Plus, ChevronRight, Search, ArrowUp, ArrowDown, GripVertical, Upload } from "lucide-react";
 import { useServiceManagement } from "@/hooks/useServiceManagement";
-import { useStaff } from "@/hooks/useStaff";
-import type { Service } from "@/types/entities";
+import { formatPrice } from "@/types/entities";
+import { ImportServicesSheet } from "./ImportServicesSheet";
 
 type SortMode = "display_order" | "name" | "duration" | "price";
 type StatusFilter = "all" | "active" | "inactive";
 
-const initialServiceState: Partial<Service> = {
-  name: "",
-  duration_minutes: 30,
-  buffer_before_minutes: 0,
-  buffer_after_minutes: 0,
-  colour_tag: null,
-  active: true,
-  all_staff_can_perform: true,
-  requires_room: false,
-  room_capacity: null,
-  price: 0,
-};
-
+// Create + edit have moved to /settings/services/new and
+// /settings/services/:serviceId — full-page forms instead of a cramped
+// slide-out sheet. This component is now read-only navigation: list,
+// filter, reorder, and link through.
 export function ServicesSettings() {
-  const { services, saving, createService, updateService, loadServiceStaff, reorderService } =
-    useServiceManagement();
-  const { staff } = useStaff();
+  const navigate = useNavigate();
+  const { services, saving, reorderService } = useServiceManagement();
 
-  const [isServiceSheetOpen, setIsServiceSheetOpen] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
-  const [newService, setNewService] = useState<Partial<Service>>(initialServiceState);
-  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [sortMode, setSortMode] = useState<SortMode>("display_order");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [importOpen, setImportOpen] = useState(false);
 
   const filteredServices = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = services.filter((s) => {
-      if (statusFilter === "active" && !s.active) return false;
-      if (statusFilter === "inactive" && s.active) return false;
+      if (statusFilter === "active" && !s.is_active) return false;
+      if (statusFilter === "inactive" && s.is_active) return false;
       if (!q) return true;
       return (
         s.name.toLowerCase().includes(q) ||
@@ -58,7 +44,7 @@ export function ServicesSettings() {
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       if (sortMode === "duration") return a.duration_minutes - b.duration_minutes;
-      if (sortMode === "price") return Number(a.price) - Number(b.price);
+      if (sortMode === "price") return (a.price_pence ?? 0) - (b.price_pence ?? 0);
       if (sortMode === "name") return a.name.localeCompare(b.name);
       // display_order — the one the patient-facing page uses. Ties fall back
       // to name for determinism.
@@ -69,37 +55,6 @@ export function ServicesSettings() {
   }, [services, search, sortMode, statusFilter]);
 
   const canReorder = sortMode === "display_order" && !search && statusFilter === "all";
-
-  useEffect(() => {
-    const loadStaffForService = async () => {
-      if (editingService && !editingService.all_staff_can_perform) {
-        const staffIds = await loadServiceStaff(editingService.id);
-        setSelectedStaff(staffIds);
-      } else {
-        setSelectedStaff([]);
-      }
-    };
-
-    loadStaffForService();
-  }, [editingService]);
-
-  const handleCreateService = async () => {
-    const success = await createService(newService, selectedStaff);
-    if (success) {
-      setIsServiceSheetOpen(false);
-      setNewService(initialServiceState);
-      setSelectedStaff([]);
-    }
-  };
-
-  const handleUpdateService = async () => {
-    if (!editingService) return;
-    const success = await updateService(editingService, selectedStaff);
-    if (success) {
-      setEditingService(null);
-      setSelectedStaff([]);
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -136,28 +91,25 @@ export function ServicesSettings() {
             </SelectContent>
           </Select>
         </div>
-        <DetailSheet
-          trigger={
-            <Button size="sm" className="sm:ml-auto w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Service
-            </Button>
-          }
-          title="Add New Service"
-          open={isServiceSheetOpen}
-          onOpenChange={setIsServiceSheetOpen}
-        >
-          <ServiceForm
-            service={newService}
-            staff={staff}
-            selectedStaff={selectedStaff}
-            onServiceChange={setNewService}
-            onStaffSelectionChange={setSelectedStaff}
-            onSubmit={handleCreateService}
-            saving={saving}
-            mode="create"
-          />
-        </DetailSheet>
+        <div className="sm:ml-auto flex gap-2 w-full sm:w-auto">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setImportOpen(true)}
+            className="flex-1 sm:flex-none"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload CSV
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => navigate("/settings/services/new")}
+            className="flex-1 sm:flex-none"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add Service
+          </Button>
+        </div>
       </div>
 
       <div className="divide-y border rounded-lg bg-card">
@@ -206,7 +158,7 @@ export function ServicesSettings() {
 
               <button
                 type="button"
-                onClick={() => setEditingService(service)}
+                onClick={() => navigate(`/settings/services/${service.id}`)}
                 className="flex-1 min-w-0 flex items-center gap-3 text-left"
               >
                 <div className="flex-1 min-w-0">
@@ -214,20 +166,26 @@ export function ServicesSettings() {
                     <h4 className="font-medium truncate">{service.name}</h4>
                     <div
                       className={`w-2 h-2 rounded-full shrink-0 ${
-                        service.active ? "bg-green-500" : "bg-red-500"
+                        service.is_active ? "bg-green-500" : "bg-red-500"
                       }`}
-                      title={service.active ? "Active" : "Inactive"}
+                      title={service.is_active ? "Active" : "Inactive"}
                     />
                     {service.is_nhs && (
                       <span className="text-[10px] font-medium bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                        NHS{service.nhs_band ? ` Band ${service.nhs_band}` : ""}
+                        NHS{service.nhs_band ? ` ${service.nhs_band.replace("_", " ")}` : ""}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                     <span>{service.duration_minutes} min</span>
-                    {service.price > 0 && <span>&middot; £{Number(service.price).toFixed(2)}</span>}
-                    {service.treatment_type && <span>&middot; {service.treatment_type}</span>}
+                    {service.price_pence != null && service.price_pence > 0 && (
+                      <span>&middot; {formatPrice(service.price_pence)}</span>
+                    )}
+                    {service.treatment_type && (
+                      <span className="capitalize">
+                        &middot; {service.treatment_type.replace(/_/g, " ").toLowerCase()}
+                      </span>
+                    )}
                     {service.recall_months && <span>&middot; {service.recall_months}mo recall</span>}
                   </div>
                 </div>
@@ -245,27 +203,7 @@ export function ServicesSettings() {
         )}
       </div>
 
-      {editingService && (
-        <DetailSheet
-          trigger={<div />}
-          title="Edit Service"
-          open={!!editingService}
-          onOpenChange={(open) => !open && setEditingService(null)}
-        >
-          <ServiceForm
-            service={editingService}
-            staff={staff}
-            selectedStaff={selectedStaff}
-            onServiceChange={(updated) =>
-              setEditingService({ ...editingService, ...updated } as Service)
-            }
-            onStaffSelectionChange={setSelectedStaff}
-            onSubmit={handleUpdateService}
-            saving={saving}
-            mode="edit"
-          />
-        </DetailSheet>
-      )}
+      <ImportServicesSheet open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

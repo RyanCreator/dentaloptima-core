@@ -1,6 +1,14 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { createContext, useContext, useEffect, ReactNode } from "react";
 import { setClinicTimezone } from "@/lib/constants";
+import { getTenantOrNull } from "@/lib/tenantBranding";
+
+// Timezone now comes from the practice row resolved at bootstrap by
+// PracticeBootstrap, not from the legacy `app_settings` table. We expose
+// it through the same context-shaped API the lifted code expects.
+//
+// During the brief moment before PracticeBootstrap completes, getTenant
+// returns null — we fall back to Europe/London. As soon as the tenant
+// resolves, the provider re-reads on its first effect tick.
 
 interface TimezoneContextType {
   timezone: string;
@@ -13,38 +21,24 @@ const TimezoneContext = createContext<TimezoneContextType>({
 });
 
 export function TimezoneProvider({ children }: { children: ReactNode }) {
-  const [timezone, setTimezone] = useState("Europe/London");
-  const [loading, setLoading] = useState(true);
+  // Read directly from the module-level tenant cache. PracticeBootstrap
+  // populates this before any of its descendants render, so by the time
+  // any component reads useTimezone, it's set.
+  const tenant = getTenantOrNull();
+  const timezone = tenant?.practice.timezone ?? "Europe/London";
 
+  // Push into the constants cache for non-React callers.
   useEffect(() => {
-    loadTimezone();
-  }, []);
-
-  const loadTimezone = async () => {
-    const { data, error } = await supabase
-      .from("app_settings")
-      .select("timezone")
-      .single();
-
-    if (!error && data?.timezone) {
-      setTimezone(data.timezone);
-      // Cache timezone for use in non-React code
-      setClinicTimezone(data.timezone);
-    }
-    setLoading(false);
-  };
+    if (timezone) setClinicTimezone(timezone);
+  }, [timezone]);
 
   return (
-    <TimezoneContext.Provider value={{ timezone, loading }}>
+    <TimezoneContext.Provider value={{ timezone, loading: false }}>
       {children}
     </TimezoneContext.Provider>
   );
 }
 
-/**
- * Hook to get the configured clinic timezone
- * Returns the timezone from settings, defaults to Europe/London
- */
 export function useTimezone() {
   const context = useContext(TimezoneContext);
   if (context === undefined) {
@@ -52,4 +46,3 @@ export function useTimezone() {
   }
   return context.timezone;
 }
-

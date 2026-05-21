@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useState } from "react";
+import { format, differenceInMinutes } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { CalendarIcon, Check, X, UserX, LogIn, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -25,9 +25,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CompleteAppointmentDialog } from "@/components/calendar/CompleteAppointmentDialog";
 import { BillingSection } from "@/components/calendar/BillingSection";
+import { NHSExemptionPanel, type NHSExemptionCategory } from "@/components/calendar/NHSExemptionPanel";
+import { NHSClaimSheet } from "@/components/calendar/NHSClaimSheet";
+import { findClaimForAppointment } from "@/lib/createNhsClaim";
+import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Appointment } from "@/hooks/useAppointments";
-import { UK_TIMEZONE, APPOINTMENT_STATUS, AppointmentStatus } from "@/lib/constants";
+import { UK_TIMEZONE, AppointmentStatus } from "@/lib/constants";
+import { formatPrice } from "@/types/entities";
 
 interface AppointmentDetailSheetProps {
   appointment: Appointment | null;
@@ -84,11 +89,42 @@ export function AppointmentDetailSheet({
   const [cancelReason, setCancelReason] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [isQuickUpdating, setIsQuickUpdating] = useState(false);
+  const [showNhsClaim, setShowNhsClaim] = useState(false);
+  const [existingClaim, setExistingClaim] = useState<{ id: string; status: string } | null>(null);
+
+  // Look up any existing FP17 claim for this appointment so we can swap
+  // "Create FP17 claim" for "View FP17 claim" + status badge.
+  useEffect(() => {
+    if (!appointment) {
+      setExistingClaim(null);
+      return;
+    }
+    let cancelled = false;
+    findClaimForAppointment(appointment.id).then((res) => {
+      if (cancelled) return;
+      if (res?.claim) setExistingClaim({ id: res.claim.id, status: res.claim.status });
+      else setExistingClaim(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment?.id, showNhsClaim]);
 
   if (!appointment) return null;
 
   const isPastAppointment = new Date(appointment.starts_at) < new Date();
   const currentStatus = appointment.status;
+
+  // The new schema uses appointment_service for many-to-many. UI here shows
+  // the primary (first) service in the headline and lists extras inline.
+  // Editing a single "service" is still single-pick for now — multi-service
+  // editing is a follow-up.
+  const primaryService = appointment.services?.[0]?.service ?? null;
+  const allServices = appointment.services ?? [];
+  const totalDurationMin = differenceInMinutes(
+    new Date(appointment.ends_at),
+    new Date(appointment.starts_at),
+  );
 
   const handleQuickStatusChange = async (status: AppointmentStatus) => {
     if (!onQuickStatusChange) return;
@@ -153,45 +189,41 @@ export function AppointmentDetailSheet({
         {!isEditing ? (
           <>
             <div className="space-y-3 text-sm">
-              {/* Medical flags */}
-              {(appointment.patient.is_pregnant || appointment.patient.takes_anticoagulant) && (
-                <div className="flex flex-wrap gap-1.5 pb-2">
-                  {appointment.patient.is_pregnant && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded px-2 py-1 font-medium">
-                      Pregnant
-                    </span>
-                  )}
-                  {appointment.patient.takes_anticoagulant && (
-                    <span className="inline-flex items-center gap-1 text-xs bg-red-50 text-red-800 border border-red-200 rounded px-2 py-1 font-medium">
-                      Anticoagulant
-                    </span>
-                  )}
-                </div>
-              )}
-
+              {/* Medical alerts will be sourced from the `medical_alert`
+                  table (replaces legacy patient.is_pregnant /
+                  takes_anticoagulant flags). Stub for now. */}
               <div className="flex items-center gap-1">
                 <span className="font-medium">Patient:</span>
                 <Link to={`/patients/${appointment.patient.id}`} className="hover:underline flex items-center gap-1 text-primary">
                   {appointment.patient.full_name}
                   <ExternalLink className="h-3 w-3" />
                 </Link>
-                {appointment.patient.no_show_count >= 3 && (
-                  <span className="text-[9px] bg-red-100 text-red-700 rounded px-1 py-0.5 font-medium ml-1">
-                    {appointment.patient.no_show_count} no-shows
-                  </span>
-                )}
               </div>
               <div>
-                <span className="font-medium">Phone:</span> {appointment.patient.phone}
+                <span className="font-medium">Phone:</span> {appointment.patient.phone ?? "—"}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">Service:</span> {appointment.service.name} ({appointment.service.duration_minutes} min)
-                {appointment.service.is_nhs && (
-                  <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 font-medium">NHS</span>
-                )}
+              <div className="flex items-start gap-2 flex-wrap">
+                <span className="font-medium">Service{allServices.length > 1 ? "s" : ""}:</span>
+                <div className="flex flex-col gap-0.5">
+                  {allServices.length === 0 ? (
+                    <span className="text-muted-foreground italic">(no service)</span>
+                  ) : (
+                    allServices.map((s) => (
+                      <span key={s.id} className="flex items-center gap-1.5">
+                        {s.service.name} ({s.duration_minutes_snapshot} min · {formatPrice(s.price_pence_snapshot)})
+                        {s.service.is_nhs && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5 font-medium">NHS</span>
+                        )}
+                      </span>
+                    ))
+                  )}
+                </div>
               </div>
               <div>
-                <span className="font-medium">Staff:</span> {appointment.staff.full_name}
+                <span className="font-medium">Total duration:</span> {totalDurationMin} min
+              </div>
+              <div>
+                <span className="font-medium">Staff:</span> {appointment.staff.full_name ?? "Unassigned"}
               </div>
               <div>
                 <span className="font-medium">Start:</span>{" "}
@@ -204,29 +236,64 @@ export function AppointmentDetailSheet({
               <div>
                 <span className="font-medium">Status:</span> {appointment.status}
               </div>
-              {appointment.notes && (
-                <div>
-                  <span className="font-medium">Notes:</span>
-                  <p className="mt-1 text-muted-foreground">{appointment.notes}</p>
-                </div>
-              )}
               {appointment.treatment_summary && (
                 <div>
-                  <span className="font-medium">Treatment Summary:</span>
+                  <span className="font-medium">Treatment summary:</span>
                   <p className="mt-1 text-muted-foreground">{appointment.treatment_summary}</p>
+                </div>
+              )}
+              {appointment.cancellation_notes && (
+                <div>
+                  <span className="font-medium">Cancellation note:</span>
+                  <p className="mt-1 text-muted-foreground">{appointment.cancellation_notes}</p>
                 </div>
               )}
             </div>
 
-            {/* Billing (shown for completed appointments) */}
-            {currentStatus === "COMPLETED" && (
+            {/* NHS exemption — only renders when at least one service is_nhs.
+                Captured per-visit; flows into the FP17 claim at submission. */}
+            <NHSExemptionPanel
+              appointmentId={appointment.id}
+              hasNhsService={allServices.some((s) => s.service?.is_nhs)}
+              initialCategory={
+                (appointment.nhs_exemption_category as NHSExemptionCategory) ?? "NONE"
+              }
+              initialEvidenceSeen={appointment.nhs_exemption_evidence_seen ?? false}
+              patientNhsNumber={appointment.patient.nhs_number}
+            />
+
+            {/* Billing (shown for completed appointments). The first service
+                is used for the headline; full multi-service billing is a
+                follow-up. */}
+            {currentStatus === "COMPLETED" && primaryService && (
               <BillingSection
                 appointmentId={appointment.id}
-                serviceName={appointment.service.name}
-                serviceId={appointment.service.id}
-                servicePrice={appointment.service.price}
+                serviceName={primaryService.name}
+                serviceId={primaryService.id}
+                servicePrice={primaryService.price_pence / 100}
               />
             )}
+
+            {/* FP17 claim trigger. Surfaces only on completed appointments
+                with at least one NHS service — kept off the chip otherwise
+                so private-only days aren't cluttered. */}
+            {currentStatus === "COMPLETED" &&
+              allServices.some((s) => s.service?.is_nhs) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => setShowNhsClaim(true)}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  {existingClaim ? "View FP17 claim" : "Create FP17 claim"}
+                  {existingClaim && (
+                    <span className="ml-auto text-[10px] font-medium uppercase tracking-wide bg-muted px-1.5 py-0.5 rounded">
+                      {existingClaim.status.replace(/_/g, " ").toLowerCase()}
+                    </span>
+                  )}
+                </Button>
+              )}
 
             {/* Check-in button — for SCHEDULED appointments that haven't arrived */}
             {currentStatus === "SCHEDULED" && !appointment.arrived_at && (
@@ -258,7 +325,7 @@ export function AppointmentDetailSheet({
               </div>
             )}
 
-            {/* Quick Action Buttons - Always show when not editing */}
+            {/* Quick Action Buttons */}
             {showQuickActions && (
               <div className="space-y-2 pt-2 border-t">
                 <p className="text-xs text-muted-foreground font-medium">Quick Actions</p>
@@ -321,7 +388,7 @@ export function AppointmentDetailSheet({
                 <span className="text-sm font-medium">Patient:</span>
                 <p className="text-sm mt-1">{appointment.patient.full_name}</p>
               </div>
-              
+
               <div className="space-y-2">
                 <Label>Service *</Label>
                 <Select value={editServiceId} onValueChange={setEditServiceId}>
@@ -336,6 +403,11 @@ export function AppointmentDetailSheet({
                     ))}
                   </SelectContent>
                 </Select>
+                {allServices.length > 1 && (
+                  <p className="text-[11px] text-amber-600">
+                    Note: this appointment has {allServices.length} services. Editing replaces them with the chosen one. Multi-service editing is coming soon.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -346,7 +418,7 @@ export function AppointmentDetailSheet({
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !editDate && "text-muted-foreground"
+                        !editDate && "text-muted-foreground",
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -403,7 +475,7 @@ export function AppointmentDetailSheet({
               </div>
 
               <div className="space-y-2">
-                <Label>{editStatus === "CANCELLED" ? "Cancellation Reason" : "Notes"}</Label>
+                <Label>{editStatus === "CANCELLED" ? "Cancellation Reason" : "Treatment summary / notes"}</Label>
                 <Textarea
                   placeholder={editStatus === "CANCELLED" ? "Reason for cancellation..." : "Add notes..."}
                   value={editNotes}
@@ -464,13 +536,20 @@ export function AppointmentDetailSheet({
       <CompleteAppointmentDialog
         open={showCompleteDialog}
         onOpenChange={setShowCompleteDialog}
-        serviceName={appointment.service.name}
-        baselinePrice={appointment.service.price}
+        serviceName={primaryService?.name ?? "(no service)"}
+        baselinePrice={primaryService ? primaryService.price_pence / 100 : 0}
         patientName={appointment.patient?.full_name}
-        isPregnant={appointment.patient?.is_pregnant}
-        takesAnticoagulant={appointment.patient?.takes_anticoagulant}
         onConfirm={handleCompleteWithPrice}
         isUpdating={isQuickUpdating}
+      />
+
+      {/* FP17 claim sheet — separate from the main sheet so the user can
+          take this slow without losing their place. Re-loads existing
+          claim status when it closes. */}
+      <NHSClaimSheet
+        open={showNhsClaim}
+        onOpenChange={setShowNhsClaim}
+        appointment={appointment}
       />
     </DetailSheet>
   );

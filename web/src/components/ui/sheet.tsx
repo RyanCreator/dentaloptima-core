@@ -51,16 +51,28 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {}
 
+// Trailing sr-only SheetTitle satisfies Radix's a11y check when a consumer
+// forgets to add one. The consumer's own SheetTitle, if present, wins for
+// aria-labelledby (first registered title takes the role).
+//
+// `aria-describedby` defaults to undefined to silence Radix's "missing
+// description" warning on sheets that don't need one.
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
+  ({ side = "right", className, children, "aria-describedby": ariaDescribedBy, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <SheetPrimitive.Content
+        ref={ref}
+        aria-describedby={ariaDescribedBy}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+      >
         {children}
         <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </SheetPrimitive.Close>
+        <SheetPrimitive.Title className="sr-only">Drawer</SheetPrimitive.Title>
       </SheetPrimitive.Content>
     </SheetPortal>
   ),

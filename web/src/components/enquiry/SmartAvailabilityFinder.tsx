@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { format, addWeeks } from "date-fns";
-import { CalendarIcon, Clock, User } from "lucide-react";
+import { CalendarIcon, Clock, User, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { logger } from "@/lib/logger";
@@ -28,19 +28,60 @@ interface SmartAvailabilityFinderProps {
   services: any[];
   staff: any[];
   onSlotSelected: (staffId: string, date: Date, time: string, serviceId: string) => void;
+  // When the finder is opened from an enquiry, the patient already told
+  // us what they want. Pre-fill the filters so the operator doesn't have
+  // to re-enter everything; they just see suggested slots that match the
+  // patient's preferences and can pick or widen the search.
+  prefill?: {
+    serviceId?: string | null;
+    preferredAt?: string | null; // ISO timestamp
+  };
+}
+
+// Maps a preferred-at hour to the `morning` / `afternoon` enum used by the
+// availability engine. We keep the cutoff at 12:00 — anything before is
+// morning, 12:00+ is afternoon (matches the public booking form's bands).
+function timeOfDayFromHour(hour: number): "morning" | "afternoon" | undefined {
+  if (hour >= 0 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 24) return "afternoon";
+  return undefined;
 }
 
 export function SmartAvailabilityFinder({
   services,
   staff,
   onSlotSelected,
+  prefill,
 }: SmartAvailabilityFinderProps) {
-  const [selectedService, setSelectedService] = useState("");
+  // Compute initial values from prefill once. We don't reset on prefill
+  // changes because the operator may have intentionally widened filters.
+  const initial = (() => {
+    if (!prefill) return null;
+    const preferredDate = prefill.preferredAt ? new Date(prefill.preferredAt) : null;
+    return {
+      serviceId: prefill.serviceId ?? "",
+      startDate: preferredDate ?? undefined,
+      timeOfDay: preferredDate ? timeOfDayFromHour(preferredDate.getHours()) : undefined,
+    };
+  })();
+
+  const [selectedService, setSelectedService] = useState(initial?.serviceId ?? "");
   const [selectedStaff, setSelectedStaff] = useState<string>("anyone");
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState<number | undefined>();
-  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<"morning" | "afternoon" | undefined>();
-  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<"morning" | "afternoon" | undefined>(
+    initial?.timeOfDay,
+  );
+  const [startDate, setStartDate] = useState<Date | undefined>(initial?.startDate);
   const [weeksToCheck, setWeeksToCheck] = useState(4);
+
+  // The patient's preferred-at, kept around for the callout at the top so
+  // we can describe what the filters were prefilled FROM. Independent of
+  // current filter state — the operator can change filters and this
+  // remains as the original ask.
+  const preferredAtIso = prefill?.preferredAt ?? null;
+  const preferredService = prefill?.serviceId
+    ? services.find((s) => s.id === prefill.serviceId)
+    : null;
   const [loading, setLoading] = useState(false);
   const [suggestedSlots, setSuggestedSlots] = useState<
     Array<{
@@ -108,7 +149,38 @@ export function SmartAvailabilityFinder({
 
   return (
     <div className="bg-card rounded-lg border p-6 space-y-4">
-      <h3 className="font-semibold">Find Available Slots</h3>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h3 className="font-semibold">Find Available Slots</h3>
+          {(preferredAtIso || preferredService) && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Filters pre-filled from the enquiry — adjust to widen the search.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Patient's stated preference — reminds the operator what was
+          asked for, even if they've since widened the filters. */}
+      {(preferredAtIso || preferredService) && (
+        <div className="rounded-md border border-blue-300/60 bg-blue-50/60 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-100 flex items-start gap-2">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5 text-blue-700 dark:text-blue-300" />
+          <div className="min-w-0 leading-relaxed">
+            <span className="font-medium">Patient asked for:</span>{" "}
+            {preferredService && (
+              <span>{preferredService.name}</span>
+            )}
+            {preferredService && preferredAtIso && <span>, </span>}
+            {preferredAtIso && (
+              <span>
+                {format(new Date(preferredAtIso), "EEE d MMM 'at' HH:mm")}
+              </span>
+            )}
+            . Suggested slots below start from this preference; click one
+            to book it directly.
+          </div>
+        </div>
+      )}
 
       {/* Service Selection - Required */}
       <div className="space-y-2">

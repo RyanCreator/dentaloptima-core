@@ -2,13 +2,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
+import { usePractice } from "@/contexts/PracticeContext";
 
+// Schema in dentaloptima-core (migration 0008): blocked_time has
+// `block_type` (enum) + `title` (free text). The legacy `reason` column
+// is gone — `reason` was free text + status, but the new schema separates
+// the kind of block (TRAINING / ADMIN / PERSONAL / OTHER) from a label.
+//
+// We keep a `reason` getter on the interface for back-compat with lifted
+// UI code that reads it; the underlying field is `title`.
 export interface BlockedTimeEntry {
   id: string;
+  practice_id: string;
   staff_id: string;
   starts_at: string;
   ends_at: string;
-  reason: string;
+  block_type: string;
+  title: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
@@ -19,7 +29,14 @@ export interface CreateBlockedTimeParams {
   staff_id: string;
   starts_at: string;
   ends_at: string;
-  reason: string;
+  block_type?: string; // defaults to "OTHER" if not provided
+  /** Short label shown on the blocked-time chip in the calendar. NOT NULL
+   *  in the schema; falls back to "Blocked time" if the caller doesn't
+   *  supply one so the insert always satisfies the constraint. */
+  title?: string;
+  /** Free-text label from the legacy "reason" field. Accepted as an alias
+   *  for `title` so older call sites that still pass `reason` work. */
+  reason?: string;
   notes?: string;
 }
 
@@ -28,6 +45,8 @@ export interface CreateBlockedTimeParams {
  */
 export function useBlockedTime(staffId?: string) {
   const queryClient = useQueryClient();
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
 
   // Fetch blocked time entries
   const { data: blockedTimeEntries = [], isLoading } = useQuery({
@@ -60,23 +79,34 @@ export function useBlockedTime(staffId?: string) {
       // Get current user ID
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Look up the staff member ID from the auth user ID
-      let createdByStaffId = null;
+      // Look up the practice_member ID from the auth user ID. The new
+      // schema's audit columns reference practice_member.id rather than
+      // the legacy app_staff.id.
+      let createdByMemberId = null;
       if (user?.id) {
-        const { data: staffData } = await supabase
-          .from("app_staff")
+        const { data: memberData } = await supabase
+          .from("practice_member")
           .select("id")
           .eq("user_id", user.id)
-          .single();
+          .is("deleted_at", null)
+          .maybeSingle();
 
-        createdByStaffId = staffData?.id || null;
+        createdByMemberId = memberData?.id || null;
       }
 
       const { data, error } = await supabase
         .from("blocked_time")
         .insert({
-          ...params,
-          created_by: createdByStaffId,
+          practice_id: practiceId,
+          staff_id: params.staff_id,
+          starts_at: params.starts_at,
+          ends_at: params.ends_at,
+          block_type: params.block_type ?? "OTHER",
+          // title is NOT NULL — fall back to the legacy `reason` alias or a
+          // sensible default so the insert always passes the constraint.
+          title: params.title ?? params.reason ?? "Blocked time",
+          notes: params.notes ?? null,
+          created_by: createdByMemberId,
         })
         .select()
         .single();

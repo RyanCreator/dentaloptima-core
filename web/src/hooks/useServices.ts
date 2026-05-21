@@ -4,6 +4,15 @@ import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import type { Service } from "@/types/entities";
 
+// Lists services. Reads from the new `service` table (singular) — not
+// the legacy `services`. Columns map:
+//   active              → is_active
+//   colour_tag          → color_hex
+//   price (decimal £)   → price_pence (integer)
+//
+// Legacy `all_staff_can_perform` / `requires_room` / `room_capacity` no
+// longer exist — staff↔service assignment is via the `staff_service` join
+// table now, and rooms aren't modelled.
 export function useServices(activeOnly: boolean = true) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
@@ -13,16 +22,17 @@ export function useServices(activeOnly: boolean = true) {
     setLoading(true);
     setError(null);
 
-    // Select fields needed for availability calculations and display
-    // Excludes: created_at (not used), price/colour_tag (loaded on detail page)
     let query = supabase
-      .from("services")
-      .select("id, name, duration_minutes, buffer_before_minutes, buffer_after_minutes, active, all_staff_can_perform, requires_room, room_capacity, display_order")
+      .from("service")
+      .select(
+        "id, practice_id, name, description, treatment_type, duration_minutes, buffer_before_minutes, buffer_after_minutes, price_pence, is_nhs, nhs_band, recall_months, color_hex, display_order, is_publicly_bookable, is_active",
+      )
+      .is("deleted_at", null)
       .order("display_order", { ascending: true })
       .order("name", { ascending: true });
 
     if (activeOnly) {
-      query = query.eq("active", true);
+      query = query.eq("is_active", true);
     }
 
     const { data, error: fetchError } = await query;

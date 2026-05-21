@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePractice } from "@/contexts/PracticeContext";
+
+// Staff weekly schedule + recurring breaks. The hook surfaces a 7-day array
+// indexed by ISO weekday (Mon=1 ... Sun=7) so the UI can render a static
+// table; the dentaloptima-core schema stores `weekday` as the enum
+// MON/TUE/.../SUN, so we translate at the boundary.
 
 export interface Break {
   id?: string;
@@ -23,6 +29,36 @@ export interface Availability {
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+type WeekdayEnum = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
+
+const INT_TO_ENUM: Record<number, WeekdayEnum> = {
+  1: "MON",
+  2: "TUE",
+  3: "WED",
+  4: "THU",
+  5: "FRI",
+  6: "SAT",
+  7: "SUN",
+};
+
+const ENUM_TO_INT: Record<string, number> = {
+  MON: 1,
+  TUE: 2,
+  WED: 3,
+  THU: 4,
+  FRI: 5,
+  SAT: 6,
+  SUN: 7,
+};
+
+function intToEnum(weekday: number): WeekdayEnum {
+  return INT_TO_ENUM[weekday] ?? "MON";
+}
+function enumToInt(weekday: string | number): number {
+  if (typeof weekday === "number") return weekday;
+  return ENUM_TO_INT[weekday] ?? 0;
+}
+
 const DEFAULT_SCHEDULE: Availability[] = WEEKDAYS.map((_, idx) => ({
   weekday: idx + 1,
   start_time: "09:00",
@@ -35,6 +71,9 @@ const DEFAULT_SCHEDULE: Availability[] = WEEKDAYS.map((_, idx) => ({
 }));
 
 export function useStaffSchedule(staffId: string | undefined) {
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
+
   const [schedule, setSchedule] = useState<Availability[]>(DEFAULT_SCHEDULE);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +81,7 @@ export function useStaffSchedule(staffId: string | undefined) {
     if (staffId) {
       loadSchedule();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffId]);
 
   // Real-time updates subscription
@@ -58,7 +98,7 @@ export function useStaffSchedule(staffId: string | undefined) {
           table: "staff_availability",
           filter: `staff_id=eq.${staffId}`,
         },
-        () => loadSchedule()
+        () => loadSchedule(),
       )
       .subscribe();
 
@@ -69,10 +109,10 @@ export function useStaffSchedule(staffId: string | undefined) {
         {
           event: "*",
           schema: "public",
-          table: "staff_breaks",
+          table: "staff_break",
           filter: `staff_id=eq.${staffId}`,
         },
-        () => loadSchedule()
+        () => loadSchedule(),
       )
       .subscribe();
 
@@ -80,6 +120,7 @@ export function useStaffSchedule(staffId: string | undefined) {
       supabase.removeChannel(availabilityChannel);
       supabase.removeChannel(breaksChannel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [staffId]);
 
   const loadSchedule = async () => {
@@ -87,26 +128,26 @@ export function useStaffSchedule(staffId: string | undefined) {
 
     const { data: availabilityData } = await supabase
       .from("staff_availability")
-      .select("*")
+      .select("id, weekday, start_time, end_time")
       .eq("staff_id", staffId)
-      .is("effective_from", null)
       .is("effective_to", null);
 
     const { data: breaksData } = await supabase
-      .from("staff_breaks")
-      .select("*")
+      .from("staff_break")
+      .select("id, weekday, start_time, end_time")
       .eq("staff_id", staffId)
-      .is("effective_from", null)
       .is("effective_to", null);
 
     if (availabilityData && availabilityData.length > 0) {
       const mappedSchedule = DEFAULT_SCHEDULE.map((defaultDay) => {
-        const existingDay = availabilityData.find((d) => d.weekday === defaultDay.weekday);
-        // Get ALL breaks for this weekday
-        const dayBreaks = breaksData?.filter((b) => b.weekday === defaultDay.weekday) || [];
+        const existingDay = availabilityData.find(
+          (d) => enumToInt(d.weekday) === defaultDay.weekday,
+        );
+        const dayBreaks =
+          breaksData?.filter((b) => enumToInt(b.weekday) === defaultDay.weekday) || [];
 
         if (existingDay) {
-          const breaks: Break[] = dayBreaks.map(b => ({
+          const breaks: Break[] = dayBreaks.map((b) => ({
             id: b.id,
             start_time: b.start_time,
             end_time: b.end_time,
@@ -114,10 +155,10 @@ export function useStaffSchedule(staffId: string | undefined) {
 
           return {
             id: existingDay.id,
-            weekday: existingDay.weekday,
-            start_time: existingDay.start_time,
-            end_time: existingDay.end_time,
-            breaks: breaks,
+            weekday: defaultDay.weekday,
+            start_time: existingDay.start_time?.slice(0, 5) ?? "09:00",
+            end_time: existingDay.end_time?.slice(0, 5) ?? "17:00",
+            breaks,
             break_start: breaks.length > 0 ? breaks[0].start_time : undefined,
             break_end: breaks.length > 0 ? breaks[0].end_time : undefined,
             no_break: breaks.length === 0,
@@ -140,9 +181,9 @@ export function useStaffSchedule(staffId: string | undefined) {
     if (!daySchedule) return;
 
     const updatedDay = { ...daySchedule, ...updates };
+    const weekdayEnum = intToEnum(weekday);
 
     if (updatedDay.is_working) {
-      // Save working hours
       if (updatedDay.id) {
         const { error } = await supabase
           .from("staff_availability")
@@ -157,15 +198,17 @@ export function useStaffSchedule(staffId: string | undefined) {
           return;
         }
       } else {
+        // Insert needs practice_id (NOT NULL) and the enum form of weekday.
         const { data, error } = await supabase
           .from("staff_availability")
           .insert({
+            practice_id: practiceId,
             staff_id: staffId,
-            weekday: updatedDay.weekday,
+            weekday: weekdayEnum,
             start_time: updatedDay.start_time,
             end_time: updatedDay.end_time,
           })
-          .select()
+          .select("id")
           .single();
 
         if (error) {
@@ -175,37 +218,39 @@ export function useStaffSchedule(staffId: string | undefined) {
         updatedDay.id = data.id;
       }
 
-      // Handle multiple breaks
-      // First, delete all existing breaks for this day
+      // Replace breaks for this weekday in one go.
       await supabase
-        .from("staff_breaks")
+        .from("staff_break")
         .delete()
         .eq("staff_id", staffId)
-        .eq("weekday", weekday)
-        .is("effective_from", null)
+        .eq("weekday", weekdayEnum)
         .is("effective_to", null);
 
-      // Then insert all new breaks
       if (updatedDay.breaks && updatedDay.breaks.length > 0) {
-        const breaksToInsert = updatedDay.breaks.map(breakTime => ({
+        const breaksToInsert = updatedDay.breaks.map((breakTime) => ({
+          practice_id: practiceId,
           staff_id: staffId,
-          weekday: weekday,
+          weekday: weekdayEnum,
           start_time: breakTime.start_time,
           end_time: breakTime.end_time,
         }));
 
-        await supabase.from("staff_breaks").insert(breaksToInsert);
+        const { error: breakError } = await supabase
+          .from("staff_break")
+          .insert(breaksToInsert);
+        if (breakError) {
+          toast.error("Failed to save breaks");
+        }
       }
     } else if (updatedDay.id) {
-      // Delete working hours and breaks if not working
+      // Day toggled to "not working" — drop hours + breaks.
       await supabase.from("staff_availability").delete().eq("id", updatedDay.id);
 
       await supabase
-        .from("staff_breaks")
+        .from("staff_break")
         .delete()
         .eq("staff_id", staffId)
-        .eq("weekday", weekday)
-        .is("effective_from", null)
+        .eq("weekday", weekdayEnum)
         .is("effective_to", null);
 
       delete updatedDay.id;

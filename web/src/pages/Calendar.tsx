@@ -22,6 +22,8 @@ import { CalendarGridView } from "@/components/calendar/CalendarGridView";
 import { AppointmentDetailSheet } from "@/components/calendar/AppointmentDetailSheet";
 import { BlockTimeDialog } from "@/components/calendar/BlockTimeDialog";
 import { useBlockedTime } from "@/hooks/useBlockedTime";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { RecentPatientsStrip } from "@/components/RecentPatientsStrip";
 import type { Appointment } from "@/hooks/useAppointments";
 import { UK_TIMEZONE, AppointmentStatus } from "@/lib/constants";
 
@@ -55,6 +57,45 @@ export default function Calendar() {
 
   const { breaksMap, availabilityMap } = useStaffRules();
   const { currentDate, setCurrentDate, viewMode, setViewMode, selectedDay, setSelectedDay, navigatePrevious, navigateNext, navigatePreviousDay, navigateNextDay, goToToday, openDayView, backToCalendar } = useCalendarNavigation();
+
+  // Keyboard shortcuts — only active while no sheets are open, so typing
+  // in the New Appointment / Detail sheets isn't hijacked. `useMemo` is
+  // implicit via the function identity: handlers close over the latest
+  // state because the hook depends on `shortcuts` reference.
+  const inViewerSheet = isSheetOpen || isNewAppointmentOpen || isBlockTimeOpen;
+  const cycleStaff = (direction: 1 | -1) => {
+    if (staff.length < 2) return;
+    if (selectedStaffId === "all") {
+      // Start from the beginning of the staff list when entering focus
+      // mode via keyboard. Picking either end based on direction would
+      // be cute but probably surprising.
+      if (staff[0]) setSelectedStaffId(staff[0].id);
+      return;
+    }
+    const idx = staff.findIndex((m) => m.id === selectedStaffId);
+    const nextIdx = (idx + direction + staff.length) % staff.length;
+    const next = staff[nextIdx];
+    if (next) setSelectedStaffId(next.id);
+  };
+  useKeyboardShortcuts(
+    {
+      ArrowLeft: () => {
+        if (selectedDay || viewMode === "day") navigatePreviousDay();
+        else navigatePrevious();
+      },
+      ArrowRight: () => {
+        if (selectedDay || viewMode === "day") navigateNextDay();
+        else navigateNext();
+      },
+      t: goToToday,
+      T: goToToday,
+      b: () => setIsNewAppointmentOpen(true),
+      B: () => setIsNewAppointmentOpen(true),
+      "[": () => cycleStaff(-1),
+      "]": () => cycleStaff(1),
+    },
+    { enabled: !inViewerSheet },
+  );
   const { appointments, loading: appointmentsLoading, error: appointmentsError, loadAppointments } = useAppointments(currentDate, viewMode);
   const { blockedTimeEntries } = useBlockedTime();
 
@@ -108,9 +149,13 @@ export default function Calendar() {
     setEditDate(aptTime);
     setEditTime(format(aptTime, "HH:mm"));
     setEditStaffId(appointment.staff.id);
-    setEditServiceId(appointment.service.id || "");
+    // The new schema has many-to-many appointment_service. The single-pick
+    // edit form pre-populates with the primary service (lowest display_order).
+    // Saving will replace ALL appointment_service rows for now — multi-service
+    // editing is a follow-up feature.
+    setEditServiceId(appointment.services?.[0]?.service?.id ?? "");
     setEditStatus(appointment.status as AppointmentStatus);
-    setEditNotes(appointment.notes || "");
+    setEditNotes(appointment.treatment_summary ?? "");
   };
 
   const saveAppointmentChanges = async () => {
@@ -134,10 +179,11 @@ export default function Calendar() {
 
       // Check if date/time has changed
       const originalTime = new Date(selectedAppointment.starts_at);
+      const originalPrimaryServiceId = selectedAppointment.services?.[0]?.service?.id ?? "";
       const hasDateTimeChanged =
         appointmentTime.getTime() !== originalTime.getTime() ||
         editStaffId !== selectedAppointment.staff.id ||
-        editServiceId !== selectedAppointment.service.id;
+        editServiceId !== originalPrimaryServiceId;
 
       // Only prevent rescheduling to past if date/time is being changed
       if (hasDateTimeChanged && appointmentTime < new Date()) {
@@ -151,13 +197,16 @@ export default function Calendar() {
 
       const previousStatus = selectedAppointment.status;
 
+      // Update the appointment row itself. service_id is no longer on
+      // `appointment` — services live in the `appointment_service` join,
+      // updated separately below. treatment_summary replaces the legacy
+      // notes column.
       const { error } = await supabase.from("appointment").update({
         starts_at: newStartsAt.toISOString(),
         ends_at: newEndsAt.toISOString(),
         staff_id: editStaffId,
-        service_id: editServiceId,
         status: editStatus,
-        notes: editNotes.trim() || null,
+        treatment_summary: editNotes.trim() || null,
       }).eq("id", selectedAppointment.id);
 
       if (error) {
@@ -165,7 +214,22 @@ export default function Calendar() {
         return;
       }
 
-      // no_show_count is maintained by trg_sync_patient_no_show_count
+      // If the service changed, replace the appointment_service rows. The
+      // single-pick edit always normalises to one service for now —
+      // multi-service editing is a follow-up.
+      if (editServiceId !== originalPrimaryServiceId) {
+        await supabase
+          .from("appointment_service")
+          .delete()
+          .eq("appointment_id", selectedAppointment.id);
+        await supabase.from("appointment_service").insert({
+          appointment_id: selectedAppointment.id,
+          service_id: editServiceId,
+          display_order: 0,
+          price_pence_snapshot: selectedService.price_pence ?? 0,
+          duration_minutes_snapshot: selectedService.duration_minutes,
+        });
+      }
 
       // Send notifications
       if (editStatus === "CANCELLED" && previousStatus !== "CANCELLED") {
@@ -218,29 +282,25 @@ export default function Calendar() {
       const previousStatus = selectedAppointment.status;
       const updateData: any = { status };
 
-      // Save cancellation reason when cancelling
+      // The new appointment table uses cancellation_reason (enum) +
+      // cancellation_notes (free text). Free-text notes during cancellation
+      // go into cancellation_notes; treatment notes during completion go
+      // into treatment_summary. The legacy single-purpose `notes` column
+      // is gone.
       if (status === "CANCELLED" && notes) {
-        updateData.cancellation_reason = notes;
-      } else if (notes) {
-        updateData.notes = notes;
+        updateData.cancellation_notes = notes;
+        updateData.cancelled_at = new Date().toISOString();
       }
 
-      // Add actual_price and treatment_summary when completing appointment
-      if (status === "COMPLETED" && actualPrice !== undefined) {
-        updateData.actual_price = actualPrice;
-      }
-      if (status === "COMPLETED" && treatmentSummary) {
-        updateData.treatment_summary = treatmentSummary;
+      if (status === "COMPLETED") {
+        if (treatmentSummary) updateData.treatment_summary = treatmentSummary;
+        updateData.completed_at = new Date().toISOString();
       }
 
-      // Handle post-appointment reminder cancellation/reset
-      if (previousStatus === "COMPLETED" && (status === "SCHEDULED" || status === "CANCELLED")) {
-        // Changing FROM completed - cancel any pending post-appointment reminder
-        updateData.post_appointment_reminder_cancelled = true;
-      } else if (status === "COMPLETED") {
-        // Marking as COMPLETED - reset cancellation flag (in case it was completed before)
-        updateData.post_appointment_reminder_cancelled = false;
-      }
+      // actualPrice from CompleteAppointmentDialog is captured server-side
+      // via the billing_item flow — not stored on appointment directly.
+      // The legacy `actual_price` column is gone in dentaloptima-core.
+      void actualPrice;
 
       // Update appointment status
       const { error } = await supabase
@@ -280,44 +340,10 @@ export default function Calendar() {
         }
       }
 
-      // Auto-send invoice on completion if the practice opted in. Most
-      // practices take payment chair-side and this would send a duplicate
-      // bill — that's why the setting defaults off. Iterates every unpaid
-      // billing item and fires send-invoice; idempotent because the
-      // function reuses the row's invoice_number on resend.
-      if (status === "COMPLETED") {
-        try {
-          const { data: settings } = await supabase
-            .from("app_settings")
-            .select("auto_send_invoice_on_completion")
-            .single();
-          if (settings?.auto_send_invoice_on_completion) {
-            const { data: items } = await supabase
-              .from("billing_item")
-              .select("id, payment_status, amount, amount_paid")
-              .eq("appointment_id", selectedAppointment.id)
-              .in("payment_status", ["UNPAID", "PARTIALLY_PAID"]);
-            const billable = (items ?? []).filter(
-              (i) => Number(i.amount) - Number(i.amount_paid) > 0
-            );
-            for (const item of billable) {
-              await supabase.functions.invoke("send-invoice", {
-                body: { billing_item_id: item.id },
-              });
-            }
-            if (billable.length > 0) {
-              toast.success(
-                `Invoice${billable.length === 1 ? "" : "s"} sent to patient`
-              );
-            }
-          }
-        } catch (invErr) {
-          // Non-fatal — completion already saved. Practice can resend manually.
-          console.error("Auto-send invoice failed:", invErr);
-        }
-      }
-
-      // no_show_count is maintained by trg_sync_patient_no_show_count
+      // Auto-send-invoice on completion is a follow-up feature in
+      // dentaloptima-core. The legacy app_settings table doesn't exist
+      // yet in the new schema; per-practice booking settings will be
+      // added when needed.
 
       const statusMessages: Record<AppointmentStatus, string> = {
         COMPLETED: "Appointment marked as completed",
@@ -326,7 +352,44 @@ export default function Calendar() {
         SCHEDULED: "Appointment status updated",
       };
 
-      toast.success(statusMessages[status] || "Status updated successfully");
+      // Undo affordance — reverts the appointment back to its previous
+      // status. We deliberately don't try to un-do the cancellation's side
+      // effects (waitlist offers, patient notification) — those are
+      // separate records of what happened at the time and shouldn't
+      // silently disappear. Reverting just the status is the useful bit.
+      const apptId = selectedAppointment.id;
+      const isReversible = previousStatus !== status;
+      toast.success(statusMessages[status] || "Status updated successfully", {
+        duration: 8000,
+        action: isReversible
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                const revert: Record<string, unknown> = { status: previousStatus };
+                // Clear the stamps we set so the row looks like its prior
+                // state. Treatment summary captured during the action is
+                // preserved (it's clinically captured info, not a status).
+                if (status === "CANCELLED") {
+                  revert.cancelled_at = null;
+                  revert.cancellation_notes = null;
+                }
+                if (status === "COMPLETED") {
+                  revert.completed_at = null;
+                }
+                const { error: undoErr } = await supabase
+                  .from("appointment")
+                  .update(revert)
+                  .eq("id", apptId);
+                if (undoErr) {
+                  toast.error("Couldn't undo");
+                  return;
+                }
+                toast.success("Reverted");
+                loadAppointments();
+              },
+            }
+          : undefined,
+      });
       setIsSheetOpen(false);
       loadAppointments();
     } catch (error) {
@@ -454,6 +517,7 @@ export default function Calendar() {
 
   return (
     <Layout title="Calendar">
+      <RecentPatientsStrip />
       <CalendarGridView
         currentDate={currentDate}
         viewMode={viewMode}

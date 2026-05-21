@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { format, isSameDay, setHours, setMinutes, setSeconds, setMilliseconds } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { Plus, Ban, GripVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus, Ban, GripVertical, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getStatusColor } from "@/lib/appointmentUtils";
 import type { Appointment } from "@/hooks/useAppointments";
 import type { BlockedTimeEntry } from "@/hooks/useBlockedTime";
 import { UK_TIMEZONE } from "@/lib/constants";
@@ -19,6 +19,10 @@ import {
   DragStartEvent,
 } from "@dnd-kit/core";
 import { useRescheduleAppointment } from "@/hooks/useRescheduleAppointment";
+import { ScheduleOverlay } from "./ScheduleOverlay";
+import { SlotActionDialog } from "./SlotActionDialog";
+import type { DayContext } from "@/hooks/useDayContext";
+import { SLOT_ROW_HEIGHT_PX, type SlotMinutes } from "@/hooks/usePracticeSetting";
 
 interface CalendarTimelineViewProps {
   selectedDay: Date;
@@ -35,6 +39,17 @@ interface CalendarTimelineViewProps {
   onAppointmentMoved?: () => void;
   startHour?: number;
   endHour?: number;
+  // Schedule context for shading out-of-hours, closures, and breaks.
+  // Optional so the timeline still renders cleanly during the brief window
+  // before the parent's useDayContext load resolves.
+  dayContext?: DayContext;
+  // Which staff member's breaks to overlay. "all" / undefined = none, since
+  // overlaying one person's lunch on a mixed view would be misleading.
+  selectedStaffId?: string;
+  // Visual grid granularity. Drives both the dashed divider count per hour
+  // and the drag-to-reschedule snap precision. Defaults to 30 min when
+  // unspecified to match the legacy behaviour.
+  slotMinutes?: SlotMinutes;
 }
 
 export function CalendarTimelineView({
@@ -49,7 +64,15 @@ export function CalendarTimelineView({
   onAppointmentMoved,
   startHour = 8,
   endHour = 20,
+  dayContext,
+  selectedStaffId,
+  slotMinutes = 30,
 }: CalendarTimelineViewProps) {
+  const slotsPerHour = Math.max(1, Math.round(60 / slotMinutes));
+  // Row height scales up at fine granularity so 10-min slots aren't stuck
+  // at ~10px tall. Stays at 60 for 20/30/60 min so the calendar doesn't
+  // look different from the legacy default.
+  const pixelsPerHour = SLOT_ROW_HEIGHT_PX[slotMinutes].single;
   const [currentTime, setCurrentTime] = useState(new Date());
   const [draggingApt, setDraggingApt] = useState<Appointment | null>(null);
   const { reschedule } = useRescheduleAppointment();
@@ -109,9 +132,9 @@ export function CalendarTimelineView({
     // Only show if within business hours
     if (currentHour < startHour || currentHour >= endHour) return null;
 
-    // Calculate pixel position from the top
+    // Calculate pixel position from the top using the same row height the
+    // grid uses, so the indicator line stays in sync as granularity changes.
     const hourIndex = currentHour - startHour;
-    const pixelsPerHour = 60; // Minimum height per hour
     const pixelsFromMinutes = (currentMinute / 60) * pixelsPerHour;
 
     return (hourIndex * pixelsPerHour) + pixelsFromMinutes;
@@ -125,71 +148,51 @@ export function CalendarTimelineView({
     (_, i) => startHour + i
   );
 
-  // Pre-bucket appointments by hour once per render. Without memoisation the
-  // previous implementation filtered the full appointments array once per
-  // hour slot on every minute-tick re-render (12 hours × N appointments),
-  // causing jank at scale. Now it's O(N) once, then O(1) per lookup.
-  //
-  // Preserves the original semantics: an appointment appears in its start
-  // hour, AND also in the next hour if it started in the second half of the
-  // previous hour (> :30) — visual spillover indicator.
+  // Pre-bucket appointments by their START hour. With the new "actual
+  // duration as pixel height" rendering, chips that span more than an hour
+  // visually overflow into subsequent hour cells (overflow: visible on
+  // both the hour row and the appointment area). One render per
+  // appointment — no spillover ghosts in the next hour bucket — so the
+  // chip's size always matches its duration cleanly.
   const appointmentsByHour = useMemo(() => {
     const byHour = new Map<number, Appointment[]>();
-    const addTo = (hour: number, apt: Appointment) => {
-      const bucket = byHour.get(hour);
-      if (bucket) bucket.push(apt);
-      else byHour.set(hour, [apt]);
-    };
     for (const apt of appointments) {
       const aptStart = toZonedTime(new Date(apt.starts_at), UK_TIMEZONE);
       const aptHour = aptStart.getHours();
-      const aptMinute = aptStart.getMinutes();
-      addTo(aptHour, apt);
-      if (aptMinute > 30) addTo(aptHour + 1, apt);
+      const bucket = byHour.get(aptHour);
+      if (bucket) bucket.push(apt);
+      else byHour.set(aptHour, [apt]);
     }
     return byHour;
   }, [appointments]);
 
   const getAppointmentsForHour = (hour: number) => appointmentsByHour.get(hour) ?? [];
 
-  const getAppointmentStyle = (apt: Appointment, hour: number) => {
-    const start = toZonedTime(new Date(apt.starts_at), UK_TIMEZONE);
-    const end = toZonedTime(new Date(apt.ends_at), UK_TIMEZONE);
-
-    const startHour = start.getHours();
-    const startMinute = start.getMinutes();
-    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-
-    // Calculate position within the hour slot
-    const topOffset = startMinute;
-    const height = durationMinutes;
-
-    return {
-      top: `${topOffset}px`,
-      height: `${height}px`,
-      minHeight: '40px',
-    };
-  };
-
-  // Pre-bucket blocked time by hour, same pattern as appointments above.
+  // Pre-bucket blocked time by start hour only, same pattern as
+  // appointments above. The block renders with actual-duration height so
+  // it visually spans the right number of slots without needing a second
+  // ghost render in the following hour.
   const blockedTimeByHour = useMemo(() => {
     const byHour = new Map<number, BlockedTimeEntry[]>();
-    const addTo = (hour: number, block: BlockedTimeEntry) => {
-      const bucket = byHour.get(hour);
-      if (bucket) bucket.push(block);
-      else byHour.set(hour, [block]);
-    };
     for (const block of blockedTimeEntries) {
       const blockStart = toZonedTime(new Date(block.starts_at), UK_TIMEZONE);
       const blockHour = blockStart.getHours();
-      const blockMinute = blockStart.getMinutes();
-      addTo(blockHour, block);
-      if (blockMinute > 30) addTo(blockHour + 1, block);
+      const bucket = byHour.get(blockHour);
+      if (bucket) bucket.push(block);
+      else byHour.set(blockHour, [block]);
     }
     return byHour;
   }, [blockedTimeEntries]);
 
   const getBlockedTimeForHour = (hour: number) => blockedTimeByHour.get(hour) ?? [];
+
+  // Only show breaks when the user has filtered to one specific staff
+  // member — overlaying everyone's lunch would clutter the grid and lie
+  // about availability.
+  const breaksForView =
+    dayContext && selectedStaffId && selectedStaffId !== "all"
+      ? dayContext.staffBreaks.get(selectedStaffId) ?? []
+      : [];
 
   return (
     <DndContext
@@ -201,6 +204,20 @@ export function CalendarTimelineView({
     <div className="bg-card rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
         <div className="min-w-[600px] relative">
+          {/* Schedule context overlay: shades out-of-hours, breaks, and
+              closures. Sits behind appointment chips (z-0 vs chip z-10) so
+              the chips are still readable + draggable. */}
+          {dayContext && !dayContext.loading && (
+            <ScheduleOverlay
+              dayContext={dayContext}
+              startHour={startHour}
+              endHour={endHour}
+              pixelsPerHour={pixelsPerHour}
+              breaks={breaksForView}
+              leftOffsetPx={80}
+            />
+          )}
+
           {/* Current Time Indicator */}
           {currentTimePosition !== null && (
             <div
@@ -221,54 +238,42 @@ export function CalendarTimelineView({
           <div className="divide-y">
             {hours.map((hour) => {
               const hourAppointments = getAppointmentsForHour(hour);
-              const timeString = format(new Date().setHours(hour, 0, 0, 0), "HH:mm");
 
               return (
                 <div
                   key={hour}
-                  className="relative grid grid-cols-[80px,1fr] min-h-[60px] hover:bg-muted/30 transition-colors"
+                  className="relative grid grid-cols-[80px,1fr]"
+                  style={{ minHeight: `${pixelsPerHour}px` }}
                 >
                   {/* Time Label */}
                   <div className="flex items-start justify-end pr-4 pt-2 text-sm font-medium text-muted-foreground border-r">
                     {format(new Date().setHours(hour, 0, 0, 0), "h:mm a")}
                   </div>
 
-                  {/* Appointment Area */}
-                  <div className="relative p-2 group">
-                    {/* Drop zones — two per hour for 30-min snap. Behind the
-                        appointment chips so they only highlight when an
-                        appointment is being dragged over the empty space. */}
-                    <DropZone hour={hour} minute={0} />
-                    <DropZone hour={hour} minute={30} />
-
-                    {/* 30-minute divider line */}
-                    <div className="absolute left-0 right-0 top-1/2 border-t border-dashed border-muted-foreground/20" />
-
-                    {/* Action buttons - show on hover */}
-                    <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-30">
-                      <Button
-                        onClick={() => onAddAppointment(selectedDay, timeString)}
-                        variant="ghost"
-                        size="sm"
-                        title="Add Appointment"
-                        aria-label={`Add appointment at ${timeString}`}
-                        className="bg-background/90 hover:bg-background"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                      {onBlockTime && (
-                        <Button
-                          onClick={() => onBlockTime(selectedDay, timeString)}
-                          variant="ghost"
-                          size="sm"
-                          title="Block Time"
-                          aria-label={`Block time at ${timeString}`}
-                          className="bg-background/90 hover:bg-background"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+                  {/* Appointment Area — a single hover-tracking surface.
+                      Earlier we had one Popover + one button per slot, but
+                      the @dnd-kit + Radix Slot ref-composition caused flaky
+                      hover. Tracking pointer position on the parent and
+                      computing the slot from Y is bullet-proof and fewer
+                      DOM nodes. dnd-kit gets its own invisible ghost
+                      droppables for drag-to-reschedule snap. */}
+                  <HourSlotSurface
+                    hour={hour}
+                    slotsPerHour={slotsPerHour}
+                    selectedDay={selectedDay}
+                    onAddAppointment={onAddAppointment}
+                    onBlockTime={onBlockTime}
+                  >
+                    {/* Inner divider lines — one between each pair of slots,
+                        so a 4-slots-per-hour grid gets 3 dashed lines.
+                        pointer-events-none so they don't intercept clicks. */}
+                    {Array.from({ length: slotsPerHour - 1 }, (_, i) => (
+                      <div
+                        key={`divider-${hour}-${i}`}
+                        className="absolute left-0 right-0 border-t border-dashed border-muted-foreground/20 pointer-events-none"
+                        style={{ top: `${((i + 1) / slotsPerHour) * 100}%` }}
+                      />
+                    ))}
 
                     {/* Appointments and Blocked Time */}
                     <div className="relative h-full space-y-1">
@@ -277,53 +282,93 @@ export function CalendarTimelineView({
                         const hasWarning = checkWarning(apt);
                         const aptStart = toZonedTime(new Date(apt.starts_at), UK_TIMEZONE);
                         const aptEnd = toZonedTime(new Date(apt.ends_at), UK_TIMEZONE);
+                        // Pixel-precise positioning so a 30-minute chip
+                        // is exactly half the height of a 60-minute chip,
+                        // regardless of granularity zoom or viewport width.
+                        // Top is offset within the start hour; height is the
+                        // full duration in pixels (so longer chips overflow
+                        // visually into the next hour cell — that's why the
+                        // appointment area has overflow: visible).
+                        const topPx = (aptStart.getMinutes() / 60) * pixelsPerHour;
+                        const durationMin = Math.max(
+                          5,
+                          (aptEnd.getTime() - aptStart.getTime()) / 60000,
+                        );
+                        const heightPx = (durationMin / 60) * pixelsPerHour;
 
+                        const colors = getStatusColor(apt.status, hasOverlap);
                         return (
                           <DraggableAppointment
                             key={apt.id}
                             apt={apt}
                             onClick={() => onAppointmentClick(apt)}
                             className={cn(
-                              "absolute left-2 right-2 rounded p-2 text-left text-xs transition-all hover:shadow-md hover:z-10 z-10",
-                              apt.status === "COMPLETED" && "bg-green-100 border-l-4 border-green-600 dark:bg-green-950/30",
-                              apt.status === "CANCELLED" && "bg-gray-100 border-l-4 border-gray-400 dark:bg-gray-800/50 opacity-60",
-                              apt.status === "NO_SHOW" && "bg-orange-100 border-l-4 border-orange-500 dark:bg-orange-950/30",
-                              apt.status === "SCHEDULED" && "bg-blue-100 border-l-4 border-blue-500 dark:bg-blue-950/30",
-                              hasOverlap && "bg-red-100 border-l-4 border-red-600 dark:bg-red-950/30"
+                              "absolute left-2 right-2 rounded p-2 text-left text-xs transition-all hover:shadow-md hover:z-20 z-10 overflow-hidden border-l-4",
+                              colors.bg,
+                              colors.hover,
+                              colors.border,
+                              apt.status === "CANCELLED" && "opacity-60",
+                              apt.status === "RESCHEDULED" && "opacity-70",
                             )}
                             style={{
-                              top: `${(aptStart.getMinutes() / 60) * 100}%`,
-                              minHeight: '40px',
+                              top: `${topPx}px`,
+                              height: `${heightPx}px`,
                             }}
                           >
-                            <div className="font-medium truncate">
-                              {format(aptStart, "HH:mm")} - {format(aptEnd, "HH:mm")}
+                            {/* Adaptive content: time → service → staff.
+                                Patient name is intentionally not on the
+                                chip — the calendar is a "what's happening"
+                                view, not a lookup; click-through opens the
+                                detail sheet for the patient. */}
+                            <div className="font-medium truncate leading-tight flex items-center gap-1">
+                              <span>{format(aptStart, "HH:mm")} – {format(aptEnd, "HH:mm")}</span>
+                              {hasWarning && heightPx < 65 && (
+                                <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                              )}
                             </div>
-                            <div className="truncate text-muted-foreground">
-                              {apt.patient.full_name}
-                            </div>
-                            <div className="truncate text-[10px] text-muted-foreground">
-                              {apt.service.name} • {apt.staff.full_name}
-                            </div>
-                            {hasWarning && (
-                              <div className="text-amber-600 text-[10px]">⚠ Warning</div>
+                            {heightPx >= 30 && (
+                              <div className="truncate leading-tight">
+                                {apt.services
+                                  ?.map((s) => s.service?.name)
+                                  .filter(Boolean)
+                                  .join(", ") || "—"}
+                              </div>
+                            )}
+                            {heightPx >= 48 && selectedStaffId === "all" && (
+                              <div className="truncate text-[10px] text-muted-foreground leading-tight">
+                                {apt.staff.full_name}
+                              </div>
+                            )}
+                            {hasWarning && heightPx >= 65 && (
+                              <div className="flex items-center gap-1 text-amber-600 text-[10px]">
+                                <AlertTriangle className="h-3 w-3" />
+                                <span>Warning</span>
+                              </div>
                             )}
                           </DraggableAppointment>
                         );
                       })}
 
-                      {/* Blocked Time Entries */}
+                      {/* Blocked Time Entries — same pixel-precise sizing
+                          as appointments so the visual span matches the
+                          actual blocked window. */}
                       {getBlockedTimeForHour(hour).map((block) => {
                         const blockStart = toZonedTime(new Date(block.starts_at), UK_TIMEZONE);
                         const blockEnd = toZonedTime(new Date(block.ends_at), UK_TIMEZONE);
+                        const topPx = (blockStart.getMinutes() / 60) * pixelsPerHour;
+                        const durationMin = Math.max(
+                          5,
+                          (blockEnd.getTime() - blockStart.getTime()) / 60000,
+                        );
+                        const heightPx = (durationMin / 60) * pixelsPerHour;
 
                         return (
                           <div
                             key={block.id}
-                            className="absolute left-2 right-2 rounded p-2 text-left text-xs bg-gray-200 border-l-4 border-gray-500 dark:bg-gray-800/70"
+                            className="absolute left-2 right-2 rounded p-2 text-left text-xs bg-gray-200 border-l-4 border-gray-500 dark:bg-gray-800/70 z-10 overflow-hidden"
                             style={{
-                              top: `${(blockStart.getMinutes() / 60) * 100}%`,
-                              minHeight: '40px',
+                              top: `${topPx}px`,
+                              height: `${heightPx}px`,
                             }}
                           >
                             <div className="font-medium truncate flex items-center gap-1">
@@ -334,13 +379,13 @@ export function CalendarTimelineView({
                               BLOCKED
                             </div>
                             <div className="truncate text-[10px] text-muted-foreground">
-                              {block.reason}
+                              {block.title}
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
+                  </HourSlotSurface>
                 </div>
               );
             })}
@@ -357,7 +402,10 @@ export function CalendarTimelineView({
         <div className="rounded p-2 text-xs bg-blue-100 border-l-4 border-blue-500 shadow-lg max-w-[260px]">
           <div className="font-medium truncate">{draggingApt.patient.full_name}</div>
           <div className="truncate text-[10px] text-muted-foreground">
-            {draggingApt.service.name}
+            {draggingApt.services
+              ?.map((s) => s.service?.name)
+              .filter(Boolean)
+              .join(", ") || "—"}
           </div>
         </div>
       ) : null}
@@ -370,30 +418,163 @@ export function CalendarTimelineView({
 // Drag & drop sub-components
 // -----------------------------------------------------------------------------
 
-// One half of an hour cell, registered with @dnd-kit as a droppable. Two of
-// these stack inside each hour to give 30-min snap precision. Highlights when
-// hovered with an active drag.
-function DropZone({
+// Single hover-tracking surface for one hour cell. Replaces the previous
+// per-slot SelectableSlot pattern, which combined dnd-kit useDroppable refs
+// with Radix PopoverTrigger asChild on the same DOM node. That combo was
+// the root cause of the "hover only highlights in some places" bug —
+// Radix's Slot composeRefs occasionally lost the dnd-kit ref's pointer
+// wiring, leaving sub-regions of slots unhoverable.
+//
+// New shape:
+//   - parent div listens for onPointerMove / onPointerLeave / onClick
+//   - cursor Y → slot index → highlight + popover anchor
+//   - dnd-kit gets per-slot invisible droppables ("ghosts") so drag-to-
+//     reschedule still snaps to the configured granularity, but those
+//     ghosts are pointer-events-none and don't compete with hover
+function HourSlotSurface({
   hour,
-  minute,
+  slotsPerHour,
+  selectedDay,
+  onAddAppointment,
+  onBlockTime,
+  children,
 }: {
   hour: number;
-  minute: 0 | 30;
+  slotsPerHour: number;
+  selectedDay: Date;
+  onAddAppointment: (date?: Date, time?: string) => void;
+  onBlockTime?: (date?: Date, time?: string) => void;
+  children?: React.ReactNode;
+}) {
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [openIdx, setOpenIdx] = useState<number | null>(null);
+
+  const slotForY = (clientY: number): number | null => {
+    const el = surfaceRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const y = clientY - rect.top;
+    if (y < 0 || y >= rect.height) return null;
+    const raw = Math.floor((y / rect.height) * slotsPerHour);
+    return Math.min(slotsPerHour - 1, Math.max(0, raw));
+  };
+
+  const minuteFor = (idx: number) => Math.round((idx * 60) / slotsPerHour);
+  const timeStringFor = (idx: number) =>
+    `${String(hour).padStart(2, "0")}:${String(minuteFor(idx)).padStart(2, "0")}`;
+
+  const closePopover = () => setOpenIdx(null);
+
+  const heightPercent = 100 / slotsPerHour;
+  const highlightIdx = openIdx ?? hoveredIdx;
+
+  return (
+    <div
+      ref={surfaceRef}
+      className="relative p-2 h-full"
+      onPointerMove={(e) => {
+        const idx = slotForY(e.clientY);
+        if (idx !== hoveredIdx) setHoveredIdx(idx);
+      }}
+      onPointerLeave={() => setHoveredIdx(null)}
+      onClick={(e) => {
+        // Chips have stopPropagation on their click handlers, so chip clicks
+        // never reach here. This handler only fires for clicks on empty
+        // slot space.
+        if (e.target !== e.currentTarget && !(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
+        const idx = slotForY(e.clientY);
+        if (idx !== null) setOpenIdx(idx);
+      }}
+    >
+      {/* Hidden droppables so drag-to-reschedule still snaps to slots. */}
+      {Array.from({ length: slotsPerHour }, (_, i) => (
+        <DropZoneGhost
+          key={`drop-${hour}-${i}`}
+          hour={hour}
+          minute={minuteFor(i)}
+          topPercent={(i / slotsPerHour) * 100}
+          heightPercent={heightPercent}
+        />
+      ))}
+
+      {children}
+
+      {/* Hover / open highlight overlay — always rendered when there's a
+          slot to highlight, so we don't have to mount/unmount on each move
+          (smoother visual). Pointer-events-none so it never intercepts
+          clicks on chips or the surface itself. */}
+      {highlightIdx !== null && (
+        <div
+          className={cn(
+            "absolute left-0 right-0 pointer-events-none transition-colors",
+            openIdx !== null && openIdx === highlightIdx
+              ? "bg-primary/20 ring-1 ring-primary/50 ring-inset"
+              : "bg-primary/10 ring-1 ring-primary/30 ring-inset",
+          )}
+          style={{
+            top: `${(highlightIdx / slotsPerHour) * 100}%`,
+            height: `${heightPercent}%`,
+          }}
+          aria-hidden
+        >
+          {hoveredIdx === highlightIdx && openIdx === null && (
+            <span className="absolute inset-0 flex items-center justify-center gap-1 text-[10px] text-primary font-medium opacity-70">
+              <Plus className="h-3 w-3" />
+              <span className="hidden sm:inline">{timeStringFor(highlightIdx)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Centered dialog for the chosen slot. Replaced the side-anchored
+          popover so device-size variation doesn't push the chooser into a
+          weird spot, and to give the two intents (book vs. block) more
+          visual weight. */}
+      <SlotActionDialog
+        open={openIdx !== null}
+        onOpenChange={(o) => !o && closePopover()}
+        time={openIdx !== null ? timeStringFor(openIdx) : ""}
+        onBook={() => {
+          if (openIdx === null) return;
+          onAddAppointment(selectedDay, timeStringFor(openIdx));
+          closePopover();
+        }}
+        onBlock={() => {
+          if (openIdx === null || !onBlockTime) return;
+          onBlockTime(selectedDay, timeStringFor(openIdx));
+          closePopover();
+        }}
+      />
+    </div>
+  );
+}
+
+// Invisible droppable target for one slot. Registers with @dnd-kit so a
+// drag-to-reschedule operation snaps to the slot's minute, but doesn't
+// participate in hover/click — those are handled by the parent surface.
+function DropZoneGhost({
+  hour,
+  minute,
+  topPercent,
+  heightPercent,
+}: {
+  hour: number;
+  minute: number;
+  topPercent: number;
+  heightPercent: number;
 }) {
   const id = `slot:${hour}:${minute}`;
-  const { setNodeRef, isOver } = useDroppable({
-    id,
-    data: { hour, minute },
-  });
+  const { setNodeRef, isOver } = useDroppable({ id, data: { hour, minute } });
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        "absolute left-0 right-0 h-1/2 transition-colors",
-        minute === 0 ? "top-0" : "bottom-0",
-        isOver && "bg-primary/10 ring-1 ring-primary/40 ring-inset"
+        "absolute left-0 right-0 pointer-events-none transition-colors",
+        isOver && "bg-primary/15 ring-1 ring-primary/40 ring-inset",
       )}
-      aria-hidden="true"
+      style={{ top: `${topPercent}%`, height: `${heightPercent}%` }}
+      aria-hidden
     />
   );
 }

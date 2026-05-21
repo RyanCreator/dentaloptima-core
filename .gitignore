@@ -1,5 +1,7 @@
 node_modules/
-dist/
+# dist/ — intentionally tracked so deploys can pull pre-built bundles from
+# the repo without running npm install + build first. If you ever switch to
+# CI-built deploys (GitHub Actions → host), re-add `dist/` here.
 .env
 .env.local
 .env.*.local
@@ -11,3 +13,20 @@ scripts/.env.migration
 .idea/
 supabase/.branches/
 supabase/.temp/
+
+# Contains Supabase PAT — never commit
+.mcp.json
+
+# Claude Code per-user state. settings.local.json caches approved Bash
+# commands which can include literal secret strings from past sessions;
+# scheduled_tasks.lock is a runtime artefact.
+.claude/
+
+# Editor / OS junk
+Thumbs.db
+*.swp
+*~
+
+# Build artefacts
+*.tsbuildinfo
+coverage/

@@ -8,6 +8,11 @@ import { useAvailableSlots } from "@/hooks/useAvailableSlots";
 import { useStaff } from "@/hooks/useStaff";
 import { useServices } from "@/hooks/useServices";
 import { usePatients } from "@/hooks/usePatients";
+import { usePractice } from "@/contexts/PracticeContext";
+import { useNhsEligibleStaffIds } from "@/hooks/useNhsEligibleStaffIds";
+// Aliased to avoid the shadow with the local createAppointment handler that
+// owns form validation. The renamed helper is the DB-level record writer.
+import { createAppointment as createAppointmentRecord } from "@/lib/createAppointment";
 import {
   Select,
   SelectContent,
@@ -63,6 +68,9 @@ export default function NewAppointmentForm({
   const { patients } = usePatients();
   const { services } = useServices();
   const { staff } = useStaff();
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
+  const { eligibleSet: nhsEligibleSet } = useNhsEligibleStaffIds();
   const [filteredServices, setFilteredServices] = useState<any[]>([]);
   const [patientType, setPatientType] = useState<"existing" | "new">("existing");
   const [selectedPatient, setSelectedPatient] = useState("");
@@ -80,7 +88,7 @@ export default function NewAppointmentForm({
   const [showOverlapWarning, setShowOverlapWarning] = useState(false);
   const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null);
 
-  const { availableSlots, staffOnHoliday } = useAvailableSlots({
+  const { availableSlots, staffOnHoliday, reason: availabilityReason } = useAvailableSlots({
     staffId: selectedStaff,
     selectedDate,
     serviceId: selectedService,
@@ -94,6 +102,23 @@ export default function NewAppointmentForm({
     if (prefilledTime) setSelectedTime(prefilledTime);
     if (prefilledServiceId) setSelectedService(prefilledServiceId);
   }, [prefilledStaffId, prefilledDate, prefilledTime, prefilledServiceId]);
+
+  // Smart default: when picking an existing patient who has a preferred
+  // dentist set, auto-fill the staff field — but only if the user hasn't
+  // already chosen one (manual selections win). Skip if the form was
+  // opened with a prefilled staff (clicked from a specific column).
+  useEffect(() => {
+    if (patientType !== "existing" || !selectedPatient) return;
+    if (selectedStaff || prefilledStaffId) return;
+    const patient = patients.find((p) => p.id === selectedPatient);
+    const preferred = patient?.preferred_dentist_id;
+    if (!preferred) return;
+    // Only set if the preferred dentist is in the staff dropdown (still
+    // active at this practice). Otherwise quietly skip.
+    if (staff.some((s) => s.id === preferred)) {
+      setSelectedStaff(preferred);
+    }
+  }, [selectedPatient, patientType, patients, staff, prefilledStaffId, selectedStaff]);
 
   useEffect(() => {
     filterServicesByStaff();
@@ -151,74 +176,59 @@ export default function NewAppointmentForm({
       return;
     }
 
+    // NHS gate — blocks creating an appointment that can't yield a
+    // submittable FP17 claim. The Select disables non-eligible staff for
+    // NHS services, but a stale local state could let a previous selection
+    // slip through; this is the backstop.
+    const serviceObj = services.find((s) => s.id === selectedService);
+    if (serviceObj?.is_nhs && !nhsEligibleSet.has(selectedStaff)) {
+      toast.error(
+        "This is an NHS service. The selected clinician has no active NHS performer registration — pick another clinician or add a registration first.",
+      );
+      return;
+    }
+
     setCreating(true);
 
     try {
-      // Prepare appointment data
       const [hours, minutes] = selectedTime.split(":");
-      const appointmentTime = new Date(selectedDate);
-      appointmentTime.setHours(parseInt(hours), parseInt(minutes), 0);
+      const startsAt = new Date(selectedDate);
+      startsAt.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
-      // Build request payload
-      const payload: any = {
-        staff_id: selectedStaff,
-        service_id: selectedService,
-        starts_at: appointmentTime.toISOString(),
-        notes: notes || undefined,
-        allow_overlap: forceCreate,
-      };
-
-      // Add patient data
-      if (patientType === "new") {
-        payload.new_patient = {
-          full_name: newPatientName,
-          phone: newPatientPhone,
-          email: newPatientEmail || undefined,
-        };
-      } else {
-        payload.patient_id = selectedPatient;
-      }
-
-      logger.info("Creating appointment via edge function", { payload });
-
-      // Call secure edge function
-      const { data, error } = await supabase.functions.invoke('create-appointment', {
-        body: payload,
+      logger.info("Creating appointment", {
+        staff: selectedStaff,
+        service: selectedService,
+        startsAt: startsAt.toISOString(),
       });
 
-      if (error) {
-        logger.error("Create appointment error", error);
-        
-        // Handle overlap conflict
-        if (error.message?.includes('overlaps') || error.message?.includes('409')) {
-          // Get service for warning dialog
-          const service = services.find((s) => s.id === selectedService);
-          if (service) {
-            setPendingAppointmentData({
-              patientId: selectedPatient,
-              service,
-            });
-            setShowOverlapWarning(true);
-            setCreating(false);
-            return;
-          }
-        }
-        
-        // Handle room capacity
-        if (error.message?.includes('capacity') || error.message?.includes('Room')) {
-          toast.error(error.message || "Room capacity exceeded");
-          setCreating(false);
-          return;
-        }
-        
-        throw error;
+      const result = await createAppointmentRecord({
+        practiceId,
+        staffId: selectedStaff,
+        serviceId: selectedService,
+        startsAt,
+        notes: notes || undefined,
+        ...(patientType === "new"
+          ? {
+              newPatient: {
+                fullName: newPatientName,
+                phone: newPatientPhone,
+                email: newPatientEmail || undefined,
+              },
+            }
+          : { patientId: selectedPatient }),
+      });
+
+      if (!result.success) {
+        // Overlap is a soft error — surface it as a toast rather than a
+        // throw so the user can adjust the time without re-entering anything.
+        toast.error(result.error || "Failed to create appointment");
+        setCreating(false);
+        return;
       }
 
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to create appointment");
-      }
-
-      logger.info("Appointment created successfully", { appointmentId: data.appointment?.id });
+      logger.info("Appointment created successfully", {
+        appointmentId: result.appointment?.id,
+      });
       toast.success("Appointment created successfully");
       onSuccess();
     } catch (error) {
@@ -369,21 +379,57 @@ export default function NewAppointmentForm({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Staff Member *</Label>
-            <Select value={selectedStaff} onValueChange={setSelectedStaff}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select staff" />
-              </SelectTrigger>
-              <SelectContent>
-                {staff.map((member) => (
-                  <SelectItem key={member.id} value={member.id}>
-                    {member.full_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {(() => {
+            // NHS gating — when the picked service is NHS, only staff with an
+            // active NHS performer registration can perform it. Non-eligible
+            // staff stay visible in the dropdown but are disabled, with a tag
+            // explaining why so the admin knows to add a registration rather
+            // than thinking the clinician's gone missing.
+            const selectedServiceObj = services.find((s) => s.id === selectedService);
+            const nhsServiceMode = !!selectedServiceObj?.is_nhs;
+            const selectedStaffNotEligible =
+              nhsServiceMode && selectedStaff && !nhsEligibleSet.has(selectedStaff);
+            return (
+              <div className="space-y-2">
+                <Label>Staff Member *</Label>
+                <Select value={selectedStaff} onValueChange={setSelectedStaff}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select staff" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staff.map((member) => {
+                      const isNhsEligible = nhsEligibleSet.has(member.id);
+                      const blocked = nhsServiceMode && !isNhsEligible;
+                      return (
+                        <SelectItem
+                          key={member.id}
+                          value={member.id}
+                          disabled={blocked}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{member.full_name}</span>
+                            {blocked && (
+                              <span className="text-[10px] font-semibold uppercase tracking-wide bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded normal-case">
+                                No NHS performer
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {selectedStaffNotEligible && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    The selected clinician has no active NHS performer
+                    registration — this appointment can't produce a submittable
+                    FP17 claim. Pick another clinician or add a performer
+                    registration first.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="space-y-2">
             <Label>Date *</Label>
@@ -420,10 +466,29 @@ export default function NewAppointmentForm({
             </div>
           )}
 
+          {/* Diagnostic empty-state — the hook tells us *why* there's no
+              slots so we can render an actionable message instead of a
+              dead-end "No available slots". Each branch points at the
+              specific config the practice needs to fix. */}
           {availableSlots.length === 0 && selectedStaff && selectedDate && selectedService && !staffOnHoliday && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                No available slots for this date
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 space-y-1">
+              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                {availabilityReason === "no-staff-schedule" && "This staff member has no working hours set for this day"}
+                {availabilityReason === "practice-closed-weekday" && "The practice has no opening hours for this day of the week"}
+                {availabilityReason === "practice-closure" && "The practice is closed on this date"}
+                {availabilityReason === "fully-booked" && "All slots are taken on this date"}
+                {(availabilityReason === "ok" || availabilityReason === "loading" || availabilityReason === "missing-inputs") &&
+                  "No available slots for this date"}
+              </p>
+              <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                {availabilityReason === "no-staff-schedule" &&
+                  "Open the staff member's profile and add their weekly schedule, then come back."}
+                {availabilityReason === "practice-closed-weekday" &&
+                  "Set the practice's opening hours for this weekday under Settings → Hours, or pick another day."}
+                {availabilityReason === "practice-closure" &&
+                  "Pick another date, or remove the closure under Settings → Hours."}
+                {availabilityReason === "fully-booked" &&
+                  "You can still book at a specific time below — an overlap warning will appear."}
               </p>
             </div>
           )}

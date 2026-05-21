@@ -79,10 +79,17 @@ export const hasAppointmentWarning = (
   const overlap = checkAppointmentOverlap(apt, allAppointments);
   const breakConflict = hasBreakConflict(apt, breaksMap);
   const outside = isOutsideWorkingHours(apt, availabilityMap);
-  const missingService = !apt.service || !apt.service.id;
+  // Services live in the `appointment_service` join now; a missing/empty
+  // `services` array means we couldn't price or duration-check the slot.
+  const missingService = !apt.services || apt.services.length === 0;
   return overlap || breakConflict || outside || missingService;
 };
 
+// Visual language for each appointment status. Covers all 8 enum values
+// (SCHEDULED → CONFIRMED → ARRIVED → IN_PROGRESS → COMPLETED, plus
+// CANCELLED / NO_SHOW / RESCHEDULED). Each one gets a distinct hue so an
+// operator scanning the calendar can tell at a glance which appointments
+// still need confirming vs. are already through the door.
 export const getStatusColor = (status: string, hasOverlap: boolean = false) => {
   if (hasOverlap) {
     return {
@@ -93,6 +100,28 @@ export const getStatusColor = (status: string, hasOverlap: boolean = false) => {
   }
 
   switch (status) {
+    case "CONFIRMED":
+      // Patient has confirmed — locked-in. Teal sits between SCHEDULED blue
+      // and COMPLETED green to read as "on the way to done".
+      return {
+        bg: "bg-teal-50 dark:bg-teal-950/20",
+        hover: "hover:bg-teal-100 dark:hover:bg-teal-950/30",
+        border: "border-teal-500",
+      };
+    case "ARRIVED":
+      // In the practice, waiting. Amber = active state, needs attention.
+      return {
+        bg: "bg-amber-50 dark:bg-amber-950/20",
+        hover: "hover:bg-amber-100 dark:hover:bg-amber-950/30",
+        border: "border-amber-500",
+      };
+    case "IN_PROGRESS":
+      // Treatment is happening right now.
+      return {
+        bg: "bg-purple-50 dark:bg-purple-950/20",
+        hover: "hover:bg-purple-100 dark:hover:bg-purple-950/30",
+        border: "border-purple-500",
+      };
     case "COMPLETED":
       return {
         bg: "bg-green-50 dark:bg-green-950/20",
@@ -111,6 +140,15 @@ export const getStatusColor = (status: string, hasOverlap: boolean = false) => {
         hover: "hover:bg-orange-100 dark:hover:bg-orange-950/30",
         border: "border-orange-500",
       };
+    case "RESCHEDULED":
+      // Tombstone — the live appointment is at rescheduled_to_id. Muted
+      // indigo so operators see "this slot used to be here" without it
+      // visually competing with active appointments.
+      return {
+        bg: "bg-indigo-50/60 dark:bg-indigo-950/10",
+        hover: "hover:bg-indigo-100/70 dark:hover:bg-indigo-950/20",
+        border: "border-indigo-400",
+      };
     case "SCHEDULED":
     default:
       return {
@@ -123,14 +161,14 @@ export const getStatusColor = (status: string, hasOverlap: boolean = false) => {
 
 export const getStatusTextColor = (status: string) => {
   switch (status) {
-    case "COMPLETED":
-      return "text-green-700 dark:text-green-400";
-    case "CANCELLED":
-      return "text-red-700 dark:text-red-400";
-    case "NO_SHOW":
-      return "text-orange-700 dark:text-orange-400";
+    case "CONFIRMED":   return "text-teal-700 dark:text-teal-400";
+    case "ARRIVED":     return "text-amber-700 dark:text-amber-400";
+    case "IN_PROGRESS": return "text-purple-700 dark:text-purple-400";
+    case "COMPLETED":   return "text-green-700 dark:text-green-400";
+    case "CANCELLED":   return "text-red-700 dark:text-red-400";
+    case "NO_SHOW":     return "text-orange-700 dark:text-orange-400";
+    case "RESCHEDULED": return "text-indigo-600 dark:text-indigo-400";
     case "SCHEDULED":
-    default:
-      return "text-blue-700 dark:text-blue-400";
+    default:            return "text-blue-700 dark:text-blue-400";
   }
 };

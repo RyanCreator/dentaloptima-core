@@ -18,7 +18,7 @@ export function Layout({
   children: ReactNode;
 }) {
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       {(title || description || actions) && (
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">

@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { usePractice } from "@/contexts/PracticeContext";
 
 interface ClinicSettings {
   clinic_name: string;
@@ -11,42 +10,34 @@ interface ClinicSettings {
   max_advance_booking_days: number | null;
 }
 
-/**
- * Hook to load and provide clinic settings including timezone
- * Returns Europe/London as fallback if settings not loaded
- */
+// In dentaloptima-core, basic clinic identity (name, timezone, country)
+// lives on the `practice` row and is loaded once at boot via
+// PracticeBootstrap. Booking-policy defaults (min notice, max advance,
+// default appt duration, reminder timings) aren't on `practice` yet —
+// they'll come back as a `practice_settings` table or extra columns when
+// we bring that feature back. For now we return reasonable defaults.
 export function useClinicSettings() {
-  const [settings, setSettings] = useState<ClinicSettings | null>(null);
-  const [loading, setLoading] = useState(true);
+  const tenant = usePractice();
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    const { data, error } = await supabase
-      .from("app_settings")
-      .select("*")
-      .single();
-
-    if (!error && data) {
-      setSettings(data);
-    }
-    setLoading(false);
+  const settings: ClinicSettings = {
+    clinic_name: tenant.practice.name,
+    timezone: tenant.practice.timezone,
+    default_appt_duration: 30,
+    reminder_days_before: 1,
+    reminder_hours_before: 1,
+    min_booking_notice_hours: 2,
+    max_advance_booking_days: 60,
   };
 
   return {
     settings,
-    loading,
-    // Provide timezone with fallback
-    timezone: settings?.timezone || "Europe/London",
-    clinicName: settings?.clinic_name || "",
-    defaultApptDuration: settings?.default_appt_duration || 30,
-    // Booking policy — fallbacks match the DB defaults so first-boot
-    // behaviour is still reasonable if settings haven't loaded yet.
+    loading: false,
+    timezone: tenant.practice.timezone,
+    clinicName: tenant.practice.name,
+    defaultApptDuration: 30,
     bookingPolicy: {
-      minNoticeHours: settings?.min_booking_notice_hours ?? 2,
-      maxAdvanceDays: settings?.max_advance_booking_days ?? 60,
+      minNoticeHours: 2,
+      maxAdvanceDays: 60,
     },
   };
 }

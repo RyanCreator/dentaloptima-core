@@ -10,6 +10,19 @@ interface UseAvailableSlotsProps {
   services: any[];
 }
 
+// Diagnostic reason when availableSlots comes back empty. Lets the caller
+// render a message that actually says what's wrong + what to do about it.
+// "ok" means there are slots; "loading"/"none" mean we haven't computed yet.
+export type AvailabilityReason =
+  | "ok"
+  | "loading"
+  | "no-staff-schedule"
+  | "practice-closed-weekday"
+  | "practice-closure"
+  | "staff-on-holiday"
+  | "fully-booked"
+  | "missing-inputs";
+
 // Staff-side slot calculator. Used by NewAppointment, WaitingListPage, and the
 // enquiry BookingDialog — all internal workflows where the practice is booking
 // on behalf of the patient. Public booking policy (min-notice / max-advance)
@@ -23,6 +36,7 @@ export function useAvailableSlots({
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [staffOnHoliday, setStaffOnHoliday] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [reason, setReason] = useState<AvailabilityReason>("missing-inputs");
 
   useEffect(() => {
     if (staffId && selectedDate && serviceId) {
@@ -30,6 +44,7 @@ export function useAvailableSlots({
     } else {
       setAvailableSlots([]);
       setStaffOnHoliday(false);
+      setReason("missing-inputs");
     }
   }, [staffId, selectedDate, serviceId]);
 
@@ -37,9 +52,11 @@ export function useAvailableSlots({
     if (!staffId || !selectedDate || !serviceId) return;
 
     setLoading(true);
+    setReason("loading");
     const service = services.find((s) => s.id === serviceId);
     if (!service) {
       setLoading(false);
+      setReason("missing-inputs");
       return;
     }
 
@@ -58,6 +75,7 @@ export function useAvailableSlots({
       if (!staffData) {
         logger.error("Failed to fetch staff availability data");
         setAvailableSlots([]);
+        setReason("missing-inputs");
         setLoading(false);
         return;
       }
@@ -66,6 +84,7 @@ export function useAvailableSlots({
       if (hasTimeOff(staffData)) {
         setAvailableSlots([]);
         setStaffOnHoliday(true);
+        setReason("staff-on-holiday");
         setLoading(false);
         return;
       }
@@ -89,9 +108,33 @@ export function useAvailableSlots({
         .map((slot) => slot.time);
 
       setAvailableSlots(slots);
+
+      // Diagnostic — if no slots, work out *why* so the form can render
+      // an actionable message. Cheap (no extra round-trips, just consult
+      // the data we already have).
+      if (slots.length === 0) {
+        const isoWeekday = ((selectedDate.getDay() + 6) % 7) + 1; // 1=Mon..7=Sun
+        const dateStr = format(selectedDate, "yyyy-MM-dd");
+
+        const closure = staffData.practiceClosures?.find(
+          (c) => c.starts_at.slice(0, 10) <= dateStr && c.ends_at.slice(0, 10) >= dateStr,
+        );
+        if (closure) {
+          setReason("practice-closure");
+        } else if (!staffData.practiceHours?.some((ph) => ph.weekday === isoWeekday)) {
+          setReason("practice-closed-weekday");
+        } else if (!staffData.schedules?.some((s) => s.weekday === isoWeekday)) {
+          setReason("no-staff-schedule");
+        } else {
+          setReason("fully-booked");
+        }
+      } else {
+        setReason("ok");
+      }
     } catch (error) {
       logger.error("Error calculating available slots", error);
       setAvailableSlots([]);
+      setReason("missing-inputs");
     } finally {
       setLoading(false);
     }
@@ -101,5 +144,6 @@ export function useAvailableSlots({
     availableSlots,
     staffOnHoliday,
     loading,
+    reason,
   };
 }

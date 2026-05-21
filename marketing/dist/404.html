@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Per-page meta (title, description, canonical, OG, Twitter, JSON-LD)
+         is injected at runtime by src/lib/seo.ts using the active practice
+         config + route. The defaults below render during initial HTML
+         download so crawlers with no JS still see correct metadata. -->
+    <title>Orion Dental Practice | Modern, friendly dental care</title>
+    <meta name="description" content="Orion Dental Practice offers modern, welcoming dental care. Book a check-up, hygienist visit, or treatment online 24/7." />
+
+    <!-- TEMPLATE DEMO: robots noindex while the template is hidden from
+         prospects. Real client deploys should REMOVE these two meta tags
+         (see README § "Deployment checklist"). -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="googlebot" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0F766E" />
+
+    <!-- Preload critical assets. The hero image is the LCP element so we
+         hint the browser to fetch it in parallel with the HTML parse.
+         Separate mobile + desktop hints via media so each viewport only
+         downloads the variant it'll actually display. -->
+    <link
+      rel="preload"
+      as="image"
+      href="/hero/hero-desktop.webp"
+      type="image/webp"
+      fetchpriority="high"
+      media="(min-width: 641px)"
+    />
+    <link
+      rel="preload"
+      as="image"
+      href="/hero/hero-mobile.webp"
+      type="image/webp"
+      fetchpriority="high"
+      media="(max-width: 640px)"
+    />
+    <script type="module" crossorigin src="/assets/index-CWoFhO-L.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-B1ZQ6JLQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/motion-Dci97l9l.js">
+    <link rel="modulepreload" crossorigin href="/assets/supabase-B61D-hVE.js">
+    <link rel="modulepreload" crossorigin href="/assets/icons-BHNnc6gA.js">
+    <link rel="modulepreload" crossorigin href="/assets/forms-CxxvU7HW.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-DOYcROMq.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
