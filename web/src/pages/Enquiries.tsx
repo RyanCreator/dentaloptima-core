@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
@@ -64,7 +64,10 @@ export default function Enquiries() {
   const [error, setError] = useState<string | null>(null);
   const [filterTab, setFilterTab] = useState<FilterTab>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("30days");
+  // Default to "all" so older unresolved enquiries don't silently drop off
+  // the list when reception hasn't triaged them within 30 days. The time
+  // filter is more useful when browsing CLOSED history, not the active queue.
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [hasMore, setHasMore] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -82,12 +85,29 @@ export default function Enquiries() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, filterTab, timeFilter, debouncedSearchTerm]);
 
-  // Real-time updates subscription - optimized to only reload on relevant changes
+  // Real-time updates subscription. useId gives this hook instance a
+  // unique channel name so StrictMode double-mount and multiple tabs
+  // can't collide on a static name (the supabase client otherwise hands
+  // back the already-subscribed channel and `.on()` throws).
+  const channelId = useId();
   useEffect(() => {
     if (loading) return;
 
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => {
+        // Refetch in place — don't wipe the list first. Clearing the array
+        // caused a brief blank list on every change (jumpy UX); now the
+        // soft refetch swaps the contents only after new data arrives.
+        setCurrentPage(0);
+        setHasMore(true);
+        loadRequests(true);
+      }, 250);
+    };
+
     const channel = supabase
-      .channel("enquiries-changes")
+      .channel(`enquiries-${channelId}`)
       .on(
         "postgres_changes",
         {
@@ -100,26 +120,22 @@ export default function Enquiries() {
           // server-side filter, so the visible list only updates when relevant.
         },
         (payload) => {
-          // Only reload if the change affects our current filter
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            // Reload from the start to catch new/updated records
-            setCurrentPage(0);
-            setRequests([]);
-            setHasMore(true);
-            loadRequests(true);
-          } else if (payload.eventType === 'DELETE') {
-            // Remove deleted record from list
-            setRequests(prev => prev.filter(r => r.id !== payload.old.id));
+          if (payload.eventType === "INSERT" || payload.eventType === "UPDATE") {
+            scheduleRefetch();
+          } else if (payload.eventType === "DELETE") {
+            // Remove deleted record from list — no need to refetch.
+            setRequests((prev) => prev.filter((r) => r.id !== payload.old.id));
           }
-        }
+        },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (pending) clearTimeout(pending);
+      void supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, filterTab, timeFilter, debouncedSearchTerm]);
+  }, [loading, filterTab, timeFilter, debouncedSearchTerm, channelId]);
 
   const loadRequests = useCallback(async (resetList: boolean = false) => {
     const pageToLoad = resetList ? 0 : currentPage;

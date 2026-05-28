@@ -34,6 +34,19 @@ import type { Appointment } from "@/hooks/useAppointments";
 import { UK_TIMEZONE, AppointmentStatus } from "@/lib/constants";
 import { formatPrice } from "@/types/entities";
 
+// cancellation_reason enum values (see DB). Keep label text human-friendly
+// — these appear in the dialog dropdown AND aggregate on the Cancellations
+// report, so consistency matters.
+const CANCELLATION_REASONS: Array<{ value: string; label: string }> = [
+  { value: "PATIENT_REQUEST", label: "Patient request" },
+  { value: "PATIENT_NO_RESPONSE", label: "Patient didn't respond" },
+  { value: "STAFF_UNAVAILABLE", label: "Staff unavailable" },
+  { value: "PRACTICE_CLOSURE", label: "Practice closure" },
+  { value: "EQUIPMENT_FAILURE", label: "Equipment failure" },
+  { value: "EMERGENCY", label: "Emergency" },
+  { value: "OTHER", label: "Other" },
+];
+
 interface AppointmentDetailSheetProps {
   appointment: Appointment | null;
   isOpen: boolean;
@@ -56,7 +69,13 @@ interface AppointmentDetailSheetProps {
   services: any[];
   availableStatuses: string[];
   onSave: () => void;
-  onQuickStatusChange?: (status: AppointmentStatus, notes?: string, actualPrice?: number | null, treatmentSummary?: string) => Promise<void>;
+  onQuickStatusChange?: (
+    status: AppointmentStatus,
+    notes?: string,
+    actualPrice?: number | null,
+    treatmentSummary?: string,
+    cancellationReason?: string,
+  ) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -86,11 +105,45 @@ export function AppointmentDetailSheet({
   isSaving,
 }: AppointmentDetailSheetProps) {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // Structured cancellation reason (required) + optional free-text notes.
+  // The enum is what aggregates on the Cancellations report; notes is
+  // free supplementary context.
+  const [cancelReasonCode, setCancelReasonCode] = useState<string>("");
   const [cancelReason, setCancelReason] = useState("");
   const [showCompleteDialog, setShowCompleteDialog] = useState(false);
   const [isQuickUpdating, setIsQuickUpdating] = useState(false);
   const [showNhsClaim, setShowNhsClaim] = useState(false);
   const [existingClaim, setExistingClaim] = useState<{ id: string; status: string } | null>(null);
+  const [alerts, setAlerts] = useState<Array<{
+    id: string;
+    alert_type: string;
+    severity: string;
+    title: string;
+    detail: string | null;
+  }>>([]);
+
+  // Pull active medical alerts for the patient so reception sees
+  // pregnancy / anticoagulant / allergy flags inline. Cheap query —
+  // typically 0-3 rows per patient.
+  useEffect(() => {
+    if (!appointment) {
+      setAlerts([]);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("medical_alert")
+      .select("id, alert_type, severity, title, detail")
+      .eq("patient_id", appointment.patient.id)
+      .eq("is_active", true)
+      .is("deleted_at", null)
+      .order("severity", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        if (data) setAlerts(data as typeof alerts);
+      });
+    return () => { cancelled = true; };
+  }, [appointment?.patient?.id]);
 
   // Look up any existing FP17 claim for this appointment so we can swap
   // "Create FP17 claim" for "View FP17 claim" + status badge.
@@ -149,12 +202,23 @@ export function AppointmentDetailSheet({
 
   const handleCancelWithReason = async () => {
     if (!onQuickStatusChange) return;
+    if (!cancelReasonCode) {
+      toast.error("Pick a cancellation reason");
+      return;
+    }
 
     setIsQuickUpdating(true);
     try {
-      await onQuickStatusChange("CANCELLED", cancelReason.trim() || undefined);
+      await onQuickStatusChange(
+        "CANCELLED",
+        cancelReason.trim() || undefined,
+        undefined,
+        undefined,
+        cancelReasonCode,
+      );
       setShowCancelDialog(false);
       setCancelReason("");
+      setCancelReasonCode("");
     } finally {
       setIsQuickUpdating(false);
     }
@@ -188,10 +252,35 @@ export function AppointmentDetailSheet({
       <div className="space-y-4">
         {!isEditing ? (
           <>
+            {/* Medical alerts strip — active medical_alert rows for this
+                patient. Surfaces pregnancy / anticoagulant / allergies up
+                front so reception doesn't have to click through to the
+                patient page before the appointment starts. */}
+            {alerts.length > 0 && (
+              <div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/30 p-3 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-200">
+                  <UserX className="h-3.5 w-3.5" />
+                  Medical alerts ({alerts.length})
+                </div>
+                {alerts.map((a) => (
+                  <div
+                    key={a.id}
+                    className={
+                      a.severity === "CRITICAL"
+                        ? "text-sm text-red-800 dark:text-red-200"
+                        : a.severity === "HIGH"
+                          ? "text-sm text-amber-900 dark:text-amber-100"
+                          : "text-sm text-amber-800 dark:text-amber-200"
+                    }
+                  >
+                    <span className="font-medium">{a.title}</span>
+                    {a.detail && <span className="ml-1 text-muted-foreground">— {a.detail}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="space-y-3 text-sm">
-              {/* Medical alerts will be sourced from the `medical_alert`
-                  table (replaces legacy patient.is_pregnant /
-                  takes_anticoagulant flags). Stub for now. */}
               <div className="flex items-center gap-1">
                 <span className="font-medium">Patient:</span>
                 <Link to={`/patients/${appointment.patient.id}`} className="hover:underline flex items-center gap-1 text-primary">
@@ -225,14 +314,36 @@ export function AppointmentDetailSheet({
               <div>
                 <span className="font-medium">Staff:</span> {appointment.staff.full_name ?? "Unassigned"}
               </div>
-              <div>
-                <span className="font-medium">Start:</span>{" "}
-                {format(toZonedTime(new Date(appointment.starts_at), UK_TIMEZONE), "PPp")}
-              </div>
-              <div>
-                <span className="font-medium">End:</span>{" "}
-                {format(toZonedTime(new Date(appointment.ends_at), UK_TIMEZONE), "PPp")}
-              </div>
+              {/* Reserved block + patient arrival. The reserved block is
+                  what the calendar shows visually (includes buffer time);
+                  patient arrival is what we told the patient. We only show
+                  arrival separately when there are buffers to distinguish. */}
+              {(() => {
+                const bufferBefore = primaryService?.buffer_before_minutes ?? 0;
+                const bufferAfter = primaryService?.buffer_after_minutes ?? 0;
+                const hasBuffers = bufferBefore > 0 || bufferAfter > 0;
+                const blockStart = toZonedTime(new Date(appointment.starts_at), UK_TIMEZONE);
+                const blockEnd = toZonedTime(new Date(appointment.ends_at), UK_TIMEZONE);
+                const arrival = new Date(blockStart.getTime() + bufferBefore * 60_000);
+                const leaves = new Date(blockEnd.getTime() - bufferAfter * 60_000);
+                return (
+                  <>
+                    <div>
+                      <span className="font-medium">Reserved block:</span>{" "}
+                      {format(blockStart, "PPp")} – {format(blockEnd, "p")}
+                    </div>
+                    {hasBuffers && (
+                      <div className="text-muted-foreground">
+                        <span className="font-medium">Patient arrival:</span>{" "}
+                        {format(arrival, "p")} – {format(leaves, "p")}
+                        <span className="text-xs ml-1">
+                          ({bufferBefore} min setup, {bufferAfter} min after)
+                        </span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <div>
                 <span className="font-medium">Status:</span> {appointment.status}
               </div>
@@ -271,6 +382,8 @@ export function AppointmentDetailSheet({
                 serviceName={primaryService.name}
                 serviceId={primaryService.id}
                 servicePrice={primaryService.price_pence / 100}
+                isNhs={primaryService.is_nhs}
+                nhsBand={primaryService.nhs_band}
               />
             )}
 
@@ -303,12 +416,25 @@ export function AppointmentDetailSheet({
                   size="sm"
                   className="w-full text-green-700 border-green-200 hover:bg-green-50 hover:text-green-800"
                   onClick={async () => {
+                    // Write BOTH columns: arrived_at gives us the precise
+                    // timestamp the calendar reads for "Checked in at
+                    // HH:mm", and status='ARRIVED' is what the dashboard's
+                    // waiting-room bucket filters on. Previously only
+                    // arrived_at was written, so the dashboard stayed
+                    // out of sync with the calendar.
                     const { error } = await supabase
                       .from("appointment")
-                      .update({ arrived_at: new Date().toISOString() })
+                      .update({
+                        status: "ARRIVED",
+                        arrived_at: new Date().toISOString(),
+                      })
                       .eq("id", appointment.id);
-                    if (error) toast.error("Failed to check in");
-                    else toast.success(`${appointment.patient.full_name} checked in`);
+                    if (error) {
+                      toast.error("Failed to check in");
+                      return;
+                    }
+                    toast.success(`${appointment.patient.full_name} checked in`);
+                    onOpenChange(false);
                   }}
                 >
                   <LogIn className="h-4 w-4 mr-2" />
@@ -317,13 +443,19 @@ export function AppointmentDetailSheet({
               </div>
             )}
 
-            {/* Arrived indicator */}
-            {appointment.arrived_at && currentStatus === "SCHEDULED" && (
-              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-md px-3 py-2">
-                <Check className="h-3.5 w-3.5" />
-                Checked in at {format(new Date(appointment.arrived_at), "HH:mm")}
-              </div>
-            )}
+            {/* Arrived indicator — show whenever the patient has been
+                checked in but isn't yet in treatment or completed. The
+                previous condition only matched status === "SCHEDULED",
+                which broke after we started flipping status to ARRIVED
+                on check-in. Now it covers SCHEDULED (legacy rows where
+                status didn't transition) and ARRIVED (new behaviour). */}
+            {appointment.arrived_at &&
+              (currentStatus === "SCHEDULED" || currentStatus === "ARRIVED") && (
+                <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-md px-3 py-2">
+                  <Check className="h-3.5 w-3.5" />
+                  Checked in at {format(new Date(appointment.arrived_at), "HH:mm")}
+                </div>
+              )}
 
             {/* Quick Action Buttons */}
             {showQuickActions && (
@@ -438,8 +570,34 @@ export function AppointmentDetailSheet({
               </div>
 
               <div className="space-y-2">
-                <Label>Time</Label>
+                <Label>Patient arrival time</Label>
                 <Input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)} />
+                {/* Live preview of the resulting reserved block. The block
+                    extends back by buffer_before and forward by duration +
+                    buffer_after — so the operator sees what the calendar
+                    chip will actually look like. */}
+                {(() => {
+                  const editedService = services.find((s) => s.id === editServiceId);
+                  if (!editedService || !editTime) return null;
+                  const [h, m] = editTime.split(":").map(Number);
+                  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+                  const arrival = new Date();
+                  arrival.setHours(h, m, 0, 0);
+                  const blockStart = new Date(arrival.getTime() - (editedService.buffer_before_minutes ?? 0) * 60_000);
+                  const blockEnd = new Date(
+                    arrival.getTime() +
+                      (editedService.duration_minutes + (editedService.buffer_after_minutes ?? 0)) * 60_000,
+                  );
+                  const bb = editedService.buffer_before_minutes ?? 0;
+                  const ba = editedService.buffer_after_minutes ?? 0;
+                  if (bb === 0 && ba === 0) return null;
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      Reserved block: {format(blockStart, "HH:mm")}–{format(blockEnd, "HH:mm")}
+                      <span className="ml-1">({bb} min before, {ba} min after)</span>
+                    </p>
+                  );
+                })()}
               </div>
 
               <div className="space-y-2">
@@ -506,24 +664,42 @@ export function AppointmentDetailSheet({
               Are you sure you want to cancel this appointment?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="py-4">
-            <Label htmlFor="cancel-reason" className="text-sm">
-              Cancellation Reason (Optional)
-            </Label>
-            <Textarea
-              id="cancel-reason"
-              placeholder="Enter reason for cancellation..."
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              rows={3}
-              className="mt-2"
-            />
+          <div className="py-4 space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="cancel-reason-code" className="text-sm">
+                Reason <span className="text-destructive">*</span>
+              </Label>
+              <Select value={cancelReasonCode} onValueChange={setCancelReasonCode}>
+                <SelectTrigger id="cancel-reason-code">
+                  <SelectValue placeholder="Pick a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANCELLATION_REASONS.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="cancel-notes" className="text-sm">
+                Notes <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea
+                id="cancel-notes"
+                placeholder="Any extra detail — patient said, who took the call, etc."
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+              />
+            </div>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isQuickUpdating}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleCancelWithReason}
-              disabled={isQuickUpdating}
+              disabled={isQuickUpdating || !cancelReasonCode}
               className="bg-destructive hover:bg-destructive/90"
             >
               {isQuickUpdating ? "Cancelling..." : "Confirm Cancellation"}

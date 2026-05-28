@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
+import { usePractice } from "@/contexts/PracticeContext";
 
 // Adapted to dentaloptima-core's `medical_history_entry` table.
 //   - recorded_by_staff_id → created_by (filled by the audit trigger)
@@ -36,6 +37,7 @@ export interface MedicalHistoryEntry {
 export function useMedicalHistory(patientId: string | undefined) {
   const [entries, setEntries] = useState<MedicalHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const tenant = usePractice();
 
   const load = useCallback(async () => {
     if (!patientId) return;
@@ -70,7 +72,11 @@ export function useMedicalHistory(patientId: string | undefined) {
     if (!patientId) return false;
 
     // created_by is filled by app_private.fn_set_audit_columns trigger.
+    // practice_id is NOT NULL on medical_history_entry — without it the
+    // insert fails RLS/constraint silently and the user just sees a
+    // vague "Failed to add medical history entry" toast.
     const { error } = await supabase.from("medical_history_entry").insert({
+      practice_id: tenant.practice.id,
       patient_id: patientId,
       entry_type: entry.entry_type,
       description: entry.description,

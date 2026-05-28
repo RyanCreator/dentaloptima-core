@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/useAuth";
+import { logger } from "@/lib/logger";
 import { useStaff } from "@/hooks/useStaff";
 import { useServices } from "@/hooks/useServices";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -44,6 +45,20 @@ import {
   Moon,
   Calendar as CalendarIcon,
 } from "lucide-react";
+
+// Structured rejection reason codes — parallel to the appointment
+// cancellation_reason flow. Aggregates on the Enquiries report so the
+// practice can see why they're rejecting and act on it (e.g. most rejects
+// are "wrong service" → consider the website's service routing).
+const REJECTION_REASONS: Array<{ value: string; label: string }> = [
+  { value: "DUPLICATE", label: "Duplicate of another enquiry" },
+  { value: "NOT_A_PATIENT", label: "Not registering as a patient" },
+  { value: "WRONG_SERVICE", label: "Service not offered" },
+  { value: "OUT_OF_AREA", label: "Outside practice area" },
+  { value: "SPAM", label: "Spam / not genuine" },
+  { value: "PATIENT_WITHDREW", label: "Patient withdrew request" },
+  { value: "OTHER", label: "Other" },
+];
 
 // dentaloptima-core enum values for waiting_list.
 type WaitlistPriority = "URGENT" | "HIGH" | "NORMAL" | "LOW";
@@ -147,7 +162,7 @@ function bandIcon(band: TimeBand | null) {
 
 export default function EnquiryDetail() {
   const { id } = useParams();
-  const { loading, user } = useRequireAuth();
+  const { loading, user, member } = useRequireAuth();
   const navigate = useNavigate();
   const { services } = useServices();
   const { staff } = useStaff();
@@ -173,7 +188,10 @@ export default function EnquiryDetail() {
     serviceId: string;
   } | null>(null);
 
-  // Reject form
+  // Reject form: structured code (required) + free-text supplementary
+  // notes. The code aggregates on reports; the notes hold any context
+  // the operator wants the patient to see in the rejection email.
+  const [rejectionCode, setRejectionCode] = useState("");
   const [reason, setReason] = useState("");
 
   // Waitlist form
@@ -194,6 +212,7 @@ export default function EnquiryDetail() {
       // Reset wizard to start whenever the enquiry id changes (e.g. after
       // navigating to the next enquiry in the queue).
       setStep("review");
+      setRejectionCode("");
       setReason("");
       setSelectedServices([]);
       setWaitlistNotes("");
@@ -249,10 +268,26 @@ export default function EnquiryDetail() {
       .eq("id", id)
       .single();
     if (current?.status === "NEW" && !current.viewed_at) {
-      await supabase
+      // Stamp viewed_by alongside viewed_at — both are nullable but
+      // having them populated together makes the audit trail useful
+      // (knowing *who* opened first is the whole point of the field).
+      // Surface errors quietly via logger; this is a best-effort op
+      // and shouldn't toast on failure, but we shouldn't silently
+      // pretend it worked either.
+      const { error } = await supabase
         .from("booking_request")
-        .update({ status: "VIEWED", viewed_at: new Date().toISOString() })
+        .update({
+          status: "VIEWED",
+          viewed_at: new Date().toISOString(),
+          // viewed_by FKs to practice_member(id), NOT auth.users(id).
+          // Using auth.user.id here silently fails the constraint and
+          // leaves the row stuck on NEW — see useRequireAuth comment.
+          viewed_by: member?.id ?? null,
+        })
         .eq("id", id);
+      if (error) {
+        logger.warn("Failed to mark enquiry as viewed", error);
+      }
       loadRequest();
     }
   };
@@ -285,23 +320,33 @@ export default function EnquiryDetail() {
   };
 
   const submitReject = async () => {
-    if (!reason.trim()) {
-      toast.error("Please provide a reason");
+    if (!rejectionCode) {
+      toast.error("Pick a rejection reason");
       return;
     }
     if (!request) return;
     setSubmitting(true);
     try {
+      // Three columns on booking_request:
+      //   - `reason`: patient's original enquiry text (audit trail, never overwrite)
+      //   - `rejection_reason_code`: structured enum for aggregation
+      //   - `rejection_reason`: free-text supplementary detail (optional)
       const { error } = await supabase
         .from("booking_request")
         .update({
           status: "REJECTED",
-          rejection_reason: reason,
-          reason: reason,
+          rejection_reason_code: rejectionCode,
+          rejection_reason: reason.trim() || null,
         })
         .eq("id", id!);
       if (error) throw error;
-      await sendRequestRejectedNotification(request.patient?.id, id!, reason);
+      // Email uses the free-text notes if present, else the code's label —
+      // gives the patient something meaningful to read either way.
+      const emailText =
+        reason.trim() ||
+        REJECTION_REASONS.find((r) => r.value === rejectionCode)?.label ||
+        rejectionCode;
+      await sendRequestRejectedNotification(request.patient?.id, id!, emailText);
       await goToNextOrList("Enquiry rejected");
     } catch {
       toast.error("Failed to reject enquiry");
@@ -363,10 +408,15 @@ export default function EnquiryDetail() {
             }),
         ),
       );
-      await supabase
+      // Surface status-update failures — without this, a successful
+      // waitlist insert + a failed status flip leaves the enquiry stuck
+      // in NEW while toasting success. The try/catch above doesn't
+      // catch unchecked Supabase results (they don't throw).
+      const { error: statusErr } = await supabase
         .from("booking_request")
         .update({ status: "WAITLIST" })
         .eq("id", id!);
+      if (statusErr) throw statusErr;
       await sendWaitlistAddedNotification(resolvedPatientId, id!);
       await goToNextOrList(
         `Added to waitlist for ${selectedServices.length} service(s)`,
@@ -953,9 +1003,26 @@ export default function EnquiryDetail() {
               {actionTab === "reject" && (
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1.5">
-                    <Label>Reason *</Label>
+                    <Label>Reason <span className="text-destructive">*</span></Label>
+                    <Select value={rejectionCode} onValueChange={setRejectionCode}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pick a reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REJECTION_REASONS.map((r) => (
+                          <SelectItem key={r.value} value={r.value}>
+                            {r.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>
+                      Notes <span className="text-muted-foreground">(optional)</span>
+                    </Label>
                     <Textarea
-                      placeholder="Why are we rejecting this enquiry? The patient will see this."
+                      placeholder="Extra detail for the patient — shown in the rejection email. Leave blank to use the reason above as-is."
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
                       rows={4}
@@ -963,7 +1030,7 @@ export default function EnquiryDetail() {
                   </div>
                   <Button
                     onClick={submitReject}
-                    disabled={submitting || !reason.trim()}
+                    disabled={submitting || !rejectionCode}
                     variant="destructive"
                     className="w-full"
                   >

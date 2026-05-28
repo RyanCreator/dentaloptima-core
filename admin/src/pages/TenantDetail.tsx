@@ -16,6 +16,8 @@ import {
   Globe,
   Info,
   UserCircle2,
+  Library,
+  LineChart,
 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -48,6 +50,8 @@ import { InviteMemberSheet } from "@/components/InviteMemberSheet";
 import { TrialExpiryBanner } from "@/components/TrialExpiryBanner";
 import { RecordPaymentDialog } from "@/components/RecordPaymentDialog";
 import { PaymentHistoryList } from "@/components/PaymentHistoryList";
+import { PracticeDocumentsPanel } from "@/components/documents/PracticeDocumentsPanel";
+import { TenantInsightsPanel } from "@/components/insights/TenantInsightsPanel";
 import { cn } from "@/lib/utils";
 
 export default function TenantDetail() {
@@ -161,6 +165,12 @@ export default function TenantDetail() {
           </TabsTrigger>
           <TabsTrigger value="billing" className="gap-1.5">
             <CreditCard className="h-3.5 w-3.5" />Billing
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="gap-1.5">
+            <Library className="h-3.5 w-3.5" />Documents
+          </TabsTrigger>
+          <TabsTrigger value="insights" className="gap-1.5">
+            <LineChart className="h-3.5 w-3.5" />Insights
           </TabsTrigger>
           <TabsTrigger value="domain" className="gap-1.5">
             <Globe className="h-3.5 w-3.5" />Domain &amp; apps
@@ -284,6 +294,14 @@ export default function TenantDetail() {
             </div>
             <PaymentHistoryList practiceId={practice.id} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="documents" className="mt-2">
+          <PracticeDocumentsPanel practiceId={practice.id} practiceName={practice.name} />
+        </TabsContent>
+
+        <TabsContent value="insights" className="mt-2">
+          <TenantInsightsPanel practiceId={practice.id} practiceName={practice.name} />
         </TabsContent>
 
         <TabsContent value="domain" className="space-y-4 mt-2">

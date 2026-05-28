@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { format, isSameDay } from "date-fns";
-import { toZonedTime } from "date-fns-tz";
-import { Ban, Coffee, Plane, AlertTriangle } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { format, isSameDay, setHours, setMinutes, setSeconds, setMilliseconds } from "date-fns";
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import { Coffee, Plane, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusColor } from "@/lib/appointmentUtils";
 import type { Appointment } from "@/hooks/useAppointments";
@@ -9,8 +9,28 @@ import type { BlockedTimeEntry } from "@/hooks/useBlockedTime";
 import { UK_TIMEZONE } from "@/lib/constants";
 import { ScheduleOverlay } from "./ScheduleOverlay";
 import { SlotActionDialog } from "./SlotActionDialog";
+import { BlockedTimeChip } from "./BlockedTimeChip";
 import { type DayContext, timeToMinutes } from "@/hooks/useDayContext";
 import { SLOT_ROW_HEIGHT_PX, type SlotMinutes } from "@/hooks/usePracticeSetting";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useRescheduleAppointment } from "@/hooks/useRescheduleAppointment";
+import {
+  useStaffServiceMatrix,
+  canStaffPerformServices,
+} from "@/hooks/useStaffServiceMatrix";
+import { logger } from "@/lib/logger";
 
 interface CalendarMultiStaffViewProps {
   selectedDay: Date;
@@ -34,6 +54,8 @@ interface CalendarMultiStaffViewProps {
   // Visual grid granularity — drives the dashed divider count per hour and
   // (via SLOT_ROW_HEIGHT_PX) the row height so 10-min slots zoom in.
   slotMinutes?: SlotMinutes;
+  /** Called after a successful drag-to-move so the parent can refetch. */
+  onAppointmentMoved?: () => void;
 }
 
 const HEADER_HEIGHT_PX = 49;
@@ -52,10 +74,146 @@ export function CalendarMultiStaffView({
   endHour = 20,
   dayContext,
   slotMinutes = 30,
+  onAppointmentMoved,
 }: CalendarMultiStaffViewProps) {
   const slotsPerHour = Math.max(1, Math.round(60 / slotMinutes));
   const ROW_HEIGHT_PX = SLOT_ROW_HEIGHT_PX[slotMinutes].multi;
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Drag-across-staff machinery. The chip is draggable; each slot in each
+  // staff column is a droppable identified by `${staffId}:${hour}:${minute}`.
+  // Drop validates that the target staff is assigned to every service on
+  // the appointment (staff_service join) — if not, we reject and tell the
+  // operator why instead of silently failing on the FK/exclusion path.
+  const [draggingApt, setDraggingApt] = useState<Appointment | null>(null);
+  const matrix = useStaffServiceMatrix();
+  const { reschedule } = useRescheduleAppointment();
+
+  // 8px activation distance lets a chip click still fire onAppointmentClick —
+  // anything bigger feels like an intentional drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  // Service ids on the appointment being dragged. Computed once per drag
+  // so per-column eligibility checks don't re-scan services[] on every
+  // hover frame.
+  const draggingServiceIds = useMemo(() => {
+    if (!draggingApt) return [] as string[];
+    return (draggingApt.services ?? [])
+      .map((s) => s.service?.id)
+      .filter((id): id is string => !!id);
+  }, [draggingApt]);
+
+  // Per-staff eligibility — set during drag, used to dim ineligible columns.
+  const eligibleStaffIds = useMemo(() => {
+    if (!draggingApt) return new Set<string>();
+    const out = new Set<string>();
+    for (const member of staff) {
+      if (canStaffPerformServices(matrix, member.id, draggingServiceIds)) {
+        out.add(member.id);
+      }
+    }
+    return out;
+  }, [draggingApt, draggingServiceIds, matrix, staff]);
+
+  function handleDragStart(event: DragStartEvent) {
+    const apt = event.active.data.current?.appointment as Appointment | undefined;
+    if (apt) setDraggingApt(apt);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const apt = event.active.data.current?.appointment as Appointment | undefined;
+    setDraggingApt(null);
+    const drop = event.over?.data.current as
+      | { staffId: string; hour: number; minute: number }
+      | undefined;
+    if (!apt || !drop) return;
+
+    const serviceIds = (apt.services ?? [])
+      .map((s) => s.service?.id)
+      .filter((id): id is string => !!id);
+
+    // Eligibility check FIRST — same DB call would fail more cryptically
+    // (FK or business-logic error) without the friendlier message.
+    if (!canStaffPerformServices(matrix, drop.staffId, serviceIds)) {
+      const targetName =
+        staff.find((m) => m.id === drop.staffId)?.full_name ?? "this clinician";
+      const eligibleNames = staff
+        .filter((m) => m.id !== drop.staffId && canStaffPerformServices(matrix, m.id, serviceIds))
+        .map((m) => m.full_name)
+        .filter(Boolean);
+      const hint =
+        eligibleNames.length > 0
+          ? `Try ${eligibleNames.slice(0, 2).join(" or ")}.`
+          : "No one else is assigned to this service — cancel and rebook?";
+      toast.error(`${targetName} isn't assigned to this service. ${hint}`);
+      return;
+    }
+
+    // Wall-clock time on selectedDay in UK timezone → UTC instant.
+    const wallClock = setMilliseconds(
+      setSeconds(setMinutes(setHours(selectedDay, drop.hour), drop.minute), 0),
+      0,
+    );
+    const newStartsAt = fromZonedTime(wallClock, UK_TIMEZONE);
+
+    // Same staff + same time → no-op.
+    const sameStaff = apt.staff?.id === drop.staffId;
+    const sameTime = new Date(apt.starts_at).getTime() === newStartsAt.getTime();
+    if (sameStaff && sameTime) return;
+
+    if (sameStaff) {
+      const ok = await reschedule(apt, newStartsAt);
+      if (ok) onAppointmentMoved?.();
+      return;
+    }
+
+    // Cross-staff move: update staff_id alongside the new times. Preserve
+    // duration exactly; dragging changes who/when, not how long. The
+    // queue-pending flag is stamped via the existing reschedule notif
+    // path so reception can confirm-and-send rather than spamming patients.
+    const originalDurationMs =
+      new Date(apt.ends_at).getTime() - new Date(apt.starts_at).getTime();
+    const newEndsAt = new Date(newStartsAt.getTime() + originalDurationMs);
+
+    if (newStartsAt < new Date()) {
+      toast.error("Can't drop an appointment in the past");
+      return;
+    }
+
+    const oldStarts = new Date(apt.starts_at);
+    const { error } = await supabase
+      .from("appointment")
+      .update({
+        staff_id: drop.staffId,
+        starts_at: newStartsAt.toISOString(),
+        ends_at: newEndsAt.toISOString(),
+      })
+      .eq("id", apt.id);
+
+    if (error) {
+      const isOverlap =
+        (error as any).code === "23P01" || /overlap|exclusion/i.test(error.message);
+      toast.error(
+        isOverlap
+          ? "That slot conflicts with another appointment for the target staff"
+          : "Couldn't move appointment",
+      );
+      logger.error("Cross-staff move failed", error);
+      return;
+    }
+
+    // Queue the patient notification for the bell tray — same convention
+    // as drag-within-staff and edit-form reschedules.
+    if (apt.status === "SCHEDULED") {
+      const { markNotificationPending } = await import("@/hooks/useNotificationQueue");
+      await markNotificationPending(apt.id, "RESCHEDULED", oldStarts);
+    }
+    const newStaffName = staff.find((m) => m.id === drop.staffId)?.full_name ?? "staff";
+    toast.success(`Reassigned to ${newStaffName}`);
+    onAppointmentMoved?.();
+  }
 
   // Update current time every minute
   useEffect(() => {
@@ -111,6 +269,12 @@ export function CalendarMultiStaffView({
   const totalBodyHeight = (endHour - startHour) * ROW_HEIGHT_PX;
 
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDraggingApt(null)}
+    >
     <div className="bg-card rounded-lg border overflow-hidden">
       <div className="overflow-x-auto">
         <div className="relative min-w-[800px]">
@@ -238,10 +402,21 @@ export function CalendarMultiStaffView({
                     return aptStart.getHours() === hour;
                   });
 
+                  // Eligibility scrim — when a drag is in progress, dim
+                  // columns where the target staff isn't assigned to the
+                  // appointment's services. Same scrim shows on every hour
+                  // row so the visual cue spans the whole column.
+                  const isIneligibleForDrag =
+                    !!draggingApt && !eligibleStaffIds.has(member.id);
+
                   return (
                     <div
                       key={member.id}
-                      className="relative border-r last:border-r-0 p-1"
+                      className={cn(
+                        "relative border-r last:border-r-0 p-1",
+                        isIneligibleForDrag &&
+                          "bg-muted/40 opacity-50 transition-opacity",
+                      )}
                     >
                       {/* Per-slot click targets. Cover the full cell height
                           stacked top-to-bottom. Each opens a popover with
@@ -266,6 +441,25 @@ export function CalendarMultiStaffView({
                             />
                           );
                         })}
+
+                      {/* Drop-zone ghosts — one per slot, identified by
+                          staff+hour+minute. Pointer-events-none so they
+                          don't intercept slot clicks; only dnd-kit uses
+                          them, via the over.data shape. */}
+                      {Array.from({ length: slotsPerHour }, (_, i) => {
+                        const slotMinute = Math.round((i * 60) / slotsPerHour);
+                        return (
+                          <MultiStaffDropGhost
+                            key={`drop-${hour}-${i}`}
+                            staffId={member.id}
+                            hour={hour}
+                            minute={slotMinute}
+                            topPercent={(i / slotsPerHour) * 100}
+                            heightPercent={100 / slotsPerHour}
+                            eligible={!draggingApt || eligibleStaffIds.has(member.id)}
+                          />
+                        );
+                      })}
 
                       {/* Inner slot dividers — slotsPerHour - 1 dashed lines
                           per hour cell. pointer-events-none so they don't
@@ -294,10 +488,23 @@ export function CalendarMultiStaffView({
                         const heightPx = (durationMin / 60) * ROW_HEIGHT_PX;
 
                         const colors = getStatusColor(apt.status, hasOverlap);
+                        const serviceSummary = apt.services
+                          ?.map((s) => s.service?.name)
+                          .filter(Boolean)
+                          .join(", ") || "—";
+                        const tooltip = [
+                          apt.patient.full_name,
+                          `${format(aptStart, "HH:mm")}–${format(aptEnd, "HH:mm")}`,
+                          serviceSummary,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
                         return (
-                          <button
+                          <DraggableMultiAppointment
                             key={apt.id}
+                            apt={apt}
                             onClick={() => onAppointmentClick(apt)}
+                            title={tooltip}
                             className={cn(
                               // z-10 keeps chips above the schedule overlays
                               // (out-of-hours, breaks, time-off scrim).
@@ -330,7 +537,7 @@ export function CalendarMultiStaffView({
                                   .join(", ") || "—"}
                               </div>
                             )}
-                          </button>
+                          </DraggableMultiAppointment>
                         );
                       })}
 
@@ -352,25 +559,12 @@ export function CalendarMultiStaffView({
                           const heightPx = (durationMin / 60) * ROW_HEIGHT_PX;
 
                           return (
-                            <div
+                            <BlockedTimeChip
                               key={block.id}
-                              className="absolute left-1 right-1 rounded px-1.5 py-1 text-left text-[10px] bg-gray-200 border-l-2 border-gray-500 dark:bg-gray-800/70 z-10 overflow-hidden"
-                              style={{
-                                top: `${topPx}px`,
-                                height: `${heightPx}px`,
-                              }}
-                            >
-                              <div className="font-medium truncate text-[10px] flex items-center gap-0.5">
-                                <Ban className="h-2.5 w-2.5" />
-                                {format(blockStart, "HH:mm")}
-                              </div>
-                              <div className="truncate text-[9px] text-muted-foreground font-semibold">
-                                BLOCKED
-                              </div>
-                              <div className="truncate text-[8px] text-muted-foreground">
-                                {block.title}
-                              </div>
-                            </div>
+                              block={block}
+                              variant="multistaff"
+                              style={{ top: `${topPx}px`, height: `${heightPx}px` }}
+                            />
                           );
                         })}
                     </div>
@@ -382,6 +576,20 @@ export function CalendarMultiStaffView({
         </div>
       </div>
     </div>
+    <DragOverlay>
+      {draggingApt ? (
+        <div className="rounded p-2 text-xs bg-blue-100 border-l-4 border-blue-500 shadow-lg max-w-[220px]">
+          <div className="font-medium truncate">{draggingApt.patient.full_name}</div>
+          <div className="truncate text-[10px] text-muted-foreground">
+            {draggingApt.services
+              ?.map((s) => s.service?.name)
+              .filter(Boolean)
+              .join(", ") || "—"}
+          </div>
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
   );
 }
 
@@ -522,6 +730,91 @@ function MultiStaffSlot({
         }}
       />
     </>
+  );
+}
+
+// Draggable wrapper for a multi-staff appointment chip. Uses an
+// 8px activation distance so a click still falls through to the parent's
+// onAppointmentClick — anything bigger is treated as a drag intent.
+function DraggableMultiAppointment({
+  apt,
+  children,
+  onClick,
+  className,
+  style,
+  title,
+}: {
+  apt: Appointment;
+  children: React.ReactNode;
+  onClick: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  title?: string;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `multi-${apt.id}`,
+    data: { appointment: apt },
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={(e) => {
+        if (!isDragging) onClick();
+        e.stopPropagation();
+      }}
+      role="button"
+      tabIndex={0}
+      title={title}
+      style={style}
+      className={cn(
+        className,
+        "cursor-grab active:cursor-grabbing select-none",
+        isDragging && "opacity-30",
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Invisible drop target tied to one (staff, hour, minute) slot in the
+// multi-staff grid. When eligible=false (target staff isn't assigned to
+// the dragged appointment's services), the cell isn't allowed to absorb
+// the drop and we paint a soft "not allowed" hint while hovered.
+function MultiStaffDropGhost({
+  staffId,
+  hour,
+  minute,
+  topPercent,
+  heightPercent,
+  eligible,
+}: {
+  staffId: string;
+  hour: number;
+  minute: number;
+  topPercent: number;
+  heightPercent: number;
+  eligible: boolean;
+}) {
+  const id = `multi-slot:${staffId}:${hour}:${minute}`;
+  const { setNodeRef, isOver } = useDroppable({
+    id,
+    data: { staffId, hour, minute },
+    disabled: !eligible,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "absolute left-0 right-0 pointer-events-none transition-colors",
+        isOver && eligible && "bg-primary/15 ring-1 ring-primary/40 ring-inset",
+        isOver && !eligible && "bg-red-500/10 ring-1 ring-red-500/40 ring-inset",
+      )}
+      style={{ top: `${topPercent}%`, height: `${heightPercent}%` }}
+      aria-hidden
+    />
   );
 }
 

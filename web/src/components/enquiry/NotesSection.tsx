@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { usePractice } from "@/contexts/PracticeContext";
 
 // dentaloptima-core's `note` is polymorphic via `parent_type` (enum) +
 // `parent_id`. Author lives on `author_id` (filled by the audit trigger).
@@ -34,11 +35,17 @@ export function NotesSection({
   onNotesUpdated,
 }: NotesSectionProps) {
   const [newNote, setNewNote] = useState("");
+  const tenant = usePractice();
 
   const addNote = async () => {
     if (!newNote.trim()) return;
 
+    // `note.practice_id` is NOT NULL — without it the insert fails RLS
+    // and the user sees a vague "Failed to add note" toast. Sourced from
+    // the practice context so callers (Enquiries, Patients, etc.) don't
+    // need to plumb it through props.
     const { error } = await supabase.from("note").insert({
+      practice_id: tenant.practice.id,
       parent_type: entityType,
       parent_id: entityId,
       body: newNote.trim(),

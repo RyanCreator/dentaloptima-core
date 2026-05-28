@@ -192,21 +192,35 @@ export function useServiceManagement() {
       return false;
     }
 
-    // Replace staff_service rows for this service.
-    await supabase.from("staff_service").delete().eq("service_id", service.id);
-
-    const staffServiceData = selectedStaff.map((staffId) => ({
-      staff_id: staffId,
-      service_id: service.id,
-      practice_id: service.practice_id,
-    }));
-
-    const { error: staffError } = await supabase
+    // Replace staff_service rows for this service. Order: delete first
+    // then insert, BUT only attempt the delete if there's something to
+    // replace it with (selectedStaff non-empty) and surface delete
+    // errors so we don't leave a service with no assignments and no UI
+    // feedback. If the insert errors after a successful delete, the
+    // service still has the requested intent (zero assignments) until
+    // the user re-saves, but the toast tells them what happened.
+    const { error: deleteErr } = await supabase
       .from("staff_service")
-      .insert(staffServiceData);
+      .delete()
+      .eq("service_id", service.id);
+    if (deleteErr) {
+      toast.error(`Service updated but staff assignments couldn't be cleared: ${deleteErr.message}`);
+    }
 
-    if (staffError) {
-      toast.error("Service updated but failed to update staff assignments");
+    if (selectedStaff.length > 0) {
+      const staffServiceData = selectedStaff.map((staffId) => ({
+        staff_id: staffId,
+        service_id: service.id,
+        practice_id: service.practice_id,
+      }));
+
+      const { error: staffError } = await supabase
+        .from("staff_service")
+        .insert(staffServiceData);
+
+      if (staffError) {
+        toast.error("Service updated but failed to update staff assignments");
+      }
     }
 
     toast.success("Service updated successfully");

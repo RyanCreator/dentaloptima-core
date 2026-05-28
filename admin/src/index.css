@@ -36,3 +36,101 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────
+   Markdown preview styles. tailwindcss-typography would give us this
+   for free, but it's not installed here — handful of scoped rules is
+   lighter than pulling the whole plugin for one view.
+   ────────────────────────────────────────────────────────────────── */
+.markdown-preview h1 {
+  @apply text-2xl font-bold mt-6 mb-3 first:mt-0;
+}
+.markdown-preview h2 {
+  @apply text-xl font-semibold mt-6 mb-2 first:mt-0;
+}
+.markdown-preview h3 {
+  @apply text-lg font-semibold mt-5 mb-2;
+}
+.markdown-preview h4 {
+  @apply text-base font-semibold mt-4 mb-2;
+}
+.markdown-preview p {
+  @apply my-3;
+}
+.markdown-preview ul {
+  @apply list-disc pl-6 my-3 space-y-1;
+}
+.markdown-preview ol {
+  @apply list-decimal pl-6 my-3 space-y-1;
+}
+.markdown-preview li > p {
+  @apply my-0;
+}
+.markdown-preview a {
+  @apply text-primary underline underline-offset-2 hover:no-underline;
+}
+.markdown-preview blockquote {
+  @apply border-l-4 border-muted pl-4 italic text-muted-foreground my-3;
+}
+.markdown-preview code {
+  @apply rounded bg-muted px-1.5 py-0.5 text-[0.85em] font-mono;
+}
+.markdown-preview pre {
+  @apply rounded-lg bg-muted p-4 my-3 overflow-auto;
+}
+.markdown-preview pre code {
+  @apply bg-transparent p-0 text-sm;
+}
+.markdown-preview table {
+  @apply w-full border-collapse my-3 text-sm;
+}
+.markdown-preview th,
+.markdown-preview td {
+  @apply border border-border px-3 py-1.5 text-left;
+}
+.markdown-preview th {
+  @apply bg-muted font-semibold;
+}
+.markdown-preview hr {
+  @apply my-6 border-t;
+}
+.markdown-preview img {
+  @apply max-w-full rounded-lg;
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   Print stylesheet — used by Documents → Print / PDF. The doc page
+   marks its rendered-preview container with [data-print-target] so
+   the rest of the chrome (sidebar, header, action bar) is hidden.
+   ────────────────────────────────────────────────────────────────── */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  /* Hide everything EXCEPT the print target and its ancestors. The
+     `print:hidden` Tailwind utility takes care of explicit hides
+     (sidebar/header/forms/etc); this is the catch-all backstop. */
+  aside, header, nav, [role="dialog"], .sonner-toaster, [data-sonner-toaster] {
+    display: none !important;
+  }
+  [data-print-target="true"] {
+    display: block !important;
+    max-width: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  [data-print-target="true"] h1 {
+    font-size: 22pt;
+    margin-bottom: 0.5em;
+  }
+  [data-print-target="true"] .markdown-preview {
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  @page {
+    margin: 1.5cm;
+  }
+}
+

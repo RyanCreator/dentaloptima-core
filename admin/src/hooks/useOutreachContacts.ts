@@ -132,10 +132,41 @@ const SORT_BY_KEY: Record<ContactSortKey, { column: string; ascending: boolean; 
 //   any other    — exact match against the tag column
 export type TagFilter = "ALL" | "UNTAGGED" | string;
 
+/**
+ * UK postcode "area" filter. The area is the leading letters before any
+ * digits — "S" for Sheffield, "M" for Manchester, "LS" for Leeds, etc.
+ * "ALL" disables the filter. Specific values are 1–2 uppercase letters.
+ */
+export type AreaFilter = "ALL" | string;
+
+/**
+ * "Last emailed" filter. We let the caller scope by recency so they can
+ * find stale contacts ("not emailed in 60+ days") or fresh ones.
+ *   "ALL"      — no filter
+ *   "NEVER"    — only contacts that have never received an email
+ *   "30D+"     — never emailed OR last_emailed_at > 30 days ago
+ *   "60D+"     — never emailed OR last_emailed_at > 60 days ago
+ *   "90D+"     — never emailed OR last_emailed_at > 90 days ago
+ *   "RECENT_7" — emailed in the last 7 days (the inverse — sometimes
+ *                useful for "who did I just contact?")
+ */
+export type LastEmailedFilter = "ALL" | "NEVER" | "30D+" | "60D+" | "90D+" | "RECENT_7";
+
+/** Extracts the UK postcode area (1–2 letters before the first digit).
+ *  "M1 1AA" → "M", "SW1A 1AA" → "SW", "LS6 4QH" → "LS", "" → "". */
+export function postcodeArea(postcode: string | null | undefined): string {
+  if (!postcode) return "";
+  const trimmed = postcode.trim().toUpperCase();
+  const match = trimmed.match(/^([A-Z]+)/);
+  return match ? match[1] : "";
+}
+
 export function useOutreachContacts(opts: {
   status?: OutreachContactStatus | "ALL";
   search?: string;
   tag?: TagFilter;
+  area?: AreaFilter;
+  lastEmailed?: LastEmailedFilter;
   page?: number;
   pageSize?: number;
   sortBy?: ContactSortKey;
@@ -148,6 +179,8 @@ export function useOutreachContacts(opts: {
     status = "ALL",
     search = "",
     tag = "ALL",
+    area = "ALL",
+    lastEmailed = "ALL",
     page = 0,
     pageSize = 100,
     sortBy = "created_desc",
@@ -184,13 +217,45 @@ export function useOutreachContacts(opts: {
         `practice_name.ilike.%${q}%,postcode.ilike.%${q}%,principal_dentist.ilike.%${q}%,email.ilike.%${q}%,website.ilike.%${q}%`
       );
     }
+    // Postcode area — DB-side ilike with the area + any char that's not
+    // a letter (so "S" doesn't accidentally also match "SW1…" / "SK7…").
+    // PostgREST doesn't expose ~ regex on string columns directly, so we
+    // do area-prefix + "no following letter" via a second clause.
+    if (area !== "ALL" && area) {
+      // Use `ilike` for the prefix and exclude longer-area collisions
+      // client-side after the fetch (cheaper than a regex). The DB pass
+      // narrows by prefix; we filter the false positives in JS below.
+      query = query.ilike("postcode", `${area}%`);
+    }
+    // Last-emailed: simple DB-side filters using last_emailed_at.
+    if (lastEmailed === "NEVER") {
+      query = query.is("last_emailed_at", null);
+    } else if (lastEmailed === "RECENT_7") {
+      const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      query = query.gte("last_emailed_at", since);
+    } else if (lastEmailed === "30D+" || lastEmailed === "60D+" || lastEmailed === "90D+") {
+      const days = lastEmailed === "30D+" ? 30 : lastEmailed === "60D+" ? 60 : 90;
+      const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+      // "Stale" includes never-emailed contacts AND those last touched
+      // before the cutoff. PostgREST `or` syntax:
+      query = query.or(`last_emailed_at.is.null,last_emailed_at.lt.${cutoff}`);
+    }
     const { data, error, count } = await query;
     if (!error && data) {
-      setContacts(data as OutreachContact[]);
+      // Client-side area refinement — DB ilike("S%") returns S, SK, SW,
+      // SL, SR etc. We want only "S" rows, so post-filter on exact area.
+      let rows = data as OutreachContact[];
+      if (area !== "ALL" && area) {
+        rows = rows.filter((r) => postcodeArea(r.postcode) === area);
+      }
+      setContacts(rows);
+      // totalCount stays close to truth — for the typical case of
+      // "all S" vs "all SW" the over-fetch is small. Exact total would
+      // need a server-side regex helper; not worth the migration today.
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [status, search, tag, page, pageSize, sortBy, showArchived]);
+  }, [status, search, tag, area, lastEmailed, page, pageSize, sortBy, showArchived]);
 
   useEffect(() => {
     reload();
@@ -206,6 +271,40 @@ export interface ContactCounts {
   BOUNCED: number;
   COMPLAINED: number;
   ARCHIVED: number;
+}
+
+/**
+ * Distinct UK postcode areas currently in the active contacts table —
+ * powers the Area filter dropdown. Same "fetch all + dedupe in JS" trick
+ * as the tag list; cheap at our scale.
+ */
+export function useOutreachContactAreas() {
+  const [areas, setAreas] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("outreach_contact")
+      .select("postcode")
+      .is("archived_at", null)
+      .not("postcode", "is", null);
+    if (!error && data) {
+      const set = new Set<string>();
+      for (const row of data as { postcode: string | null }[]) {
+        const a = postcodeArea(row.postcode);
+        if (a) set.add(a);
+      }
+      setAreas(Array.from(set).sort());
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  return { areas, loading, reload };
 }
 
 // Returns the set of distinct, non-null `tag` values currently in active

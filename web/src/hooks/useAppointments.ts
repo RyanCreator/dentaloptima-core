@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns";
 import { toZonedTime, fromZonedTime } from "date-fns-tz";
@@ -32,6 +32,7 @@ export interface AppointmentService {
     price_pence: number;
     treatment_type: string | null;
     is_nhs: boolean;
+    nhs_band: string | null;
     color_hex: string | null;
   };
 }
@@ -74,9 +75,24 @@ export function useAppointments(
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Unique channel name per hook instance — prevents StrictMode double-mount
+  // and multiple consumers of this hook from colliding on the same channel
+  // name (supabase reuses the channel by name, and adding `.on()` to an
+  // already-subscribed channel throws).
+  const channelId = useId();
+  // We've finished the first successful load — used to suppress
+  // `setLoading(true)` on subsequent fetches. Without this guard, every
+  // calendar-day navigation toggled `loading` true→false, which made the
+  // day view briefly empty (stale appointments don't match the new
+  // selectedDay, then new data arrives) and the UI flashed. Now we keep
+  // stale data visible during refetch — when the new range lands it
+  // simply re-renders, no empty-state flash in between.
+  const hasLoadedOnce = useRef(false);
 
   const loadAppointments = async () => {
-    setLoading(true);
+    if (!hasLoadedOnce.current) {
+      setLoading(true);
+    }
     setError(null);
 
     // Compute the UK-local wall-clock day/week/month boundaries, then convert
@@ -127,7 +143,7 @@ export function useAppointments(
           display_order,
           price_pence_snapshot,
           duration_minutes_snapshot,
-          service:service_id (id, name, duration_minutes, buffer_before_minutes, buffer_after_minutes, price_pence, treatment_type, is_nhs, color_hex)
+          service:service_id (id, name, duration_minutes, buffer_before_minutes, buffer_after_minutes, price_pence, treatment_type, is_nhs, nhs_band, color_hex)
         )
       `)
       .is("deleted_at", null)
@@ -155,12 +171,46 @@ export function useAppointments(
       }));
       setAppointments(normalised);
     }
+    hasLoadedOnce.current = true;
     setLoading(false);
   };
 
   useEffect(() => {
     loadAppointments();
   }, [currentDate, viewMode]);
+
+  // Realtime: when any colleague (or this user, via another tab) inserts /
+  // updates / deletes an appointment in the same practice, refetch the
+  // visible range. Filtering server-side by practice_id keeps the channel
+  // efficient — we ignore other tenants' changes entirely. A tiny debounce
+  // prevents a flood of refetches when many rows change at once (e.g. a
+  // bulk reschedule).
+  useEffect(() => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const scheduleRefetch = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => {
+        loadAppointments();
+      }, 300);
+    };
+    const channel = supabase
+      .channel(`calendar-appointments-${channelId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointment" },
+        scheduleRefetch,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "appointment_service" },
+        scheduleRefetch,
+      )
+      .subscribe();
+    return () => {
+      if (pending) clearTimeout(pending);
+      void supabase.removeChannel(channel);
+    };
+  }, [currentDate, viewMode, channelId]);
 
   return {
     appointments,

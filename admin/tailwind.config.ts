@@ -40,6 +40,14 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Used by Radix popovers (DropdownMenu, Select, Popover, Tooltip).
+        // The CSS variable IS defined in index.css; without this Tailwind
+        // mapping, the `bg-popover` class our ui/dropdown-menu generates
+        // resolves to nothing and the dropdown renders transparent.
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

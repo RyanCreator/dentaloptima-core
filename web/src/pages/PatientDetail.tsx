@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
+import { logger } from "@/lib/logger";
+import { usePractice } from "@/contexts/PracticeContext";
 import { format, isPast, differenceInYears, parseISO } from "date-fns";
 import {
   Sheet,
@@ -68,6 +70,21 @@ import { formatPrice } from "@/types/entities";
 //     appointment from this page; multi-service editing is the calendar's job).
 
 const ROLE_TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Mx"];
+
+// Map the cancellation_reason enum to the same human labels the calendar's
+// cancel dialog uses, so the report and the patient history read the same.
+function formatCancellationReason(code: string): string {
+  switch (code) {
+    case "PATIENT_REQUEST": return "Patient request";
+    case "PATIENT_NO_RESPONSE": return "No response";
+    case "STAFF_UNAVAILABLE": return "Staff unavailable";
+    case "PRACTICE_CLOSURE": return "Practice closure";
+    case "EQUIPMENT_FAILURE": return "Equipment failure";
+    case "EMERGENCY": return "Emergency";
+    case "OTHER": return "Other";
+    default: return code.replace(/_/g, " ").toLowerCase();
+  }
+}
 
 function calculateAge(dob: string | null): string | null {
   if (!dob) return null;
@@ -153,6 +170,7 @@ interface Appointment {
   ends_at: string;
   status: string;
   treatment_summary: string | null;
+  cancellation_reason: string | null;
   cancellation_notes: string | null;
   staff_id: string;
   staff: { id: string; full_name: string } | null;
@@ -214,6 +232,7 @@ export default function PatientDetail() {
   const { sendAppointmentCancelledNotification, sendAppointmentRescheduledNotification } =
     useNotifications();
   const navigate = useNavigate();
+  const tenant = usePractice();
 
   const auth = useAuth();
   const isAdmin = auth.member?.role === "OWNER" || auth.member?.role === "ADMIN";
@@ -327,7 +346,7 @@ export default function PatientDetail() {
     const { data } = await supabase
       .from("appointment")
       .select(
-        `id, starts_at, ends_at, status, treatment_summary, cancellation_notes, staff_id,
+        `id, starts_at, ends_at, status, treatment_summary, cancellation_reason, cancellation_notes, staff_id,
          staff:staff_id (id, full_name),
          services:appointment_service (
            id, service_id, price_pence_snapshot,
@@ -499,7 +518,10 @@ export default function PatientDetail() {
   const addNote = async () => {
     if (!newNote.trim() || !id) return;
 
+    // `note.practice_id` is NOT NULL — required for RLS and audit.
+    // Without it the insert fails and the user just sees a vague toast.
     const { error } = await supabase.from("note").insert({
+      practice_id: tenant.practice.id,
       parent_type: "PATIENT",
       parent_id: id,
       patient_id: id,
@@ -591,18 +613,50 @@ export default function PatientDetail() {
     }
 
     // Swap the appointment_service rows if the user changed the service.
+    // Order matters: insert the new row FIRST, then delete the old ones
+    // by their explicit row IDs. The previous delete-then-insert pattern
+    // could leave the appointment with zero services if the insert
+    // failed (e.g. missing practice_id, RLS) — and the failure was
+    // silent because neither result was checked. Same fix shape as
+    // Calendar.tsx's edit-in-place save.
     if (hasServiceChanged) {
-      // patient_id and practice_id come from the patient we already loaded.
       const practiceId = patient?.practice_id;
-      await supabase.from("appointment_service").delete().eq("appointment_id", selectedAppt.id);
-      if (practiceId) {
-        await supabase.from("appointment_service").insert({
+      if (!practiceId) {
+        toast.error("Couldn't update service — practice context missing. Refresh and try again.");
+        setUpdatingAppt(false);
+        return;
+      }
+      const previousServiceRowIds =
+        selectedAppt.services?.map((s) => s.id).filter(Boolean) ?? [];
+
+      const { error: insertErr } = await supabase
+        .from("appointment_service")
+        .insert({
           appointment_id: selectedAppt.id,
           service_id: service.id,
           practice_id: practiceId,
+          // -1 so the new row becomes primary even before cleanup runs.
+          display_order: -1,
           duration_minutes_snapshot: service.duration_minutes,
           price_pence_snapshot: service.price_pence ?? null,
         });
+      if (insertErr) {
+        logger.error("Failed to attach new service", insertErr);
+        toast.error(`Failed to update service: ${insertErr.message}`);
+        setUpdatingAppt(false);
+        return;
+      }
+
+      if (previousServiceRowIds.length > 0) {
+        const { error: deleteErr } = await supabase
+          .from("appointment_service")
+          .delete()
+          .in("id", previousServiceRowIds);
+        if (deleteErr) {
+          // Soft-fail: new row attached, old one orphaned. The
+          // appointment is still bookable; just surface for cleanup.
+          logger.warn("New service attached but previous link not cleaned up", deleteErr);
+        }
       }
     }
 
@@ -1523,10 +1577,19 @@ function AppointmentRow({ appt, onClick }: { appt: Appointment; onClick: () => v
       {appt.status === "COMPLETED" && appt.treatment_summary && (
         <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{appt.treatment_summary}</p>
       )}
-      {appt.status === "CANCELLED" && appt.cancellation_notes && (
-        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
-          {appt.cancellation_notes}
-        </p>
+      {appt.status === "CANCELLED" && (appt.cancellation_reason || appt.cancellation_notes) && (
+        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+          {appt.cancellation_reason && (
+            <span className="text-[10px] uppercase tracking-wider font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+              {formatCancellationReason(appt.cancellation_reason)}
+            </span>
+          )}
+          {appt.cancellation_notes && (
+            <span className="text-xs text-muted-foreground line-clamp-1">
+              {appt.cancellation_notes}
+            </span>
+          )}
+        </div>
       )}
     </button>
   );

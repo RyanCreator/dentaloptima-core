@@ -64,7 +64,26 @@ export interface HelpGuide {
 //   category: "Calendar",
 //   routes: ["/calendar", "/calendar/*"],
 // },
-export const HELP_GUIDES: HelpGuide[] = [];
+export const HELP_GUIDES: HelpGuide[] = [
+  {
+    id: "dashboard-overview",
+    title: "Dashboard tour",
+    description:
+      "Stat cards, check-in flow, in-treatment / late / waiting buckets, and where the day's outstanding balances live.",
+    youtubeId: "tvICEb3HE4g",
+    category: "Dashboard",
+    routes: ["/", "/dashboard"],
+  },
+  {
+    id: "enquiries-overview",
+    title: "Enquiries — review, book, waitlist or reject",
+    description:
+      "Working through the enquiries queue — open a request, use Smart Availability to find a slot, and book / waitlist / reject.",
+    youtubeId: "635XX_l34pY",
+    category: "Enquiries",
+    routes: ["/enquiries", "/enquiries/*"],
+  },
+];
 
 /**
  * Check whether a route pattern matches a given pathname.

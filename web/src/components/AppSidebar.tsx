@@ -14,6 +14,7 @@ import {
   LogOut,
   X,
   LifeBuoy,
+  BookOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -35,6 +36,7 @@ import logoLight from "@/assets/logo-light.webp";
 import logoDark from "@/assets/logo-dark.webp";
 import { useNewEnquiriesCount } from "@/hooks/useNewEnquiriesCount";
 import { useNhsPendingRequestCount } from "@/hooks/useNhsPerformerRequests";
+import { useUnacknowledgedDocumentCount } from "@/hooks/useAssignedDocuments";
 import { useAuth } from "@/hooks/useAuth";
 
 const menuItems = [
@@ -48,6 +50,7 @@ const menuItems = [
   { title: "NHS Claims", url: "/claims", icon: Receipt },
   { title: "Staff", url: "/staff", icon: UserCog },
   { title: "Governance", url: "/governance", icon: ShieldCheck },
+  { title: "Documents", url: "/documents", icon: BookOpen },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -65,6 +68,10 @@ export const AppSidebar = () => {
   const isAdmin = callerRole === "OWNER" || callerRole === "ADMIN";
   const { count: nhsRequestCount } = useNhsPendingRequestCount();
   const showNhsBadge = isAdmin && nhsRequestCount > 0;
+  // Unacknowledged practice docs — visible to all members. The badge
+  // nudges practices to read what Dentaloptima has shared with them.
+  const { count: unackedDocCount } = useUnacknowledgedDocumentCount();
+  const showDocsBadge = unackedDocCount > 0;
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -114,8 +121,15 @@ export const AppSidebar = () => {
               {menuItems.map((item) => {
                 const enquiriesBadge = item.title === "Enquiries" && newEnquiriesCount > 0;
                 const staffBadge = item.title === "Staff" && showNhsBadge;
-                const showBadge = enquiriesBadge || staffBadge;
-                const badgeCount = enquiriesBadge ? newEnquiriesCount : staffBadge ? nhsRequestCount : 0;
+                const docsBadge = item.title === "Documents" && showDocsBadge;
+                const showBadge = enquiriesBadge || staffBadge || docsBadge;
+                const badgeCount = enquiriesBadge
+                  ? newEnquiriesCount
+                  : staffBadge
+                    ? nhsRequestCount
+                    : docsBadge
+                      ? unackedDocCount
+                      : 0;
 
                 return (
                   <SidebarMenuItem key={item.title}>

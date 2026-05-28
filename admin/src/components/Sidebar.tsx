@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, Activity, LogOut, Plus, Home, Inbox, Megaphone,
   Mail, Contact, FileText, Send, MessageCircle, Users, KeyRound,
+  Library,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,12 @@ const SECTIONS: {
       { to: "/outreach/templates", label: "Templates", icon: FileText },
       { to: "/outreach/campaigns", label: "Campaigns", icon: Send },
       { to: "/leads", label: "Leads", icon: Inbox },
+    ],
+  },
+  {
+    label: "Library",
+    items: [
+      { to: "/documents", label: "Documents", icon: Library },
     ],
   },
   {

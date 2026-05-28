@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { format, isSameDay, setHours, setMinutes, setSeconds, setMilliseconds } from "date-fns";
 import { fromZonedTime, toZonedTime } from "date-fns-tz";
-import { Plus, Ban, GripVertical, AlertTriangle } from "lucide-react";
+import { Plus, GripVertical, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getStatusColor } from "@/lib/appointmentUtils";
 import type { Appointment } from "@/hooks/useAppointments";
@@ -19,8 +19,11 @@ import {
   DragStartEvent,
 } from "@dnd-kit/core";
 import { useRescheduleAppointment } from "@/hooks/useRescheduleAppointment";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { ScheduleOverlay } from "./ScheduleOverlay";
 import { SlotActionDialog } from "./SlotActionDialog";
+import { BlockedTimeChip } from "./BlockedTimeChip";
 import type { DayContext } from "@/hooks/useDayContext";
 import { SLOT_ROW_HEIGHT_PX, type SlotMinutes } from "@/hooks/usePracticeSetting";
 
@@ -68,6 +71,33 @@ export function CalendarTimelineView({
   selectedStaffId,
   slotMinutes = 30,
 }: CalendarTimelineViewProps) {
+  // Expand the visible hour range if any appointment or block sits outside
+  // the default 8am-8pm window. Without this, an early-morning emergency
+  // booking (e.g. 07:00) or a late evening slot would render with no
+  // hour bucket and silently disappear from the day view.
+  const earliestApptHour = appointments.reduce((min, a) => {
+    const h = toZonedTime(new Date(a.starts_at), UK_TIMEZONE).getHours();
+    return h < min ? h : min;
+  }, startHour);
+  const earliestBlockHour = blockedTimeEntries.reduce((min, b) => {
+    const h = toZonedTime(new Date(b.starts_at), UK_TIMEZONE).getHours();
+    return h < min ? h : min;
+  }, startHour);
+  const latestApptEndHour = appointments.reduce((max, a) => {
+    const end = toZonedTime(new Date(a.ends_at), UK_TIMEZONE);
+    // Round up to the next hour bucket so a 19:30 end still gets the
+    // 20:00 slot rendered.
+    const h = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+    return h > max ? h : max;
+  }, endHour);
+  const latestBlockEndHour = blockedTimeEntries.reduce((max, b) => {
+    const end = toZonedTime(new Date(b.ends_at), UK_TIMEZONE);
+    const h = end.getHours() + (end.getMinutes() > 0 ? 1 : 0);
+    return h > max ? h : max;
+  }, endHour);
+  const effectiveStartHour = Math.min(startHour, earliestApptHour, earliestBlockHour);
+  const effectiveEndHour = Math.min(24, Math.max(endHour, latestApptEndHour, latestBlockEndHour));
+
   const slotsPerHour = Math.max(1, Math.round(60 / slotMinutes));
   // Row height scales up at fine granularity so 10-min slots aren't stuck
   // at ~10px tall. Stays at 60 for 20/30/60 min so the calendar doesn't
@@ -130,11 +160,11 @@ export function CalendarTimelineView({
     const currentMinute = now.getMinutes();
 
     // Only show if within business hours
-    if (currentHour < startHour || currentHour >= endHour) return null;
+    if (currentHour < effectiveStartHour || currentHour >= effectiveEndHour) return null;
 
     // Calculate pixel position from the top using the same row height the
     // grid uses, so the indicator line stays in sync as granularity changes.
-    const hourIndex = currentHour - startHour;
+    const hourIndex = currentHour - effectiveStartHour;
     const pixelsFromMinutes = (currentMinute / 60) * pixelsPerHour;
 
     return (hourIndex * pixelsPerHour) + pixelsFromMinutes;
@@ -144,8 +174,8 @@ export function CalendarTimelineView({
 
   // Generate hour slots
   const hours = Array.from(
-    { length: endHour - startHour },
-    (_, i) => startHour + i
+    { length: effectiveEndHour - effectiveStartHour },
+    (_, i) => effectiveStartHour + i
   );
 
   // Pre-bucket appointments by their START hour. With the new "actual
@@ -210,8 +240,8 @@ export function CalendarTimelineView({
           {dayContext && !dayContext.loading && (
             <ScheduleOverlay
               dayContext={dayContext}
-              startHour={startHour}
-              endHour={endHour}
+              startHour={effectiveStartHour}
+              endHour={effectiveEndHour}
               pixelsPerHour={pixelsPerHour}
               breaks={breaksForView}
               leftOffsetPx={80}
@@ -297,13 +327,28 @@ export function CalendarTimelineView({
                         const heightPx = (durationMin / 60) * pixelsPerHour;
 
                         const colors = getStatusColor(apt.status, hasOverlap);
+                        // Hover tooltip surfaces the patient name and a
+                        // one-line summary without crowding the chip face.
+                        const serviceSummary = apt.services
+                          ?.map((s) => s.service?.name)
+                          .filter(Boolean)
+                          .join(", ") || "—";
+                        const tooltip = [
+                          apt.patient.full_name,
+                          `${format(aptStart, "HH:mm")}–${format(aptEnd, "HH:mm")}`,
+                          serviceSummary,
+                          apt.staff.full_name,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
                         return (
                           <DraggableAppointment
                             key={apt.id}
                             apt={apt}
                             onClick={() => onAppointmentClick(apt)}
+                            title={tooltip}
                             className={cn(
-                              "absolute left-2 right-2 rounded p-2 text-left text-xs transition-all hover:shadow-md hover:z-20 z-10 overflow-hidden border-l-4",
+                              "group absolute left-2 right-2 rounded p-2 text-left text-xs transition-all hover:shadow-md hover:z-20 z-10 overflow-hidden border-l-4",
                               colors.bg,
                               colors.hover,
                               colors.border,
@@ -315,43 +360,52 @@ export function CalendarTimelineView({
                               height: `${heightPx}px`,
                             }}
                           >
-                            {/* Adaptive content: time → service → staff.
-                                Patient name is intentionally not on the
-                                chip — the calendar is a "what's happening"
-                                view, not a lookup; click-through opens the
-                                detail sheet for the patient. */}
-                            <div className="font-medium truncate leading-tight flex items-center gap-1">
-                              <span>{format(aptStart, "HH:mm")} – {format(aptEnd, "HH:mm")}</span>
-                              {hasWarning && heightPx < 65 && (
-                                <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
-                              )}
-                            </div>
-                            {heightPx >= 30 && (
-                              <div className="truncate leading-tight">
+                            {/* Single-line horizontal layout — time on the
+                                left, service taking the flex middle (truncates
+                                when narrow), staff name pinned to the right.
+                                Putting staff on the right means a clinician
+                                can scan a day for their own name without
+                                reading every chip's body. Patient name is
+                                intentionally omitted — click-through opens
+                                the detail sheet for that lookup. */}
+                            <div className="flex items-center gap-2 leading-tight">
+                              <span className="font-medium tabular-nums shrink-0">
+                                {format(aptStart, "HH:mm")}–{format(aptEnd, "HH:mm")}
+                              </span>
+                              <span className="font-medium truncate flex-1 min-w-0">
                                 {apt.services
                                   ?.map((s) => s.service?.name)
                                   .filter(Boolean)
                                   .join(", ") || "—"}
-                              </div>
-                            )}
-                            {heightPx >= 48 && selectedStaffId === "all" && (
-                              <div className="truncate text-[10px] text-muted-foreground leading-tight">
-                                {apt.staff.full_name}
-                              </div>
-                            )}
+                              </span>
+                              {hasWarning && heightPx < 65 && (
+                                <AlertTriangle className="h-3 w-3 text-amber-600 shrink-0" />
+                              )}
+                              {selectedStaffId === "all" && (
+                                <span className="text-[10px] text-muted-foreground truncate max-w-[40%] shrink-0">
+                                  {apt.staff.full_name}
+                                </span>
+                              )}
+                            </div>
                             {hasWarning && heightPx >= 65 && (
-                              <div className="flex items-center gap-1 text-amber-600 text-[10px]">
+                              <div className="flex items-center gap-1 text-amber-600 text-[10px] mt-0.5">
                                 <AlertTriangle className="h-3 w-3" />
                                 <span>Warning</span>
                               </div>
                             )}
+                            <ResizeHandle
+                              apt={apt}
+                              pixelsPerHour={pixelsPerHour}
+                              slotMinutes={slotMinutes}
+                              onResized={onAppointmentMoved}
+                            />
                           </DraggableAppointment>
                         );
                       })}
 
                       {/* Blocked Time Entries — same pixel-precise sizing
                           as appointments so the visual span matches the
-                          actual blocked window. */}
+                          actual blocked window. Click to unblock. */}
                       {getBlockedTimeForHour(hour).map((block) => {
                         const blockStart = toZonedTime(new Date(block.starts_at), UK_TIMEZONE);
                         const blockEnd = toZonedTime(new Date(block.ends_at), UK_TIMEZONE);
@@ -361,27 +415,13 @@ export function CalendarTimelineView({
                           (blockEnd.getTime() - blockStart.getTime()) / 60000,
                         );
                         const heightPx = (durationMin / 60) * pixelsPerHour;
-
                         return (
-                          <div
+                          <BlockedTimeChip
                             key={block.id}
-                            className="absolute left-2 right-2 rounded p-2 text-left text-xs bg-gray-200 border-l-4 border-gray-500 dark:bg-gray-800/70 z-10 overflow-hidden"
-                            style={{
-                              top: `${topPx}px`,
-                              height: `${heightPx}px`,
-                            }}
-                          >
-                            <div className="font-medium truncate flex items-center gap-1">
-                              <Ban className="h-3 w-3" />
-                              {format(blockStart, "HH:mm")} - {format(blockEnd, "HH:mm")}
-                            </div>
-                            <div className="truncate text-muted-foreground font-semibold">
-                              BLOCKED
-                            </div>
-                            <div className="truncate text-[10px] text-muted-foreground">
-                              {block.title}
-                            </div>
-                          </div>
+                            block={block}
+                            variant="timeline"
+                            style={{ top: `${topPx}px`, height: `${heightPx}px` }}
+                          />
                         );
                       })}
                     </div>
@@ -588,12 +628,14 @@ function DraggableAppointment({
   onClick,
   className,
   style,
+  title,
 }: {
   apt: Appointment;
   children: React.ReactNode;
   onClick: () => void;
   className?: string;
   style?: React.CSSProperties;
+  title?: string;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: apt.id,
@@ -611,6 +653,7 @@ function DraggableAppointment({
       }}
       role="button"
       tabIndex={0}
+      title={title}
       style={style}
       className={cn(
         className,
@@ -625,5 +668,85 @@ function DraggableAppointment({
       </div>
       {children}
     </div>
+  );
+}
+
+// Bottom-edge resize handle. Bypasses dnd-kit by using native pointer
+// events and stopping propagation in pointerDown so the parent chip's
+// drag-to-move listener doesn't pick this up. Snaps the new duration
+// to the timeline's slot granularity.
+function ResizeHandle({
+  apt,
+  pixelsPerHour,
+  slotMinutes,
+  onResized,
+}: {
+  apt: Appointment;
+  pixelsPerHour: number;
+  slotMinutes: number;
+  onResized?: () => void;
+}) {
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const chipEl = e.currentTarget.parentElement as HTMLElement | null;
+    if (!chipEl) return;
+    const startY = e.clientY;
+    const aptStart = new Date(apt.starts_at);
+    const aptEnd = new Date(apt.ends_at);
+    const startDurationMin = (aptEnd.getTime() - aptStart.getTime()) / 60000;
+    const startHeightPx = (startDurationMin / 60) * pixelsPerHour;
+
+    let lastSnappedMin = startDurationMin;
+
+    const onMove = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      const deltaMin = (dy / pixelsPerHour) * 60;
+      const newDurationMin = Math.max(slotMinutes, startDurationMin + deltaMin);
+      // Snap to the slot grid so the visual jumps cleanly to the next slot.
+      const snapped = Math.max(slotMinutes, Math.round(newDurationMin / slotMinutes) * slotMinutes);
+      lastSnappedMin = snapped;
+      chipEl.style.height = `${(snapped / 60) * pixelsPerHour}px`;
+    };
+
+    const onUp = async () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (lastSnappedMin === startDurationMin) return;
+      const newEndsAt = new Date(aptStart.getTime() + lastSnappedMin * 60_000);
+      const { error } = await supabase
+        .from("appointment")
+        .update({ ends_at: newEndsAt.toISOString() })
+        .eq("id", apt.id);
+      if (error) {
+        // 23P01 = exclusion_violation. The GiST constraint
+        // appointment_staff_id_practice_id_tstzrange_excl blocks
+        // overlapping non-cancelled appointments for the same staff —
+        // surface that as the actual reason rather than a generic toast.
+        const isOverlap =
+          error.code === "23P01" || /overlap|exclusion/i.test(error.message);
+        toast.error(
+          isOverlap
+            ? "Can't extend — overlaps with the next appointment"
+            : "Couldn't resize appointment",
+        );
+        chipEl.style.height = `${startHeightPx}px`;
+      } else {
+        toast.success(`Duration changed to ${lastSnappedMin} min`);
+        onResized?.();
+      }
+    };
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-60 hover:!opacity-90 transition-opacity bg-foreground/30 rounded-b"
+      title="Drag to resize duration"
+    />
   );
 }

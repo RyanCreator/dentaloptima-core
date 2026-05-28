@@ -30,3 +30,7 @@ Thumbs.db
 # Build artefacts
 *.tsbuildinfo
 coverage/
+
+# Operator training videos — large binary, not source. Hosted elsewhere
+# (helpGuides.ts references YouTube IDs).
+Guide Videos/

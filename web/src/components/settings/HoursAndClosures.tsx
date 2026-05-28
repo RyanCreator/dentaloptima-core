@@ -18,10 +18,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePractice } from "@/contexts/PracticeContext";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
-import { CalendarIcon, Plus, Trash2, Clock, Ban } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Clock, Ban, Flag } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageLoading } from "@/components/PageLoading";
 import { cn } from "@/lib/utils";
+import { useUkBankHolidays, type BankHolidayRegion } from "@/hooks/useUkBankHolidays";
 
 // Practice-level "when are we open?" management. Two concerns, one screen:
 //
@@ -108,6 +116,10 @@ export function HoursAndClosures() {
           <Ban className="h-3.5 w-3.5" />
           Closures
         </TabsTrigger>
+        <TabsTrigger value="bank-holidays" className="gap-1.5">
+          <Flag className="h-3.5 w-3.5" />
+          Bank holidays
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="hours" className="mt-4">
         <WeeklyHoursEditor practiceId={practiceId} />
@@ -115,7 +127,170 @@ export function HoursAndClosures() {
       <TabsContent value="closures" className="mt-4">
         <ClosuresManager practiceId={practiceId} />
       </TabsContent>
+      <TabsContent value="bank-holidays" className="mt-4">
+        <BankHolidaysEditor />
+      </TabsContent>
     </Tabs>
+  );
+}
+
+// ============================================================================
+// Bank holidays
+// ============================================================================
+// Read/write practice_setting columns added in migration 0048.
+// `show_bank_holidays` toggles the calendar markers + day-view banner.
+// `bank_holidays_region` picks which gov.uk feed to use — Scotland and
+// Northern Ireland have different dates from England & Wales (2 Jan,
+// St Patrick's Day, Battle of the Boyne, etc.).
+//
+// We don't store the holiday rows themselves — the calendar fetches
+// gov.uk live (cached in localStorage). This screen just configures the
+// toggle + preview the next 6 holidays for the chosen region so the
+// operator knows what they're opting into.
+function BankHolidaysEditor() {
+  const [enabled, setEnabled] = useState(true);
+  const [region, setRegion] = useState<BankHolidayRegion>("england-and-wales");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("practice_setting")
+      .select("show_bank_holidays, bank_holidays_region")
+      .single();
+    if (error) {
+      logger.error("Failed to load bank-holiday settings", error);
+    } else if (data) {
+      setEnabled(data.show_bank_holidays ?? true);
+      setRegion(
+        (data.bank_holidays_region as BankHolidayRegion) ?? "england-and-wales",
+      );
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const save = async (patch: { enabled?: boolean; region?: BankHolidayRegion }) => {
+    setSaving(true);
+    const nextEnabled = patch.enabled ?? enabled;
+    const nextRegion = patch.region ?? region;
+    const { error } = await supabase
+      .from("practice_setting")
+      .update({
+        show_bank_holidays: nextEnabled,
+        bank_holidays_region: nextRegion,
+      });
+    setSaving(false);
+    if (error) {
+      logger.error("Failed to save bank-holiday settings", error);
+      toast.error("Couldn't save bank-holiday settings");
+      return;
+    }
+    setEnabled(nextEnabled);
+    setRegion(nextRegion);
+    toast.success("Saved");
+  };
+
+  // Preview the next 6 upcoming holidays for the picked region so the
+  // operator sees the impact of their choice without having to scroll
+  // the calendar to confirm.
+  const { holidays } = useUkBankHolidays(region, true);
+  const upcoming = holidays
+    .filter((h) => h.date >= format(new Date(), "yyyy-MM-dd"))
+    .slice(0, 6);
+
+  if (loading) {
+    return <PageLoading variant="inline" label="Loading bank-holiday settings..." />;
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h3 className="text-base font-semibold">UK bank holidays on the calendar</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          Surface UK bank holidays as a quiet marker (a red dot on the
+          date in month / week views, a banner in day view). Holidays
+          come from{" "}
+          <a
+            href="https://www.gov.uk/bank-holidays"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-primary underline underline-offset-2"
+          >
+            gov.uk
+          </a>{" "}
+          so they stay accurate year-on-year without any action from you.
+        </p>
+      </div>
+
+      <div className="flex items-start gap-3 rounded-lg border bg-card p-4">
+        <Switch
+          checked={enabled}
+          onCheckedChange={(v) => save({ enabled: v })}
+          disabled={saving}
+          aria-label="Show bank holidays on the calendar"
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium">
+            Show bank holidays on the calendar
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Doesn't auto-close the practice — just shows the date so
+            you can decide. Untick to hide entirely.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="bh-region" className="text-xs uppercase tracking-wide">
+          Region
+        </Label>
+        <Select
+          value={region}
+          onValueChange={(v) => save({ region: v as BankHolidayRegion })}
+          disabled={!enabled || saving}
+        >
+          <SelectTrigger id="bh-region" className="w-full sm:w-[280px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="england-and-wales">England &amp; Wales</SelectItem>
+            <SelectItem value="scotland">Scotland</SelectItem>
+            <SelectItem value="northern-ireland">Northern Ireland</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-[11px] text-muted-foreground">
+          Holidays differ across UK nations — e.g. 2 January is a holiday
+          in Scotland but not in England.
+        </p>
+      </div>
+
+      {enabled && upcoming.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2 font-medium">
+            Next {upcoming.length} holidays for this region
+          </p>
+          <ul className="rounded-lg border bg-card divide-y">
+            {upcoming.map((h) => (
+              <li key={h.date} className="flex items-baseline gap-3 px-3 py-2 text-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                <span className="font-medium">{h.title}</span>
+                <span className="text-muted-foreground">
+                  {format(parseISO(h.date), "EEEE d MMMM yyyy")}
+                </span>
+                {h.notes && (
+                  <span className="text-muted-foreground text-xs">· {h.notes}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

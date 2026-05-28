@@ -459,6 +459,24 @@ function ComposeCampaignPage() {
     });
   }, [fromCampaignId]);
 
+  // Seed selected contacts (+ optionally a template) when the editor
+  // is reached via Contacts → "Add to campaign". Runs once on mount —
+  // re-runs would clobber subsequent edits to the picker.
+  const location = useLocation();
+  useEffect(() => {
+    const state = location.state as {
+      prefilledContactIds?: string[];
+      prefilledTemplateId?: string;
+    } | null;
+    if (state?.prefilledContactIds && state.prefilledContactIds.length > 0) {
+      setSelectedIds(new Set(state.prefilledContactIds));
+    }
+    if (state?.prefilledTemplateId) {
+      setTemplateId(state.prefilledTemplateId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Default From to first active account once they load.
   useEffect(() => {
     if (!fromAddress && accounts[0]) setFromAddress(accounts[0].address);

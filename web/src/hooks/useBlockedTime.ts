@@ -1,3 +1,4 @@
+import { useEffect, useId } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -189,6 +190,42 @@ export function useBlockedTime(staffId?: string) {
       toast.error("Failed to remove blocked time");
     },
   });
+
+  // Unique channel id per hook instance — useBlockedTime is called from
+  // both Calendar.tsx and BlockedTimeChip, plus StrictMode double-mounts
+  // every effect. Reusing the same channel name across instances triggers
+  // supabase's "cannot add `postgres_changes` callbacks ... after
+  // subscribe()" because the second call gets back the already-subscribed
+  // channel and tries to attach a new listener to it.
+  const channelId = useId();
+
+  // Realtime: invalidate the cache when any blocked_time row changes for
+  // the current practice. Catches a colleague creating/removing blocks
+  // while this calendar is open. Practice scoping is on the client because
+  // RLS already restricts visibility, but rows from other tenants still
+  // arrive on the channel — invalidate either way; the refetch is cheap.
+  useEffect(() => {
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const scheduleInvalidate = () => {
+      if (pending) clearTimeout(pending);
+      pending = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["blocked-time"] });
+        queryClient.invalidateQueries({ queryKey: ["available-slots"] });
+      }, 300);
+    };
+    const channel = supabase
+      .channel(`calendar-blocked-time-${channelId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "blocked_time" },
+        scheduleInvalidate,
+      )
+      .subscribe();
+    return () => {
+      if (pending) clearTimeout(pending);
+      void supabase.removeChannel(channel);
+    };
+  }, [queryClient, channelId]);
 
   return {
     blockedTimeEntries,

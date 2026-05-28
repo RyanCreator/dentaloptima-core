@@ -8,11 +8,14 @@ import { cn } from "@/lib/utils";
 import { AppointmentCard } from "./AppointmentCard";
 import type { Appointment } from "@/hooks/useAppointments";
 import { UK_TIMEZONE } from "@/lib/constants";
+import type { BankHoliday } from "@/hooks/useUkBankHolidays";
 
 interface CalendarGridViewProps {
   currentDate: Date;
   viewMode: "week" | "month" | "day";
   appointments: Appointment[];
+  /** UK bank holidays for the practice's region; empty when disabled in settings. */
+  bankHolidays: BankHoliday[];
   staff: any[];
   selectedStaffId: string;
   onStaffChange: (id: string) => void;
@@ -31,6 +34,7 @@ export function CalendarGridView({
   currentDate,
   viewMode,
   appointments,
+  bankHolidays,
   staff,
   selectedStaffId,
   onStaffChange,
@@ -45,6 +49,10 @@ export function CalendarGridView({
   checkWarning,
 }: CalendarGridViewProps) {
   const ukNow = toZonedTime(currentDate, UK_TIMEZONE);
+  // Set of YYYY-MM-DD strings for O(1) bank-holiday lookup. Built once
+  // per render; the list is small (~24 entries over 3 years).
+  const bankHolidaySet = new Set(bankHolidays.map((h) => h.date));
+  const bankHolidayByDate = new Map(bankHolidays.map((h) => [h.date, h]));
   
   const getDays = () => {
     if (viewMode === "week") {
@@ -197,7 +205,19 @@ export function CalendarGridView({
                 )}
               >
                 <div className="font-medium text-sm mb-2 flex items-baseline justify-between sm:flex-col sm:justify-start">
-                  <div className="text-xs text-muted-foreground uppercase">{format(day, "EEE")}</div>
+                  <div className="text-xs text-muted-foreground uppercase flex items-center gap-1.5">
+                    {format(day, "EEE")}
+                    {/* Bank-holiday marker — small red dot, tooltip
+                        shows the holiday name. Kept tiny so it doesn't
+                        pull attention away from the date itself. */}
+                    {bankHolidaySet.has(format(day, "yyyy-MM-dd")) && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-red-500"
+                        title={bankHolidayByDate.get(format(day, "yyyy-MM-dd"))?.title}
+                        aria-label={`Bank holiday: ${bankHolidayByDate.get(format(day, "yyyy-MM-dd"))?.title}`}
+                      />
+                    )}
+                  </div>
                   <div className={cn("text-xl sm:text-2xl", isToday && "text-primary font-bold")}>
                     {format(day, "d")}
                   </div>
@@ -253,10 +273,19 @@ export function CalendarGridView({
                   )}
                 >
                   <div className={cn(
-                    "text-xs sm:text-sm font-medium mb-1 text-center sm:text-left",
+                    "text-xs sm:text-sm font-medium mb-1 text-center sm:text-left flex items-baseline justify-center sm:justify-start gap-1",
                     isToday && "text-primary font-bold"
                   )}>
                     {format(day, "d")}
+                    {/* Bank-holiday marker — same tiny red dot as the
+                        week view, with the holiday name as tooltip. */}
+                    {bankHolidaySet.has(format(day, "yyyy-MM-dd")) && (
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-red-500"
+                        title={bankHolidayByDate.get(format(day, "yyyy-MM-dd"))?.title}
+                        aria-label={`Bank holiday: ${bankHolidayByDate.get(format(day, "yyyy-MM-dd"))?.title}`}
+                      />
+                    )}
                   </div>
                   <div className="space-y-0.5">
                     {dayAppointments.slice(0, 2).map((apt) => (

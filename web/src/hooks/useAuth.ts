@@ -139,6 +139,12 @@ export function useRequireAuth() {
   return {
     session: auth.session,
     user: auth.user,
+    // `member` is the practice_member row — surface it so callers can
+    // write to FKs that reference practice_member.id (viewed_by,
+    // responded_by, audit columns). Previously callers were writing
+    // auth.user.id into these FKs, which silently failed the constraint
+    // and looked like a no-op (e.g. enquiries not moving to VIEWED).
+    member: auth.member,
     loading: auth.loading,
   };
 }

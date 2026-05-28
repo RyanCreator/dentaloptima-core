@@ -14,6 +14,11 @@ export interface PracticeSettingSlice {
   min_booking_notice_hours: number;
   max_advance_booking_days: number;
   recall_reminder_lead_days: number;
+  // Bank-holiday display (migration 0048). Region is one of three
+  // gov.uk feed slugs. Defaults match the column defaults so a pre-
+  // migration practice falls back to "show, England & Wales".
+  show_bank_holidays: boolean;
+  bank_holidays_region: "england-and-wales" | "scotland" | "northern-ireland";
 }
 
 const DEFAULTS: PracticeSettingSlice = {
@@ -21,6 +26,8 @@ const DEFAULTS: PracticeSettingSlice = {
   min_booking_notice_hours: 24,
   max_advance_booking_days: 90,
   recall_reminder_lead_days: 30,
+  show_bank_holidays: true,
+  bank_holidays_region: "england-and-wales",
 };
 
 export function usePracticeSetting(): {
@@ -36,7 +43,7 @@ export function usePracticeSetting(): {
       const { data, error } = await supabase
         .from("practice_setting")
         .select(
-          "default_appt_duration_minutes, min_booking_notice_hours, max_advance_booking_days, recall_reminder_lead_days",
+          "default_appt_duration_minutes, min_booking_notice_hours, max_advance_booking_days, recall_reminder_lead_days, show_bank_holidays, bank_holidays_region",
         )
         .single();
 
@@ -52,6 +59,10 @@ export function usePracticeSetting(): {
           min_booking_notice_hours: data.min_booking_notice_hours ?? 24,
           max_advance_booking_days: data.max_advance_booking_days ?? 90,
           recall_reminder_lead_days: data.recall_reminder_lead_days ?? 30,
+          show_bank_holidays: data.show_bank_holidays ?? true,
+          bank_holidays_region:
+            (data.bank_holidays_region as PracticeSettingSlice["bank_holidays_region"]) ??
+            "england-and-wales",
         });
       }
       setLoading(false);

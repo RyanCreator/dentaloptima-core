@@ -105,10 +105,18 @@ export async function ensurePatientForBookingRequest({
         eqCaseInsensitive(p.last_name, last),
       );
       const chosen = byLast || emailMatches[0];
-      await supabase
+      // Without an error check here a silent RLS or constraint failure
+      // would leave booking_request.patient_id null and the downstream
+      // appointment-create flow would treat the patient as new — ending
+      // up with a duplicate record.
+      const { error: linkErr } = await supabase
         .from("booking_request")
         .update({ patient_id: chosen.id })
         .eq("id", requestId);
+      if (linkErr) {
+        logger.error("Failed to link booking_request to email-matched patient", linkErr);
+        return { ok: false, error: "Failed to link patient to enquiry" };
+      }
       return {
         ok: true,
         patientId: chosen.id,
@@ -157,10 +165,14 @@ export async function ensurePatientForBookingRequest({
       eqCaseInsensitive(p.last_name, last),
     );
     if (byLast) {
-      await supabase
+      const { error: linkErr } = await supabase
         .from("booking_request")
         .update({ patient_id: byLast.id })
         .eq("id", requestId);
+      if (linkErr) {
+        logger.error("Failed to link booking_request to phone-matched patient", linkErr);
+        return { ok: false, error: "Failed to link patient to enquiry" };
+      }
       return {
         ok: true,
         patientId: byLast.id,
@@ -194,10 +206,18 @@ export async function ensurePatientForBookingRequest({
     return { ok: false, error: "Failed to create patient record" };
   }
 
-  await supabase
+  const { error: linkErr } = await supabase
     .from("booking_request")
     .update({ patient_id: newPatient.id })
     .eq("id", requestId);
+  if (linkErr) {
+    // Patient was created but the link back to the enquiry didn't
+    // write. Roll back the orphaned patient row so the operator can
+    // retry without creating a phantom prospect.
+    logger.error("Failed to link booking_request to newly-created patient", linkErr);
+    await supabase.from("patient").delete().eq("id", newPatient.id);
+    return { ok: false, error: "Failed to link patient to enquiry" };
+  }
 
   return {
     ok: true,

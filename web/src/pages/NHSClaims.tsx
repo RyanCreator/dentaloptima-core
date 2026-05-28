@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { format, parseISO, subDays, startOfMonth } from "date-fns";
 import { FileText, Search, Send, AlertCircle, CheckCircle2 } from "lucide-react";
@@ -93,6 +93,8 @@ export default function NHSClaims() {
   const { loading: authLoading } = useRequireAuth();
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // First-load gate — see comment in load() below.
+  const hasLoadedOnce = useRef(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dateRange, setDateRange] = useState<DateRange>("30days");
   const [search, setSearch] = useState("");
@@ -125,7 +127,11 @@ export default function NHSClaims() {
   }, [dateRange]);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Only show the full-page loading state on the very first load.
+    // Subsequent refetches (filter changes, status-tab clicks) keep the
+    // existing rows visible while fetching, so the list doesn't flash
+    // empty → full again on every interaction.
+    if (!hasLoadedOnce.current) setLoading(true);
     let query = supabase
       .from("nhs_claim")
       .select(
@@ -154,6 +160,7 @@ export default function NHSClaims() {
     } else {
       setClaims((data ?? []) as unknown as ClaimRow[]);
     }
+    hasLoadedOnce.current = true;
     setLoading(false);
   }, [dateFilter]);
 

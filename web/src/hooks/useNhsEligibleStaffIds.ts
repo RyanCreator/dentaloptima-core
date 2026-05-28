@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { usePractice } from "@/contexts/PracticeContext";
 
 // Returns the set of practice_member ids who currently have an active NHS
 // performer registration. Used by:
@@ -21,6 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 export function useNhsEligibleStaffIds() {
   const [eligibleSet, setEligibleSet] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -40,18 +43,27 @@ export function useNhsEligibleStaffIds() {
     reload();
     // Pick up live changes — when an admin adds an NHS performer row, the
     // service form's staff list should re-enable that clinician immediately.
+    // Scoped to this practice so cross-tenant performer changes don't
+    // trigger wasted reloads (RLS filters the payload anyway, but the
+    // callback still fires without the filter).
+    if (!practiceId) return;
     const channel = supabase
-      .channel(`nhs-eligible-staff-${crypto.randomUUID()}`)
+      .channel(`nhs-eligible-staff-${practiceId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "nhs_performer" },
+        {
+          event: "*",
+          schema: "public",
+          table: "nhs_performer",
+          filter: `practice_id=eq.${practiceId}`,
+        },
         () => reload(),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [reload]);
+  }, [reload, practiceId]);
 
   return { eligibleSet, loading, reload };
 }

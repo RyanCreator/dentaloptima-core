@@ -90,11 +90,13 @@ export function useOnboardingChecklist(): OnboardingState {
         .select("id", { count: "exact", head: true })
         .eq("is_active", true)
         .is("deleted_at", null),
+      // nhs_performer has no deleted_at column — soft-delete is just
+      // is_active=false (or a past effective_to). Filtering on the
+      // non-existent column returns 400 from PostgREST.
       supabase
         .from("nhs_performer")
         .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .is("deleted_at", null),
+        .eq("is_active", true),
     ]);
 
     if (hoursRes.error)          logger.error("hours count", hoursRes.error);

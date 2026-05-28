@@ -33,6 +33,9 @@ import Portal, { PortalAuthEntry } from "./pages/Portal";
 import TreatmentPlanAccept from "./pages/TreatmentPlanAccept";
 import Support from "./pages/Support";
 import HelpIndex from "./pages/HelpIndex";
+import PracticeDocuments from "./pages/PracticeDocuments";
+import PracticeDocumentDetail from "./pages/PracticeDocumentDetail";
+import OutstandingBalances from "./pages/OutstandingBalances";
 import Glossary from "./pages/Glossary";
 import KioskConsents from "./pages/KioskConsents";
 import NotFound from "./pages/NotFound";
@@ -85,6 +88,9 @@ const App = () => (
               <Route path="/claims" element={<RequireAuth><NHSClaims /></RequireAuth>} />
               <Route path="/staff" element={<RequireAuth><StaffManagement /></RequireAuth>} />
               <Route path="/staff/:id" element={<RequireAuth><StaffDetail /></RequireAuth>} />
+              <Route path="/documents" element={<RequireAuth><PracticeDocuments /></RequireAuth>} />
+              <Route path="/documents/:id" element={<RequireAuth><PracticeDocumentDetail /></RequireAuth>} />
+              <Route path="/outstanding" element={<RequireAuth><OutstandingBalances /></RequireAuth>} />
               <Route path="/governance" element={<RequireAuth><Governance /></RequireAuth>} />
               <Route path="/governance/incidents/:id" element={<RequireAuth><IncidentDetail /></RequireAuth>} />
               <Route path="/governance/complaints/:id" element={<RequireAuth><ComplaintDetail /></RequireAuth>} />

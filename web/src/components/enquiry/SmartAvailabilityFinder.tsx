@@ -339,13 +339,20 @@ export function SmartAvailabilityFinder({
                 <button
                   key={index}
                   onClick={() => handleSlotClick(item)}
-                  className="w-full flex items-center gap-3 p-3 rounded-md border bg-card hover:bg-accent transition-colors text-left"
+                  // Hover state was `bg-accent` which is a saturated
+                  // brand-blue (HSL 217 91% 60%) — the muted-grey text
+                  // on top of it failed WCAG contrast in both light and
+                  // dark mode. Use a subtle tint instead (bg-accent at
+                  // 10% opacity) so the click-affordance is clear but
+                  // text stays comfortably readable, and add a primary
+                  // ring on hover for stronger "this is clickable" feel.
+                  className="w-full flex items-center gap-3 p-3 rounded-md border bg-card hover:bg-accent/10 hover:border-primary/40 hover:ring-1 hover:ring-primary/20 transition-colors text-left"
                 >
                   <div className="flex-shrink-0">
                     <Clock className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm">
+                    <div className="font-medium text-sm text-foreground">
                       {format(item.slot.date, "EEEE, MMMM d, yyyy")}
                     </div>
                     <div className="text-sm text-muted-foreground">

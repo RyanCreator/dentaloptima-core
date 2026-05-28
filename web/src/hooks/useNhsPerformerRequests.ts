@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePractice } from "@/contexts/PracticeContext";
 
 // Hooks for the clinician → admin "please set me up as an NHS performer"
 // queue (migration 0039). Two surfaces:
@@ -30,6 +31,8 @@ export interface NhsPerformerRequest {
 // Fast count just for the sidebar badge.
 export function useNhsPendingRequestCount() {
   const [count, setCount] = useState(0);
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
 
   const refresh = useCallback(async () => {
     const { count: c } = await supabase
@@ -41,25 +44,39 @@ export function useNhsPendingRequestCount() {
 
   useEffect(() => {
     refresh();
+    // Scope subscriptions per-practice so cross-tenant changes don't
+    // trigger wasteful refreshes of this badge. RLS filters the payload
+    // but the callback still fires without the explicit filter.
+    if (!practiceId) return;
     const channel = supabase
-      .channel(`nhs-request-count-${crypto.randomUUID()}`)
+      .channel(`nhs-request-count-${practiceId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "nhs_performer_request" },
+        {
+          event: "*",
+          schema: "public",
+          table: "nhs_performer_request",
+          filter: `practice_id=eq.${practiceId}`,
+        },
         () => refresh(),
       )
       // Auto-resolve fires on nhs_performer insert, which flips a request
       // to COMPLETED. Watch that table too so the badge clears live.
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "nhs_performer" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "nhs_performer",
+          filter: `practice_id=eq.${practiceId}`,
+        },
         () => refresh(),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh]);
+  }, [refresh, practiceId]);
 
   return { count, refresh };
 }
@@ -69,6 +86,8 @@ export function useNhsPendingRequestCount() {
 export function useNhsPerformerRequests() {
   const [requests, setRequests] = useState<NhsPerformerRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -99,18 +118,24 @@ export function useNhsPerformerRequests() {
 
   useEffect(() => {
     reload();
+    if (!practiceId) return;
     const channel = supabase
-      .channel(`nhs-requests-${crypto.randomUUID()}`)
+      .channel(`nhs-requests-${practiceId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "nhs_performer_request" },
+        {
+          event: "*",
+          schema: "public",
+          table: "nhs_performer_request",
+          filter: `practice_id=eq.${practiceId}`,
+        },
         () => reload(),
       )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [reload]);
+  }, [reload, practiceId]);
 
   return { requests, loading, reload };
 }

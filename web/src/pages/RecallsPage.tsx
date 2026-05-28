@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,12 +15,17 @@ import { useSelection } from "@/hooks/useSelection";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState } from "@/components/EmptyState";
 
+// `recall_status` enum from the DB: PENDING, REMINDED, BOOKED, COMPLETED,
+// MISSED, CANCELLED. The page treats PENDING and REMINDED together as
+// "active" (i.e. still outstanding); see ACTIVE_STATUSES below.
+const ACTIVE_STATUSES = ["PENDING", "REMINDED"] as const;
+
 interface RecallRow {
   id: string;
   patient_id: string;
   service_id: string | null;
   due_date: string;
-  reminder_sent_at: string | null;
+  reminded_at: string | null;
   reminder_count: number;
   status: string;
   completed_at: string | null;
@@ -35,6 +40,9 @@ export default function RecallsPage() {
   const navigate = useNavigate();
   const [recalls, setRecalls] = useState<RecallRow[]>([]);
   const [loadingRecalls, setLoadingRecalls] = useState(true);
+  // First-load gate so refetches (e.g. after bulk actions) don't flash
+  // the list empty before the new data lands.
+  const hasLoadedOnce = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
   const selection = useSelection();
@@ -45,7 +53,7 @@ export default function RecallsPage() {
   }, [loading]);
 
   const loadRecalls = async () => {
-    setLoadingRecalls(true);
+    if (!hasLoadedOnce.current) setLoadingRecalls(true);
     const { data, error } = await supabase
       .from("recall")
       .select("*, patient:patient_id(full_name), service:service_id(name)")
@@ -56,6 +64,7 @@ export default function RecallsPage() {
     } else {
       setRecalls(data || []);
     }
+    hasLoadedOnce.current = true;
     setLoadingRecalls(false);
   };
 
@@ -89,22 +98,46 @@ export default function RecallsPage() {
 
   // Bulk handlers — apply the same transition to every selected row in one
   // round-trip. RLS scopes the .in() to the caller's practice; the UI
-  // restricts selection to ACTIVE rows, so the undo can safely flip every
-  // affected row back to ACTIVE.
-  const undoBulkToActive = async (ids: string[], label: string) => {
-    if (ids.length === 0) return;
-    const { error } = await supabase
-      .from("recall")
-      .update({ status: "ACTIVE", completed_at: null })
-      .in("id", ids);
-    if (error) { toast.error("Couldn't undo"); return; }
-    toast.success(`Restored ${ids.length} ${label}`);
+  // restricts selection to active (PENDING/REMINDED) rows.
+  //
+  // Undo needs the original per-row status so we can flip PENDING rows
+  // back to PENDING and REMINDED rows back to REMINDED (the latter
+  // preserves the fact that a reminder was already sent).
+  const undoBulk = async (
+    snapshots: Array<{ id: string; status: string; completed_at: string | null }>,
+    label: string,
+  ) => {
+    if (snapshots.length === 0) return;
+    // We can't bulk-update to different values in a single statement, so
+    // fan out one update per distinct status. Two API calls in the worst
+    // case (PENDING + REMINDED), which is fine at this scale.
+    const byStatus = new Map<string, string[]>();
+    for (const s of snapshots) {
+      const arr = byStatus.get(s.status) ?? [];
+      arr.push(s.id);
+      byStatus.set(s.status, arr);
+    }
+    for (const [status, ids] of byStatus) {
+      const { error } = await supabase
+        .from("recall")
+        .update({ status, completed_at: null })
+        .in("id", ids);
+      if (error) {
+        toast.error("Couldn't undo");
+        return;
+      }
+    }
+    toast.success(`Restored ${snapshots.length} ${label}`);
     loadRecalls();
   };
 
   const bulkMarkComplete = async () => {
     const ids = Array.from(selection.selected);
     if (ids.length === 0) return;
+    // Snapshot the pre-update state so undo can restore per-row.
+    const snapshots = recalls
+      .filter((r) => ids.includes(r.id))
+      .map((r) => ({ id: r.id, status: r.status, completed_at: r.completed_at }));
     setBulkBusy(true);
     const { error } = await supabase
       .from("recall")
@@ -116,7 +149,7 @@ export default function RecallsPage() {
       duration: 8000,
       action: {
         label: "Undo",
-        onClick: () => undoBulkToActive(ids, ids.length === 1 ? "recall" : "recalls"),
+        onClick: () => undoBulk(snapshots, ids.length === 1 ? "recall" : "recalls"),
       },
     });
     selection.clear();
@@ -126,6 +159,9 @@ export default function RecallsPage() {
   const bulkCancel = async () => {
     const ids = Array.from(selection.selected);
     if (ids.length === 0) return;
+    const snapshots = recalls
+      .filter((r) => ids.includes(r.id))
+      .map((r) => ({ id: r.id, status: r.status, completed_at: r.completed_at }));
     setBulkBusy(true);
     const { error } = await supabase
       .from("recall")
@@ -137,7 +173,7 @@ export default function RecallsPage() {
       duration: 8000,
       action: {
         label: "Undo",
-        onClick: () => undoBulkToActive(ids, ids.length === 1 ? "recall" : "recalls"),
+        onClick: () => undoBulk(snapshots, ids.length === 1 ? "recall" : "recalls"),
       },
     });
     selection.clear();
@@ -149,9 +185,17 @@ export default function RecallsPage() {
   const filtered = useMemo(() => {
     let result = recalls;
 
-    // Status filter
-    if (statusFilter === "OVERDUE") {
-      result = result.filter((r) => r.status === "ACTIVE" && isBefore(parseISO(r.due_date), today));
+    // Status filter. "ACTIVE" is a UI umbrella — the DB has no such enum
+    // value; PENDING and REMINDED are both "active" for the operator's
+    // purposes. "OVERDUE" is the same set, narrowed to due_date < today.
+    if (statusFilter === "ACTIVE") {
+      result = result.filter((r) => (ACTIVE_STATUSES as readonly string[]).includes(r.status));
+    } else if (statusFilter === "OVERDUE") {
+      result = result.filter(
+        (r) =>
+          (ACTIVE_STATUSES as readonly string[]).includes(r.status) &&
+          isBefore(parseISO(r.due_date), today),
+      );
     } else if (statusFilter !== "ALL") {
       result = result.filter((r) => r.status === statusFilter);
     }
@@ -168,8 +212,14 @@ export default function RecallsPage() {
     return result;
   }, [recalls, statusFilter, searchTerm, today]);
 
-  const overdueCount = recalls.filter((r) => r.status === "ACTIVE" && isBefore(parseISO(r.due_date), today)).length;
-  const activeCount = recalls.filter((r) => r.status === "ACTIVE").length;
+  const overdueCount = recalls.filter(
+    (r) =>
+      (ACTIVE_STATUSES as readonly string[]).includes(r.status) &&
+      isBefore(parseISO(r.due_date), today),
+  ).length;
+  const activeCount = recalls.filter((r) =>
+    (ACTIVE_STATUSES as readonly string[]).includes(r.status),
+  ).length;
 
   if (loading) {
     return <Layout title="Recalls"><div className="flex items-center justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></Layout>;
@@ -228,7 +278,7 @@ export default function RecallsPage() {
             {/* Select-all-active row — checkboxes only appear when there's
                 at least one active recall in the current filter. Inactive
                 rows aren't bulk-actionable so they're not selectable. */}
-            {filtered.some((r) => r.status === "ACTIVE") && (
+            {filtered.some((r) => (ACTIVE_STATUSES as readonly string[]).includes(r.status)) && (
               <div className="flex items-center gap-3 p-2 px-4 bg-muted/20 text-xs text-muted-foreground">
                 <input
                   type="checkbox"
@@ -236,13 +286,13 @@ export default function RecallsPage() {
                   aria-label="Select all active recalls"
                   checked={
                     filtered
-                      .filter((r) => r.status === "ACTIVE")
+                      .filter((r) => (ACTIVE_STATUSES as readonly string[]).includes(r.status))
                       .every((r) => selection.isSelected(r.id)) &&
-                    filtered.some((r) => r.status === "ACTIVE")
+                    filtered.some((r) => (ACTIVE_STATUSES as readonly string[]).includes(r.status))
                   }
                   onChange={(e) => {
                     const activeIds = filtered
-                      .filter((r) => r.status === "ACTIVE")
+                      .filter((r) => (ACTIVE_STATUSES as readonly string[]).includes(r.status))
                       .map((r) => r.id);
                     selection.setAll(e.target.checked ? activeIds : []);
                   }}
@@ -251,9 +301,9 @@ export default function RecallsPage() {
               </div>
             )}
             {filtered.map((recall) => {
-              const isOverdue = recall.status === "ACTIVE" && isBefore(parseISO(recall.due_date), today);
+              const isOverdue = (ACTIVE_STATUSES as readonly string[]).includes(recall.status) && isBefore(parseISO(recall.due_date), today);
               const dueDate = parseISO(recall.due_date);
-              const canSelect = recall.status === "ACTIVE";
+              const canSelect = (ACTIVE_STATUSES as readonly string[]).includes(recall.status);
 
               return (
                 <div key={recall.id} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
@@ -299,7 +349,7 @@ export default function RecallsPage() {
                     </div>
                   </div>
 
-                  {recall.status === "ACTIVE" && (
+                  {(ACTIVE_STATUSES as readonly string[]).includes(recall.status) && (
                     <div className="flex items-center gap-1 shrink-0">
                       <Button variant="ghost" size="sm" onClick={() => markComplete(recall.id)} className="h-7 text-xs text-green-700 hover:text-green-800 hover:bg-green-50" title="Mark as completed">
                         <Check className="h-3.5 w-3.5 mr-1" /> Done

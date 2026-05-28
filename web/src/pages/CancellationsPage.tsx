@@ -5,6 +5,7 @@ import { Badge, getAppointmentBadgeVariant } from "@/components/Badge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useDebounce } from "@/hooks/useDebounce";
+import { usePractice } from "@/contexts/PracticeContext";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow, format, subDays } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,8 @@ const PAGE_SIZE = 50;
 
 export default function CancellationsPage() {
   const { loading } = useRequireAuth();
+  const tenant = usePractice();
+  const practiceId = tenant.practice.id;
   const navigate = useNavigate();
   const [requests, setRequests] = useState<CancelledRequest[]>([]);
   const [appointments, setAppointments] = useState<CancelledAppointment[]>([]);
@@ -89,19 +92,29 @@ export default function CancellationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, dateRange, debouncedSearchTerm]);
 
-  // Real-time updates subscriptions
+  // Real-time updates subscriptions. Scoped per-practice so cross-tenant
+  // events don't trigger wasteful reloads here. RLS would filter the
+  // payload anyway, but the callback still fires on every event without
+  // the filter — same pattern fix we did for WaitingListPage.
+  //
+  // Note: PostgREST can only AND filters at the subscription level, so the
+  // appointment channel can't combine `status=eq.CANCELLED` AND
+  // `practice_id=eq.X` in one filter string. We use practice_id (the
+  // stronger isolation) and accept that non-cancellation events from
+  // this practice will trigger a no-op reload — still strictly less
+  // chatter than the old filter-by-status-only approach.
   useEffect(() => {
-    if (loading) return;
+    if (loading || !practiceId) return;
 
     const appointmentsChannel = supabase
-      .channel("cancellations-appointments")
+      .channel(`cancellations-appointments-${practiceId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "appointment",
-          filter: "status=eq.CANCELLED",
+          filter: `practice_id=eq.${practiceId}`,
         },
         () => {
           setAppointmentsPage(0);
@@ -113,13 +126,14 @@ export default function CancellationsPage() {
       .subscribe();
 
     const requestsChannel = supabase
-      .channel("cancellations-requests")
+      .channel(`cancellations-requests-${practiceId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "booking_request",
+          filter: `practice_id=eq.${practiceId}`,
         },
         () => {
           setRequestsPage(0);
@@ -135,7 +149,7 @@ export default function CancellationsPage() {
       supabase.removeChannel(requestsChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, dateRange, debouncedSearchTerm]);
+  }, [loading, practiceId, dateRange, debouncedSearchTerm]);
 
   const getDateRangeFilter = () => {
     if (dateRange === "all") return null;

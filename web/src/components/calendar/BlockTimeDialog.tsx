@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
+import { fromZonedTime } from "date-fns-tz";
 import { CalendarIcon, Clock } from "lucide-react";
+import { UK_TIMEZONE } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -84,15 +86,24 @@ export function BlockTimeDialog({
       return;
     }
 
-    // Build ISO datetime strings
+    // Build ISO datetime strings. The user-typed times (e.g. "14:00")
+    // are UK wall-clock — we want them to land at 14:00 UK time
+    // regardless of the operator's browser timezone. The old code did
+    // `new Date(selectedDate); setHours(14, 0)` which builds the moment
+    // in the BROWSER's local timezone, so an operator working from a
+    // non-UK timezone would block the wrong hour in the practice
+    // calendar. `fromZonedTime` does the explicit "treat this wall clock
+    // as UK and give me the corresponding UTC instant" conversion.
     const [startHours, startMinutes] = startTime.split(":").map(Number);
     const [endHours, endMinutes] = endTime.split(":").map(Number);
 
-    const startsAt = new Date(selectedDate);
-    startsAt.setHours(startHours, startMinutes, 0, 0);
+    const startsAtNaive = new Date(selectedDate);
+    startsAtNaive.setHours(startHours, startMinutes, 0, 0);
+    const startsAt = fromZonedTime(startsAtNaive, UK_TIMEZONE);
 
-    const endsAt = new Date(selectedDate);
-    endsAt.setHours(endHours, endMinutes, 0, 0);
+    const endsAtNaive = new Date(selectedDate);
+    endsAtNaive.setHours(endHours, endMinutes, 0, 0);
+    const endsAt = fromZonedTime(endsAtNaive, UK_TIMEZONE);
 
     // Validation. The form has its own UI states for the rest; the
     // time-range check is the last gate before submit.

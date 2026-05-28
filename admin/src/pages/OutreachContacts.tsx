@@ -42,11 +42,25 @@ import {
   useOutreachContactCounts,
   useOutreachContactTags,
   type TagFilter,
+  type AreaFilter,
+  type LastEmailedFilter,
+  useOutreachContactAreas,
   useOutreachContacts,
   type ContactSortKey,
   type OutreachContact,
   type OutreachContactStatus,
 } from "@/hooks/useOutreachContacts";
+import {
+  addContactsToCampaign,
+  fetchDraftCampaigns,
+  type OutreachCampaign,
+} from "@/hooks/useOutreachCampaigns";
+import {
+  fetchActiveTemplates,
+  type OutreachTemplate,
+} from "@/hooks/useOutreachTemplates";
+import { Send, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +110,29 @@ const STATUS_TONE: Record<OutreachContactStatus, string> = {
 // based so "Target" / "TARGET" / "target prospect" all hit the same
 // tone, and the chain-name aliases (Portman / Portman Group / etc.)
 // share a single corporate-group tone.
+/**
+ * Compact "last emailed" label for the per-row indicator. Tuned for
+ * operator scanning — exact dates would be too noisy and absolute
+ * timestamps don't answer "is this stale?" at a glance.
+ *   null   → "Never emailed"
+ *   today  → "Emailed today"
+ *   1 day  → "Emailed yesterday"
+ *   2–6d   → "Emailed Nd ago"
+ *   7–29d  → "Emailed Nw ago"
+ *   30d+   → "Emailed N mo ago"
+ */
+function formatLastEmailed(lastEmailedAt: string | null): string {
+  if (!lastEmailedAt) return "Never emailed";
+  const then = new Date(lastEmailedAt).getTime();
+  const now = Date.now();
+  const days = Math.floor((now - then) / 86_400_000);
+  if (days < 1) return "Emailed today";
+  if (days === 1) return "Emailed yesterday";
+  if (days < 7) return `Emailed ${days}d ago`;
+  if (days < 30) return `Emailed ${Math.floor(days / 7)}w ago`;
+  return `Emailed ${Math.floor(days / 30)} mo ago`;
+}
+
 function tagTone(raw: string): string {
   const t = raw.trim().toLowerCase();
   // Active prospect — green so "go after this one" reads at a glance.
@@ -210,6 +247,18 @@ const PAGE_SIZE = 100;
 export default function OutreachContacts() {
   const [filter, setFilter] = useState<FilterKey>("ACTIVE");
   const [tagFilter, setTagFilter] = useState<TagFilter>("ALL");
+  const [areaFilter, setAreaFilter] = useState<AreaFilter>("ALL");
+  const [lastEmailedFilter, setLastEmailedFilter] = useState<LastEmailedFilter>("ALL");
+  const { areas: knownAreas } = useOutreachContactAreas();
+  const navigate = useNavigate();
+  // Add-to-campaign popover state. We load draft campaigns when the
+  // popover opens so the list is current at click-time (someone could
+  // have created a draft in a sibling tab since the page loaded).
+  const [addCampaignOpen, setAddCampaignOpen] = useState(false);
+  const [draftCampaigns, setDraftCampaigns] = useState<OutreachCampaign[]>([]);
+  const [templates, setTemplates] = useState<OutreachTemplate[]>([]);
+  const [draftsLoading, setDraftsLoading] = useState(false);
+  const [addingToCampaign, setAddingToCampaign] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 250);
   const [sortBy, setSortBy] = useState<ContactSortKey>("created_desc");
@@ -229,12 +278,14 @@ export default function OutreachContacts() {
   useEffect(() => {
     setPage(0);
     setSelectedIds(new Set());
-  }, [filter, tagFilter, debouncedSearch, sortBy]);
+  }, [filter, tagFilter, areaFilter, lastEmailedFilter, debouncedSearch, sortBy]);
 
   const { contacts, totalCount, loading, reload } = useOutreachContacts({
     status,
     search: debouncedSearch,
     tag: tagFilter,
+    area: areaFilter,
+    lastEmailed: lastEmailedFilter,
     showArchived,
     sortBy,
     page,
@@ -390,7 +441,7 @@ export default function OutreachContacts() {
             className="w-full sm:w-[260px]"
           />
           <Select value={tagFilter} onValueChange={(v) => setTagFilter(v as TagFilter)}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="All tags" />
             </SelectTrigger>
             <SelectContent className="max-h-[320px]">
@@ -399,6 +450,38 @@ export default function OutreachContacts() {
               {knownTags.map((t) => (
                 <SelectItem key={t} value={t}>{t}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          {/* Postcode-area filter. Auto-extracted from each contact's
+              postcode, so the dropdown only shows areas with at least
+              one matching contact. "All areas" disables. */}
+          <Select value={areaFilter} onValueChange={setAreaFilter}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="All areas" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[320px]">
+              <SelectItem value="ALL">All areas</SelectItem>
+              {knownAreas.map((a) => (
+                <SelectItem key={a} value={a}>{a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* Last-emailed filter — surfaces stale prospects (most useful
+              for outreach) and the inverse "recently contacted" cohort. */}
+          <Select
+            value={lastEmailedFilter}
+            onValueChange={(v) => setLastEmailedFilter(v as LastEmailedFilter)}
+          >
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Last emailed" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">Last emailed: any</SelectItem>
+              <SelectItem value="NEVER">Never emailed</SelectItem>
+              <SelectItem value="30D+">Not in 30+ days</SelectItem>
+              <SelectItem value="60D+">Not in 60+ days</SelectItem>
+              <SelectItem value="90D+">Not in 90+ days</SelectItem>
+              <SelectItem value="RECENT_7">Emailed in last 7 days</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as ContactSortKey)}>
@@ -478,6 +561,161 @@ export default function OutreachContacts() {
       {selectedIds.size > 0 && (
         <div className="rounded-md border bg-accent/40 p-2 flex items-center gap-2 flex-wrap">
           <span className="text-xs font-medium px-1.5">{selectedIds.size} selected</span>
+          {/* Add to campaign — the headline action. Opens a dropdown
+              listing draft campaigns + templates. Lazy-fetches both on
+              open so newly-created drafts/templates show up without a
+              full page reload. */}
+          <DropdownMenu
+            open={addCampaignOpen}
+            onOpenChange={async (open) => {
+              setAddCampaignOpen(open);
+              if (open) {
+                setDraftsLoading(true);
+                try {
+                  const [drafts, tpls] = await Promise.all([
+                    fetchDraftCampaigns(),
+                    fetchActiveTemplates(),
+                  ]);
+                  setDraftCampaigns(drafts);
+                  setTemplates(tpls);
+                } catch {
+                  toast.error("Couldn't load campaigns / templates");
+                } finally {
+                  setDraftsLoading(false);
+                }
+              }
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="default"
+                disabled={bulkBusy || addingToCampaign}
+                className="h-7 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Send className="h-3 w-3 mr-1" />
+                {addingToCampaign ? "Adding…" : "Add to campaign"}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-[320px] max-h-[420px] overflow-y-auto">
+              {draftsLoading ? (
+                <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                  Loading…
+                </div>
+              ) : (
+                <>
+                  {/* Section 1 — drafts the operator can extend. Hidden
+                      entirely when none exist (rather than showing an
+                      empty heading). */}
+                  {draftCampaigns.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Add to draft campaign
+                      </div>
+                      {draftCampaigns.map((c) => (
+                        <DropdownMenuItem
+                          key={c.id}
+                          onSelect={async () => {
+                            setAddCampaignOpen(false);
+                            setAddingToCampaign(true);
+                            try {
+                              const { inserted, alreadyPresent } = await addContactsToCampaign(
+                                c.id,
+                                Array.from(selectedIds),
+                              );
+                              if (inserted === 0 && alreadyPresent > 0) {
+                                toast.info(`All ${alreadyPresent} already on "${c.name}"`);
+                              } else if (alreadyPresent > 0) {
+                                toast.success(
+                                  `${inserted} added to "${c.name}" (${alreadyPresent} were already there)`,
+                                );
+                              } else {
+                                toast.success(`${inserted} added to "${c.name}"`);
+                              }
+                              clearSelection();
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error ? err.message : "Couldn't add to campaign",
+                              );
+                            } finally {
+                              setAddingToCampaign(false);
+                            }
+                          }}
+                          className="flex flex-col items-start gap-0.5 cursor-pointer"
+                        >
+                          <span className="text-sm font-medium">{c.name}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {c.total_count} recipient{c.total_count === 1 ? "" : "s"} · created{" "}
+                            {format(new Date(c.created_at), "d MMM")}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
+                  {/* Section 2 — templates → new campaign. This is the
+                      common path: most outreach happens by re-using an
+                      existing email template against a fresh recipient
+                      list. Picking a template routes to the new-campaign
+                      editor with both the template AND the contacts
+                      pre-filled, so the operator only sets the name +
+                      sends. */}
+                  {templates.length > 0 ? (
+                    <>
+                      <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Start a new campaign from a template
+                      </div>
+                      {templates.map((t) => (
+                        <DropdownMenuItem
+                          key={t.id}
+                          onSelect={() => {
+                            setAddCampaignOpen(false);
+                            navigate("/outreach/campaigns/new", {
+                              state: {
+                                prefilledContactIds: Array.from(selectedIds),
+                                prefilledTemplateId: t.id,
+                              },
+                            });
+                          }}
+                          className="flex flex-col items-start gap-0.5 cursor-pointer"
+                        >
+                          <span className="text-sm font-medium flex items-center gap-1.5">
+                            <FileText className="h-3 w-3 text-muted-foreground" />
+                            {t.name}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground truncate w-full">
+                            {t.subject}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : (
+                    draftCampaigns.length === 0 && (
+                      <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                        No drafts or templates yet.
+                      </div>
+                    )
+                  )}
+
+                  {/* Always offer a blank campaign as the escape hatch. */}
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setAddCampaignOpen(false);
+                      navigate("/outreach/campaigns/new", {
+                        state: { prefilledContactIds: Array.from(selectedIds) },
+                      });
+                    }}
+                    className="cursor-pointer text-primary"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    Blank campaign with these contacts
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             size="sm"
             variant="outline"
@@ -790,6 +1028,12 @@ function ContactRow({
         <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide border ${STATUS_TONE[contact.status]}`}>
           {contact.status.toLowerCase()}
         </span>
+        {/* Last-emailed indicator — quick scan for "who haven't I touched
+            in a while?". The filter dropdown above lets you bucket;
+            this gives you the per-row detail at a glance. */}
+        <div className="text-[10px] text-muted-foreground mt-0.5">
+          {formatLastEmailed(contact.last_emailed_at)}
+        </div>
       </td>
       <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[240px]" title={contact.notes ?? ""}>
         {contact.notes || "—"}

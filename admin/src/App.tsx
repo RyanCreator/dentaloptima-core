@@ -18,6 +18,8 @@ import AnnouncementDetail from "@/pages/AnnouncementDetail";
 import Messaging from "@/pages/Messaging";
 import Support from "@/pages/Support";
 import Admins from "@/pages/Admins";
+import Documents from "@/pages/Documents";
+import DocumentDetail from "@/pages/DocumentDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,6 +66,8 @@ export default function App() {
                     <Route path="/messaging/:threadId" element={<Messaging />} />
                     <Route path="/support" element={<Support />} />
                     <Route path="/support/:threadId" element={<Support />} />
+                    <Route path="/documents" element={<Documents />} />
+                    <Route path="/documents/:id" element={<DocumentDetail />} />
                     <Route path="/admins" element={<Admins />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>

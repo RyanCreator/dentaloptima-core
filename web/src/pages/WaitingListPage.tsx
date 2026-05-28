@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { DetailSheet } from "@/components/DetailSheet";
 import { FormField } from "@/components/FormField";
@@ -94,6 +94,9 @@ export default function WaitingListPage() {
   const practiceId = tenant.practice.id;
   const [entries, setEntries] = useState<WaitingListEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState(true);
+  // First-load gate so search/filter changes don't flash the list
+  // empty while the new query runs — stale rows stay visible.
+  const hasLoadedOnce = useRef(false);
   const [selectedEntry, setSelectedEntry] = useState<WaitingListEntry | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [editedTimeOfDay, setEditedTimeOfDay] = useState<PreferredTimeOfDay>("ANY");
@@ -113,6 +116,19 @@ export default function WaitingListPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
 
+  // Booking dialog state needs explicit cleanup whenever the dialog
+  // closes. Without this, opening "Book Appointment" on entry A, closing
+  // it, then opening on entry B inherits A's selectedStaff/date/time —
+  // staff would book the wrong slot if they didn't notice the prefill.
+  const closeBookingDialog = () => {
+    setShowBookingDialog(false);
+    setSelectedService("");
+    setSelectedStaff("");
+    setSelectedDate(undefined);
+    setSelectedTime("");
+    setAvailableSlots([]);
+  };
+
   useEffect(() => {
     if (!loading) {
       loadServices();
@@ -128,18 +144,23 @@ export default function WaitingListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, searchTerm, serviceFilter]);
 
-  // Real-time updates subscription
+  // Real-time updates subscription. Scoped to the current practice so we
+  // don't trigger reloads when other tenants' waitlists change — RLS
+  // would filter the payload anyway, but the callback still fires
+  // without the filter, causing a wasted query on every cross-tenant
+  // event.
   useEffect(() => {
-    if (loading) return;
+    if (loading || !practiceId) return;
 
     const channel = supabase
-      .channel("waiting-list-changes")
+      .channel(`waiting-list-changes-${practiceId}`)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "waiting_list",
+          filter: `practice_id=eq.${practiceId}`,
         },
         () => {
           // Reload waiting list when any change occurs
@@ -155,7 +176,7 @@ export default function WaitingListPage() {
   }, [loading, searchTerm, serviceFilter]);
 
   const loadEntries = useCallback(async () => {
-    setLoadingEntries(true);
+    if (!hasLoadedOnce.current) setLoadingEntries(true);
 
     try {
       // waiting_list column changes from legacy:
@@ -218,6 +239,7 @@ export default function WaitingListPage() {
       toast.error("An unexpected error occurred");
       setEntries([]);
     } finally {
+      hasLoadedOnce.current = true;
       setLoadingEntries(false);
     }
   }, [searchTerm, serviceFilter]);
@@ -401,10 +423,18 @@ export default function WaitingListPage() {
         .maybeSingle();
 
       if (bookingRequest) {
-        await supabase
+        // Surface failures — without the error check, an RLS or
+        // constraint reject would leave the booking_request stuck in
+        // WAITLIST while the toast claimed success. Logged rather than
+        // toasted because the appointment itself succeeded; the staff
+        // member shouldn't be blocked from finishing their flow.
+        const { error: brUpdateErr } = await supabase
           .from("booking_request")
           .update({ status: "CONFIRMED" })
           .eq("id", bookingRequest.id);
+        if (brUpdateErr) {
+          logger.error("Failed to update booking_request after waitlist booking", brUpdateErr);
+        }
       }
 
       // Mark waiting list entry as fulfilled. is_active=false closes the
@@ -432,7 +462,7 @@ export default function WaitingListPage() {
           );
         }
 
-        setShowBookingDialog(false);
+        closeBookingDialog();
         setIsSheetOpen(false);
         loadEntries();
       }
@@ -699,7 +729,10 @@ export default function WaitingListPage() {
         )}
       </DetailSheet>
 
-      <Sheet open={showBookingDialog} onOpenChange={setShowBookingDialog}>
+      <Sheet
+        open={showBookingDialog}
+        onOpenChange={(open) => (open ? setShowBookingDialog(true) : closeBookingDialog())}
+      >
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Book Appointment for {selectedEntry?.patient?.full_name}</SheetTitle>

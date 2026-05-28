@@ -218,13 +218,20 @@ export function useStaffSchedule(staffId: string | undefined) {
         updatedDay.id = data.id;
       }
 
-      // Replace breaks for this weekday in one go.
-      await supabase
+      // Replace breaks for this weekday in one go. Surface the delete
+      // error — without checking, a failed delete would leave the old
+      // breaks in place AND we'd still try to insert the new ones,
+      // resulting in duplicate break rows for the same weekday.
+      const { error: breakDeleteError } = await supabase
         .from("staff_break")
         .delete()
         .eq("staff_id", staffId)
         .eq("weekday", weekdayEnum)
         .is("effective_to", null);
+      if (breakDeleteError) {
+        toast.error("Failed to update breaks");
+        return;
+      }
 
       if (updatedDay.breaks && updatedDay.breaks.length > 0) {
         const breaksToInsert = updatedDay.breaks.map((breakTime) => ({
@@ -243,15 +250,30 @@ export function useStaffSchedule(staffId: string | undefined) {
         }
       }
     } else if (updatedDay.id) {
-      // Day toggled to "not working" — drop hours + breaks.
-      await supabase.from("staff_availability").delete().eq("id", updatedDay.id);
+      // Day toggled to "not working" — drop hours + breaks. Both deletes
+      // need error checks so the UI doesn't show "Schedule updated"
+      // while the staff member still has the old availability/breaks
+      // visible to the calendar / availability engine.
+      const { error: availDeleteError } = await supabase
+        .from("staff_availability")
+        .delete()
+        .eq("id", updatedDay.id);
+      if (availDeleteError) {
+        toast.error("Failed to remove day's hours");
+        return;
+      }
 
-      await supabase
+      const { error: dayOffBreakError } = await supabase
         .from("staff_break")
         .delete()
         .eq("staff_id", staffId)
         .eq("weekday", weekdayEnum)
         .is("effective_to", null);
+      if (dayOffBreakError) {
+        toast.error("Hours removed, but failed to clear breaks");
+        // Don't return — partial state is still better than nothing,
+        // and the next save will retry.
+      }
 
       delete updatedDay.id;
     }

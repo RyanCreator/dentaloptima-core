@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -72,6 +72,10 @@ export default function NewAppointmentForm({
   const practiceId = tenant.practice.id;
   const { eligibleSet: nhsEligibleSet } = useNhsEligibleStaffIds();
   const [filteredServices, setFilteredServices] = useState<any[]>([]);
+  // All staff↔service links for the practice. Loaded once; drives the
+  // service-aware staff filter (showing only qualified clinicians when
+  // a service is picked). RLS already scopes this to the caller's practice.
+  const [staffServiceLinks, setStaffServiceLinks] = useState<Array<{ staff_id: string; service_id: string }>>([]);
   const [patientType, setPatientType] = useState<"existing" | "new">("existing");
   const [selectedPatient, setSelectedPatient] = useState("");
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
@@ -87,6 +91,11 @@ export default function NewAppointmentForm({
   const [creating, setCreating] = useState(false);
   const [showOverlapWarning, setShowOverlapWarning] = useState(false);
   const [pendingAppointmentData, setPendingAppointmentData] = useState<any>(null);
+  // "Find next available" state — when current-day search returns no
+  // slots, the operator can trigger a 14-day forward search.
+  const [findingNext, setFindingNext] = useState(false);
+  const [nextSlots, setNextSlots] = useState<Array<{ date: Date; time: string }>>([]);
+  const [nextSearchedFor, setNextSearchedFor] = useState<{ staffId: string; serviceId: string } | null>(null);
 
   const { availableSlots, staffOnHoliday, reason: availabilityReason } = useAvailableSlots({
     staffId: selectedStaff,
@@ -123,6 +132,95 @@ export default function NewAppointmentForm({
   useEffect(() => {
     filterServicesByStaff();
   }, [selectedStaff, services]);
+
+  // Load all staff↔service links for the practice once. Small dataset
+  // (typically <100 rows) so it's cheap to keep in memory and avoids
+  // a round-trip on every service change.
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("staff_service")
+        .select("staff_id, service_id");
+      if (!error && data) {
+        setStaffServiceLinks(data as Array<{ staff_id: string; service_id: string }>);
+      }
+    })();
+  }, [practiceId]);
+
+  // Staff who can perform the currently-selected service. If no service
+  // is picked yet, all staff are shown. If the service is marked
+  // `all_staff_can_perform`, all staff are shown too. Otherwise only
+  // staff with a staff_service link to the selected service.
+  const filteredStaff = useMemo(() => {
+    if (!selectedService) return staff;
+    const svc = services.find((s) => s.id === selectedService);
+    if (!svc) return staff;
+    if (svc.all_staff_can_perform) return staff;
+    const qualifiedIds = new Set(
+      staffServiceLinks
+        .filter((l) => l.service_id === selectedService)
+        .map((l) => l.staff_id),
+    );
+    return staff.filter((s) => qualifiedIds.has(s.id));
+  }, [staff, services, selectedService, staffServiceLinks]);
+
+  // If the selected staff isn't qualified for the new service, clear it
+  // so the form doesn't sit in an inconsistent state. Runs whenever the
+  // filtered list changes.
+  useEffect(() => {
+    if (!selectedStaff) return;
+    if (!filteredStaff.some((s) => s.id === selectedStaff)) {
+      setSelectedStaff("");
+    }
+  }, [filteredStaff, selectedStaff]);
+
+  // Clear "find next" suggestions whenever the search inputs change —
+  // they'd be stale and misleading otherwise.
+  useEffect(() => {
+    setNextSlots([]);
+    setNextSearchedFor(null);
+  }, [selectedStaff, selectedService, selectedDate]);
+
+  // "Find next available" — searches forward 14 days from the
+  // currently-picked date and shows up to 5 future slots that fit the
+  // service. The operator can click one to fill in date + time. This
+  // turns the "no slots today" dead-end into an actionable next step.
+  const handleFindNextAvailable = async () => {
+    if (!selectedStaff || !selectedService || !selectedDate) return;
+    const service = services.find((s) => s.id === selectedService);
+    if (!service) return;
+
+    setFindingNext(true);
+    setNextSlots([]);
+    try {
+      const { fetchStaffAvailabilityDataRange } = await import("@/lib/availabilityDataFetcher");
+      const { findNextAvailableSlots } = await import("@/lib/availabilityEngine");
+      const { addDays } = await import("date-fns");
+
+      // Start search from the day AFTER the current selection — the
+      // current day is already known empty (that's why we're here).
+      const searchStart = addDays(selectedDate, 1);
+      const searchEnd = addDays(searchStart, 14);
+
+      const data = await fetchStaffAvailabilityDataRange({
+        staffId: selectedStaff,
+        startDate: searchStart,
+        endDate: searchEnd,
+      });
+      if (!data) {
+        toast.error("Couldn't search availability — try again.");
+        return;
+      }
+
+      const found = findNextAvailableSlots(data, [service], 14, 5, searchStart);
+      setNextSlots(found.map((s) => ({ date: s.date, time: s.time })));
+      setNextSearchedFor({ staffId: selectedStaff, serviceId: selectedService });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setFindingNext(false);
+    }
+  };
 
   const filterServicesByStaff = async () => {
     if (!selectedStaff) {
@@ -389,6 +487,8 @@ export default function NewAppointmentForm({
             const nhsServiceMode = !!selectedServiceObj?.is_nhs;
             const selectedStaffNotEligible =
               nhsServiceMode && selectedStaff && !nhsEligibleSet.has(selectedStaff);
+            const noQualifiedStaff =
+              selectedService && filteredStaff.length === 0;
             return (
               <div className="space-y-2">
                 <Label>Staff Member *</Label>
@@ -397,7 +497,7 @@ export default function NewAppointmentForm({
                     <SelectValue placeholder="Select staff" />
                   </SelectTrigger>
                   <SelectContent>
-                    {staff.map((member) => {
+                    {filteredStaff.map((member) => {
                       const isNhsEligible = nhsEligibleSet.has(member.id);
                       const blocked = nhsServiceMode && !isNhsEligible;
                       return (
@@ -419,6 +519,22 @@ export default function NewAppointmentForm({
                     })}
                   </SelectContent>
                 </Select>
+                {/* Caveat when the staff list is service-filtered. Helps an
+                    operator who can't see a teammate understand why — without
+                    this, an unqualified staff just silently vanishes. */}
+                {selectedService && filteredStaff.length < staff.length && (
+                  <p className="text-xs text-muted-foreground">
+                    Showing {filteredStaff.length} of {staff.length} staff — only
+                    those qualified for this service. Add the service to a staff
+                    member in Staff settings to widen the list.
+                  </p>
+                )}
+                {noQualifiedStaff && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    No staff member is qualified for this service yet. Assign it
+                    to a clinician in Staff settings first.
+                  </p>
+                )}
                 {selectedStaffNotEligible && (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
                     The selected clinician has no active NHS performer
@@ -471,36 +587,101 @@ export default function NewAppointmentForm({
               dead-end "No available slots". Each branch points at the
               specific config the practice needs to fix. */}
           {availableSlots.length === 0 && selectedStaff && selectedDate && selectedService && !staffOnHoliday && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 space-y-1">
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
-                {availabilityReason === "no-staff-schedule" && "This staff member has no working hours set for this day"}
-                {availabilityReason === "practice-closed-weekday" && "The practice has no opening hours for this day of the week"}
-                {availabilityReason === "practice-closure" && "The practice is closed on this date"}
-                {availabilityReason === "fully-booked" && "All slots are taken on this date"}
-                {(availabilityReason === "ok" || availabilityReason === "loading" || availabilityReason === "missing-inputs") &&
-                  "No available slots for this date"}
-              </p>
-              <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                {availabilityReason === "no-staff-schedule" &&
-                  "Open the staff member's profile and add their weekly schedule, then come back."}
-                {availabilityReason === "practice-closed-weekday" &&
-                  "Set the practice's opening hours for this weekday under Settings → Hours, or pick another day."}
-                {availabilityReason === "practice-closure" &&
-                  "Pick another date, or remove the closure under Settings → Hours."}
-                {availabilityReason === "fully-booked" &&
-                  "You can still book at a specific time below — an overlap warning will appear."}
-              </p>
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 space-y-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                  {availabilityReason === "no-staff-schedule" && "This staff member has no working hours set for this day"}
+                  {availabilityReason === "practice-closed-weekday" && "The practice has no opening hours for this day of the week"}
+                  {availabilityReason === "practice-closure" && "The practice is closed on this date"}
+                  {availabilityReason === "fully-booked" && "All slots are taken on this date"}
+                  {(availabilityReason === "ok" || availabilityReason === "loading" || availabilityReason === "missing-inputs") &&
+                    "No available slots for this date"}
+                </p>
+                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                  {availabilityReason === "no-staff-schedule" &&
+                    "Open the staff member's profile and add their weekly schedule, then come back."}
+                  {availabilityReason === "practice-closed-weekday" &&
+                    "Set the practice's opening hours for this weekday under Settings → Hours, or pick another day."}
+                  {availabilityReason === "practice-closure" &&
+                    "Pick another date, or remove the closure under Settings → Hours."}
+                  {availabilityReason === "fully-booked" &&
+                    "You can still book at a specific time below — an overlap warning will appear."}
+                </p>
+              </div>
+
+              {/* Forward-search affordance. Hidden for the
+                  no-staff-schedule case because if the clinician has no
+                  recurring hours, searching forward 14 days is going to
+                  hit the same wall every day — fixing the schedule is
+                  the answer, not a future-date suggestion. */}
+              {availabilityReason !== "no-staff-schedule" && (
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFindNextAvailable}
+                    disabled={findingNext}
+                    className="bg-card"
+                  >
+                    {findingNext ? "Searching…" : "Find next available time"}
+                  </Button>
+                  {nextSearchedFor &&
+                    nextSearchedFor.staffId === selectedStaff &&
+                    nextSearchedFor.serviceId === selectedService && (
+                      <div className="space-y-1">
+                        {nextSlots.length === 0 ? (
+                          <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                            No availability in the next 14 days.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                              Suggested next slots — click one to use it:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {nextSlots.map((slot) => (
+                                <button
+                                  key={`${slot.date.toISOString()}-${slot.time}`}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDate(slot.date);
+                                    setSelectedTime(slot.time);
+                                  }}
+                                  className="text-xs bg-card hover:bg-muted/60 border rounded-md px-2 py-1 transition-colors"
+                                >
+                                  {format(slot.date, "EEE d MMM")} · {slot.time}
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           )}
 
           <div className="space-y-2">
             <Label>Time *</Label>
-            {availableSlots.length > 0 ? (
+            {/* Render the Select whenever we have something to show — either
+                generated slots OR a prefilled time the user clicked on the
+                calendar. The latter might not appear in availableSlots (the
+                slot grid is clock-aligned), so we prepend it as an explicit
+                item so the trigger can actually display the chosen value
+                rather than appearing blank. */}
+            {availableSlots.length > 0 || selectedTime ? (
               <Select value={selectedTime} onValueChange={setSelectedTime}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select time" />
                 </SelectTrigger>
                 <SelectContent>
+                  {selectedTime && !availableSlots.includes(selectedTime) && (
+                    <SelectItem value={selectedTime}>
+                      {selectedTime} — your selection
+                    </SelectItem>
+                  )}
                   {availableSlots.map((slot) => (
                     <SelectItem key={slot} value={slot}>
                       {slot}
@@ -520,8 +701,15 @@ export default function NewAppointmentForm({
 
             {selectedTime && selectedService && selectedStaff && selectedDate && !availableSlots.includes(selectedTime) && (
               <div className="mt-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
+                {/* Two distinct reasons selectedTime can fall outside
+                    availableSlots — the staff doesn't work this day at
+                    all (no slots ANYWHERE) vs. they do work but this
+                    specific time is taken / on a break. Tailor the copy
+                    so the operator gets the right diagnosis. */}
                 <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                  This time isn’t in the schedule for the selected staff/service. You can still book it; an overlap warning will appear and you can confirm to proceed.
+                  {availableSlots.length === 0
+                    ? `${selectedTime} isn't currently available — see the message above for why.`
+                    : `${selectedTime} isn't on the list of free slots — it probably overlaps an existing booking, a break, or a blocked-off period. You can still book it; a conflict warning will appear before saving and you can confirm to proceed.`}
                 </p>
               </div>
             )}

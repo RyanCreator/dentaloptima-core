@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabaseOps as supabase } from "@/integrations/supabase/client";
 
+/** Lightweight fetch of all active templates. Used by the Contacts
+ *  page's "Add to campaign" dropdown so the operator can start a new
+ *  campaign with a chosen template + the selected contacts in one go. */
+export async function fetchActiveTemplates(): Promise<OutreachTemplate[]> {
+  const { data, error } = await supabase
+    .from("outreach_template")
+    .select("*")
+    .is("archived_at", null)
+    .order("last_used_at", { ascending: false, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as OutreachTemplate[];
+}
+
 export interface OutreachTemplate {
   id: string;
   name: string;

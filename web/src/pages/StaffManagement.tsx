@@ -61,9 +61,14 @@ export default function StaffManagement() {
   }, [loading]);
 
   useRealtimeSubscription({
-    channelName: "staff-changes",
+    // Per-practice channel name + filter so cross-tenant practice_member
+    // changes don't trigger a wasted loadStaff() here. RLS would filter
+    // the payload anyway, but the callback still fires without the
+    // filter. Same pattern as the WaitingList / Cancellations fixes.
+    channelName: `staff-changes-${tenant.practice.id}`,
     table: "practice_member",
     event: "*",
+    filter: { column: "practice_id", value: tenant.practice.id },
     onEvent: () => loadStaff(),
     enabled: !loading,
   });

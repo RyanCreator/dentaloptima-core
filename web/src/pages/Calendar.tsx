@@ -8,7 +8,7 @@ import { ErrorMessage } from "@/components/ErrorMessage";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useStaff } from "@/hooks/useStaff";
 import { useServices } from "@/hooks/useServices";
-import { useNotifications } from "@/hooks/useNotifications";
+import { markNotificationPending } from "@/hooks/useNotificationQueue";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
@@ -21,7 +21,10 @@ import { CalendarDayView } from "@/components/calendar/CalendarDayView";
 import { CalendarGridView } from "@/components/calendar/CalendarGridView";
 import { AppointmentDetailSheet } from "@/components/calendar/AppointmentDetailSheet";
 import { BlockTimeDialog } from "@/components/calendar/BlockTimeDialog";
+import { NotificationTray } from "@/components/calendar/NotificationTray";
 import { useBlockedTime } from "@/hooks/useBlockedTime";
+import { useUkBankHolidays } from "@/hooks/useUkBankHolidays";
+import { usePracticeSetting } from "@/hooks/usePracticeSetting";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { RecentPatientsStrip } from "@/components/RecentPatientsStrip";
 import type { Appointment } from "@/hooks/useAppointments";
@@ -32,9 +35,12 @@ export default function Calendar() {
   const location = useLocation();
   const { staff } = useStaff();
   const { services } = useServices();
-  const { sendAppointmentCancelledNotification, sendAppointmentRescheduledNotification } = useNotifications();
   const [selectedStaffId, setSelectedStaffId] = useState<string>("all");
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
+  // Default OFF — cancelled chips clutter the day view on busy days; the
+  // operator can toggle "Show Cancelled" when they specifically want to
+  // see where the gaps came from. Week/month views ignore this flag
+  // entirely and always exclude cancelled.
   const [showCancelled, setShowCancelled] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -55,7 +61,29 @@ export default function Calendar() {
   const [blockTimePrefillDate, setBlockTimePrefillDate] = useState<Date | undefined>(undefined);
   const [blockTimePrefillTime, setBlockTimePrefillTime] = useState<string | undefined>(undefined);
 
+  // Close the New Appointment sheet AND wipe any prefill state that was
+  // set by the last slot click. Without this, opening the form again via
+  // the toolbar button or `b` shortcut inherits a stale prefilledTime,
+  // which then triggers the "this time isn't in the schedule" warning
+  // even though the user hasn't picked a time yet.
+  const closeNewAppointment = () => {
+    setIsNewAppointmentOpen(false);
+    setPrefillStaffId(undefined);
+    setPrefillDate(undefined);
+    setPrefillTime(undefined);
+    setPrefillServiceId(undefined);
+  };
+
   const { breaksMap, availabilityMap } = useStaffRules();
+  // Practice setting drives whether we show bank holidays at all and
+  // which gov.uk feed to fetch. usePracticeSetting falls back to safe
+  // defaults (show=true, england-and-wales) so a pre-migration practice
+  // still renders.
+  const { setting: practiceSetting } = usePracticeSetting();
+  const { holidays: bankHolidays } = useUkBankHolidays(
+    practiceSetting.bank_holidays_region,
+    practiceSetting.show_bank_holidays,
+  );
   const { currentDate, setCurrentDate, viewMode, setViewMode, selectedDay, setSelectedDay, navigatePrevious, navigateNext, navigatePreviousDay, navigateNextDay, goToToday, openDayView, backToCalendar } = useCalendarNavigation();
 
   // Keyboard shortcuts — only active while no sheets are open, so typing
@@ -99,6 +127,12 @@ export default function Calendar() {
   const { appointments, loading: appointmentsLoading, error: appointmentsError, loadAppointments } = useAppointments(currentDate, viewMode);
   const { blockedTimeEntries } = useBlockedTime();
 
+  // ID of an appointment we should auto-open the detail sheet for once
+  // the appointments array contains it. Set by deep-link navigation
+  // (e.g. Dashboard's "Up next today" list); cleared once consumed so
+  // a refresh of the appointments list doesn't re-open the sheet.
+  const [pendingOpenAppointmentId, setPendingOpenAppointmentId] = useState<string | null>(null);
+
   useEffect(() => {
     if (location.state?.appointmentDate) {
       const date = parseISO(location.state.appointmentDate);
@@ -106,12 +140,12 @@ export default function Calendar() {
       setSelectedDay(zonedDate);
       setViewMode("day");
       window.history.replaceState({}, document.title);
-      
+
       if (location.state.appointmentId) {
-        setTimeout(() => {
-          const apt = appointments.find(a => a.id === location.state.appointmentId);
-          if (apt) openAppointmentDetail(apt);
-        }, 500);
+        // Don't try to look it up here — the appointments fetch for the
+        // new date may not have completed yet. Stash the ID and let the
+        // follow-up effect open the sheet once the data arrives.
+        setPendingOpenAppointmentId(location.state.appointmentId);
       }
     }
     
@@ -133,21 +167,52 @@ export default function Calendar() {
     }
   }, [location.state]);
 
+  // When a deep-link asked us to open a specific appointment, wait for
+  // the appointments fetch to land that row, then open the detail sheet
+  // once and clear the pending state. Re-runs every time `appointments`
+  // changes so it survives a slow query without needing a blind setTimeout.
+  useEffect(() => {
+    if (!pendingOpenAppointmentId) return;
+    const apt = appointments.find((a) => a.id === pendingOpenAppointmentId);
+    if (apt) {
+      openAppointmentDetail(apt);
+      setPendingOpenAppointmentId(null);
+    }
+  }, [pendingOpenAppointmentId, appointments]);
+
   const getFilteredAppointments = () => {
-    let filtered = showCancelled ? appointments : appointments.filter(apt => apt.status !== "CANCELLED");
-    return selectedDay ? filtered.filter(apt => {
-      const aptDate = toZonedTime(new Date(apt.starts_at), UK_TIMEZONE);
-      return isSameDay(aptDate, selectedDay);
-    }) : filtered;
+    // Cancelled-visibility rule:
+    //   - Week / month views always hide cancelled — they're clutter at
+    //     the overview level and confuse the "what's actually booked"
+    //     read of the calendar.
+    //   - Day view (selectedDay set) respects the toggle, default ON so
+    //     the operator sees cancellations as context when drilling in.
+    const isDayView = !!selectedDay;
+    const shouldShowCancelled = isDayView && showCancelled;
+    let filtered = shouldShowCancelled
+      ? appointments
+      : appointments.filter((apt) => apt.status !== "CANCELLED");
+    return selectedDay
+      ? filtered.filter((apt) => {
+          const aptDate = toZonedTime(new Date(apt.starts_at), UK_TIMEZONE);
+          return isSameDay(aptDate, selectedDay);
+        })
+      : filtered;
   };
 
   const openAppointmentDetail = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setIsSheetOpen(true);
     setIsEditing(false);
-    const aptTime = toZonedTime(new Date(appointment.starts_at), UK_TIMEZONE);
-    setEditDate(aptTime);
-    setEditTime(format(aptTime, "HH:mm"));
+    // Time field in the form represents the PATIENT ARRIVAL time
+    // (= stored starts_at + buffer_before). Without this offset, every
+    // edit would slide the appointment earlier by buffer_before on save
+    // because saveAppointmentChanges subtracts buffer from editTime.
+    const storedStart = toZonedTime(new Date(appointment.starts_at), UK_TIMEZONE);
+    const bufferBefore = appointment.services?.[0]?.service?.buffer_before_minutes ?? 0;
+    const patientArrival = new Date(storedStart.getTime() + bufferBefore * 60_000);
+    setEditDate(patientArrival);
+    setEditTime(format(patientArrival, "HH:mm"));
     setEditStaffId(appointment.staff.id);
     // The new schema has many-to-many appointment_service. The single-pick
     // edit form pre-populates with the primary service (lowest display_order).
@@ -174,19 +239,29 @@ export default function Calendar() {
       const appointmentTime = new Date(editDate);
       appointmentTime.setHours(parseInt(hours), parseInt(minutes), 0);
 
+      // editTime is the patient's arrival time. The stored starts_at
+      // backs up by buffer_before so sterilisation/setup is reserved.
       const newStartsAt = new Date(appointmentTime);
       newStartsAt.setMinutes(newStartsAt.getMinutes() - (selectedService.buffer_before_minutes || 0));
 
-      // Check if date/time has changed
-      const originalTime = new Date(selectedAppointment.starts_at);
-      const originalPrimaryServiceId = selectedAppointment.services?.[0]?.service?.id ?? "";
+      // Check if date/time has changed. Compare against the patient-arrival
+      // equivalent of the original (stored starts_at + buffer_before of the
+      // original service), so re-saving without changes doesn't falsely
+      // report "changed".
+      const originalService = selectedAppointment.services?.[0]?.service;
+      const originalBufferBefore = originalService?.buffer_before_minutes ?? 0;
+      const originalArrival = new Date(selectedAppointment.starts_at);
+      originalArrival.setMinutes(originalArrival.getMinutes() + originalBufferBefore);
+      const originalPrimaryServiceId = originalService?.id ?? "";
       const hasDateTimeChanged =
-        appointmentTime.getTime() !== originalTime.getTime() ||
+        appointmentTime.getTime() !== originalArrival.getTime() ||
         editStaffId !== selectedAppointment.staff.id ||
         editServiceId !== originalPrimaryServiceId;
 
-      // Only prevent rescheduling to past if date/time is being changed
-      if (hasDateTimeChanged && appointmentTime < new Date()) {
+      // Past-time check uses newStartsAt (what we'd actually store),
+      // not appointmentTime — so a buffer-backed block can't be reserved
+      // partly in the past.
+      if (hasDateTimeChanged && newStartsAt < new Date()) {
         toast.error("Cannot reschedule appointments to a time in the past");
         setIsSaving(false);
         return;
@@ -210,49 +285,78 @@ export default function Calendar() {
       }).eq("id", selectedAppointment.id);
 
       if (error) {
-        toast.error("Failed to update appointment");
+        const isOverlap =
+          (error as any).code === "23P01" || /overlap|exclusion/i.test(error.message);
+        toast.error(
+          isOverlap
+            ? "That slot overlaps with another appointment for the same staff member"
+            : "Failed to update appointment",
+        );
         return;
       }
 
       // If the service changed, replace the appointment_service rows. The
       // single-pick edit always normalises to one service for now —
       // multi-service editing is a follow-up.
+      //
+      // Order matters: insert the new row FIRST. The old delete-first
+      // ordering left the appointment with zero services if the insert
+      // failed (e.g. missing practice_id, RLS), and the failure was
+      // silently swallowed because the result wasn't checked. New flow:
+      //   1. Insert new appointment_service row.
+      //   2. Only if insert succeeds, delete the previous row(s) by id.
+      //   3. If insert fails, surface the error and bail without touching
+      //      the existing service link.
       if (editServiceId !== originalPrimaryServiceId) {
-        await supabase
+        const previousServiceRowIds =
+          selectedAppointment.services?.map((s) => s.id).filter(Boolean) ?? [];
+
+        const { error: insertErr } = await supabase
           .from("appointment_service")
-          .delete()
-          .eq("appointment_id", selectedAppointment.id);
-        await supabase.from("appointment_service").insert({
-          appointment_id: selectedAppointment.id,
-          service_id: editServiceId,
-          display_order: 0,
-          price_pence_snapshot: selectedService.price_pence ?? 0,
-          duration_minutes_snapshot: selectedService.duration_minutes,
-        });
+          .insert({
+            practice_id: selectedAppointment.practice_id,
+            appointment_id: selectedAppointment.id,
+            service_id: editServiceId,
+            // Place ahead of existing rows so the new one becomes primary
+            // even before the cleanup delete lands.
+            display_order: -1,
+            price_pence_snapshot: selectedService.price_pence ?? 0,
+            duration_minutes_snapshot: selectedService.duration_minutes,
+          });
+        if (insertErr) {
+          logger.error("Failed to attach new service", insertErr);
+          toast.error(`Failed to update service: ${insertErr.message}`);
+          return;
+        }
+
+        if (previousServiceRowIds.length > 0) {
+          const { error: deleteErr } = await supabase
+            .from("appointment_service")
+            .delete()
+            .in("id", previousServiceRowIds);
+          if (deleteErr) {
+            // Soft-fail: the new row is in, the old one is just hanging
+            // around. Surface as a non-fatal warning so the operator
+            // knows to retry or clean up; appointment is still usable.
+            logger.warn("New service attached but previous link not cleaned up", deleteErr);
+            toast.warning("Service updated, but old link couldn't be removed. Try again or contact support.");
+          }
+        }
       }
 
-      // Send notifications
+      // Queue patient notifications rather than sending immediately —
+      // reception can shuffle the day and Send when ready via the
+      // notification tray. previousStartsAt is the time the patient last
+      // knew about; markNotificationPending only writes it on the first
+      // move per queue entry, so consecutive in-app reschedules still
+      // resolve to one email saying "moved from your original time to X".
       if (editStatus === "CANCELLED" && previousStatus !== "CANCELLED") {
-        // Send cancellation notification
-        await sendAppointmentCancelledNotification(
-          selectedAppointment.patient.id,
-          selectedAppointment.id,
-          editNotes
-        );
+        await markNotificationPending(selectedAppointment.id, "CANCELLED", null);
       } else if (editStatus === "SCHEDULED" && previousStatus === "SCHEDULED" && hasDateTimeChanged) {
-        // Send reschedule notification (only for SCHEDULED appointments with time changes)
-        const oldDate = format(new Date(selectedAppointment.starts_at), "EEEE, d MMMM yyyy");
-        const oldTime = format(new Date(selectedAppointment.starts_at), "HH:mm");
-        const newDate = format(appointmentTime, "EEEE, d MMMM yyyy");
-        const newTime = format(appointmentTime, "HH:mm");
-
-        await sendAppointmentRescheduledNotification(
-          selectedAppointment.patient.id,
+        await markNotificationPending(
           selectedAppointment.id,
-          oldDate,
-          oldTime,
-          newDate,
-          newTime
+          "RESCHEDULED",
+          new Date(selectedAppointment.starts_at),
         );
       }
 
@@ -275,7 +379,7 @@ export default function Calendar() {
     return statuses;
   };
 
-  const handleQuickStatusChange = async (status: AppointmentStatus, notes?: string, actualPrice?: number | null, treatmentSummary?: string) => {
+  const handleQuickStatusChange = async (status: AppointmentStatus, notes?: string, actualPrice?: number | null, treatmentSummary?: string, cancellationReason?: string) => {
     if (!selectedAppointment) return;
 
     try {
@@ -287,9 +391,13 @@ export default function Calendar() {
       // go into cancellation_notes; treatment notes during completion go
       // into treatment_summary. The legacy single-purpose `notes` column
       // is gone.
-      if (status === "CANCELLED" && notes) {
-        updateData.cancellation_notes = notes;
+      if (status === "CANCELLED") {
         updateData.cancelled_at = new Date().toISOString();
+        // Structured reason is required at the UI layer — the
+        // Cancellations report aggregates by enum, not by free-text
+        // notes. Notes remain optional supplementary context.
+        if (cancellationReason) updateData.cancellation_reason = cancellationReason;
+        if (notes) updateData.cancellation_notes = notes;
       }
 
       if (status === "COMPLETED") {
@@ -313,13 +421,10 @@ export default function Calendar() {
         return;
       }
 
-      // Send cancellation notification if appointment was cancelled
+      // Queue the patient cancellation notification rather than auto-sending.
+      // Reception confirms via the bell tray once the schedule has settled.
       if (status === "CANCELLED") {
-        await sendAppointmentCancelledNotification(
-          selectedAppointment.patient.id,
-          selectedAppointment.id,
-          notes
-        );
+        await markNotificationPending(selectedAppointment.id, "CANCELLED", null);
 
         // Fan out the now-free slot to matching waitlist patients. Best-effort
         // — if it fails the cancellation itself still succeeded, the staff
@@ -372,6 +477,11 @@ export default function Calendar() {
                 if (status === "CANCELLED") {
                   revert.cancelled_at = null;
                   revert.cancellation_notes = null;
+                  // Also clear the queued cancellation notification — the
+                  // patient shouldn't be told about a cancellation that's
+                  // been undone before they ever heard about it.
+                  revert.notification_pending = null;
+                  revert.notification_prev_starts_at = null;
                 }
                 if (status === "COMPLETED") {
                   revert.completed_at = null;
@@ -424,6 +534,7 @@ export default function Calendar() {
           appointments={filteredAppointments}
           allAppointments={appointments}
           blockedTimeEntries={blockedTimeEntries}
+          bankHolidays={bankHolidays}
           showCancelled={showCancelled}
           onToggleCancelled={() => setShowCancelled(!showCancelled)}
           staff={staff}
@@ -447,6 +558,8 @@ export default function Calendar() {
           checkOverlap={(apt) => checkAppointmentOverlap(apt, appointments)}
           checkWarning={(apt) => hasAppointmentWarning(apt, appointments, breaksMap, availabilityMap)}
           onAppointmentMoved={loadAppointments}
+          onToday={goToToday}
+          headerExtras={<NotificationTray />}
         />
         
         <AppointmentDetailSheet
@@ -475,7 +588,10 @@ export default function Calendar() {
           isSaving={isSaving}
         />
 
-        <Sheet open={isNewAppointmentOpen} onOpenChange={setIsNewAppointmentOpen}>
+        <Sheet
+          open={isNewAppointmentOpen}
+          onOpenChange={(open) => (open ? setIsNewAppointmentOpen(true) : closeNewAppointment())}
+        >
           <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
             <SheetHeader>
               <SheetTitle>New Appointment</SheetTitle>
@@ -485,8 +601,8 @@ export default function Calendar() {
             </SheetHeader>
             <div className="mt-6">
               <NewAppointmentForm
-                onSuccess={() => { setIsNewAppointmentOpen(false); loadAppointments(); }}
-                onCancel={() => setIsNewAppointmentOpen(false)}
+                onSuccess={() => { closeNewAppointment(); loadAppointments(); }}
+                onCancel={closeNewAppointment}
                 prefilledStaffId={prefillStaffId}
                 prefilledDate={prefillDate}
                 prefilledTime={prefillTime}
@@ -517,11 +633,20 @@ export default function Calendar() {
 
   return (
     <Layout title="Calendar">
-      <RecentPatientsStrip />
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <RecentPatientsStrip />
+        <NotificationTray />
+      </div>
       <CalendarGridView
         currentDate={currentDate}
         viewMode={viewMode}
-        appointments={appointments}
+        // filteredAppointments respects the week/month "always hide
+        // cancelled" rule from getFilteredAppointments. The raw
+        // `appointments` array is intentionally kept available for
+        // overlap/warning checks below — those still need to consider
+        // every booking, cancelled or not.
+        appointments={filteredAppointments}
+        bankHolidays={bankHolidays}
         staff={staff}
         selectedStaffId={selectedStaffId}
         onStaffChange={setSelectedStaffId}
@@ -562,13 +687,16 @@ export default function Calendar() {
         isSaving={isSaving}
       />
 
-      <Sheet open={isNewAppointmentOpen} onOpenChange={setIsNewAppointmentOpen}>
+      <Sheet
+        open={isNewAppointmentOpen}
+        onOpenChange={(open) => (open ? setIsNewAppointmentOpen(true) : closeNewAppointment())}
+      >
         <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader><SheetTitle>New Appointment</SheetTitle></SheetHeader>
           <div className="mt-6">
             <NewAppointmentForm
-              onSuccess={() => { setIsNewAppointmentOpen(false); loadAppointments(); }}
-              onCancel={() => setIsNewAppointmentOpen(false)}
+              onSuccess={() => { closeNewAppointment(); loadAppointments(); }}
+              onCancel={closeNewAppointment}
               prefilledStaffId={prefillStaffId}
               prefilledDate={prefillDate}
               prefilledTime={prefillTime}

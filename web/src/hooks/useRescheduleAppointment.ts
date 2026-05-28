@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { useNotifications } from "@/hooks/useNotifications";
+import { markNotificationPending } from "@/hooks/useNotificationQueue";
 import type { Appointment } from "@/hooks/useAppointments";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
@@ -12,7 +12,6 @@ import { logger } from "@/lib/logger";
 // grid). Returns success boolean so callers can roll back optimistic state.
 export function useRescheduleAppointment() {
   const [saving, setSaving] = useState(false);
-  const { sendAppointmentRescheduledNotification } = useNotifications();
 
   const reschedule = async (
     apt: Appointment,
@@ -59,22 +58,14 @@ export function useRescheduleAppointment() {
         return false;
       }
 
-      // Fire-and-forget notification. Don't block the UI on email; the move
-      // is the important bit. Only send for SCHEDULED appointments — we
-      // don't want emails going out for cancelled ones being repositioned.
+      // Queue a patient notification rather than firing immediately. The
+      // user can shuffle the schedule and Send via the bell tray once
+      // they're happy — markNotificationPending preserves the patient's
+      // last-known time, not whatever intermediate slot we drop them into
+      // mid-shuffle. Only queue for SCHEDULED appointments; resolved ones
+      // (cancelled / completed) shouldn't generate reschedule emails.
       if (apt.status === "SCHEDULED") {
-        const oldDate = format(oldStarts, "EEEE, d MMMM yyyy");
-        const oldTime = format(oldStarts, "HH:mm");
-        const newDate = format(newStartsAt, "EEEE, d MMMM yyyy");
-        const newTime = format(newStartsAt, "HH:mm");
-        sendAppointmentRescheduledNotification(
-          apt.patient.id,
-          apt.id,
-          oldDate,
-          oldTime,
-          newDate,
-          newTime
-        ).catch((err) => logger.error("Reschedule notification failed", err));
+        await markNotificationPending(apt.id, "RESCHEDULED", oldStarts);
       }
 
       toast.success(`Moved to ${format(newStartsAt, "HH:mm")}`);

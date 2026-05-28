@@ -27,6 +27,28 @@ import { getClinicTimezone, SLOT_DURATION } from "@/lib/constants";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Rounds a slot-start time UP to the next clock-aligned boundary
+ * (multiples of SLOT_DURATION — currently 30 min, so :00 / :30).
+ *
+ * Why: the gap-finding logic naturally produces slot starts at arbitrary
+ * minute offsets — e.g. an appointment ending at 12:41 yields a 12:41
+ * slot, then 13:11, 13:41, etc. Patients and staff think in clock-aligned
+ * terms ("1 pm") not appointment-anchored ones, so we snap forward to the
+ * next :00 or :30. The gap-time lost (a few minutes at most) gives the
+ * previous appointment a small overrun grace and keeps the slot menu
+ * sane. Idempotent on already-aligned inputs.
+ */
+function alignSlotStartUp(t: Date): Date {
+  const m = t.getMinutes();
+  const s = t.getSeconds();
+  const ms = t.getMilliseconds();
+  if (m % SLOT_DURATION === 0 && s === 0 && ms === 0) return t;
+  const aligned = new Date(t);
+  aligned.setMinutes(m + (SLOT_DURATION - (m % SLOT_DURATION)), 0, 0);
+  return aligned;
+}
+
+/**
  * Converts a date to the configured clinic timezone
  */
 export const toUKTime = (date: Date | string): Date => {
@@ -126,6 +148,43 @@ export const calculateServiceFit = (
   const fitsLimited = availableMinutes >= minServiceDuration && !fitsAll;
 
   return { fitsAll, fitsLimited };
+};
+
+/**
+ * Like calculateServiceFit, but assumes `availableMinutes` is measured
+ * FROM PATIENT ARRIVAL (= the slot's display time) onwards. Buffer-before
+ * is treated as already-spent (it sits in the gap behind the arrival
+ * time), so only `duration + buffer_after` needs to fit.
+ *
+ * Use this when the slot's `slotTime` represents the patient's arrival
+ * time on the clock grid (e.g. 15:00), not the raw start of the gap.
+ * Avoids the double-counting bug where `availableMinutes - bufferBefore`
+ * was checked against `duration + bufferBefore + bufferAfter`, making
+ * bufferBefore eat into the slot twice.
+ */
+const calculateServiceFitFromArrival = (
+  availableMinutes: number,
+  services: Service[],
+): { fitsAll: boolean; fitsLimited: boolean } => {
+  if (services.length === 0) {
+    return { fitsAll: false, fitsLimited: false };
+  }
+  const requirements = services.map(
+    (s) => s.duration_minutes + (s.buffer_after_minutes || 0),
+  );
+  const max = Math.max(...requirements, 0);
+  const min = Math.min(...requirements, Infinity);
+  const fitsAll = availableMinutes >= max;
+  const fitsLimited = availableMinutes >= min && !fitsAll;
+  return { fitsAll, fitsLimited };
+};
+
+/** Single-service version of calculateServiceFitFromArrival. */
+const canServiceFitFromArrival = (
+  availableMinutes: number,
+  service: Service,
+): boolean => {
+  return availableMinutes >= service.duration_minutes + (service.buffer_after_minutes || 0);
 };
 
 /**
@@ -359,101 +418,115 @@ export const findNextAvailableSlots = (
       continue;
     }
 
-    // Check gap before first blocker
-    if (blockers.length === 0) {
-      // Entire day is free - generate slots every SLOT_DURATION minutes
-      let slotTime = currentTime;
-      while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
-        const availableMinutes = differenceInMinutes(dayEnd, slotTime);
-        const usableMinutes = availableMinutes - maxBufferBefore;
-        const { fitsAll, fitsLimited } = calculateServiceFit(usableMinutes, services);
+    // Slot generation model: `slotTime` is the patient ARRIVAL time —
+    // the value displayed in the picker and stored as the appointment's
+    // starts_at. `bufferBefore` sits in the gap behind the arrival
+    // (between the previous blocker's end and the arrival); the patient
+    // walks in AT `slotTime`. So the fit check is `(gapEnd - slotTime)
+    // >= duration + bufferAfter`, NOT (… >= duration + bufferBefore +
+    // bufferAfter). Earlier code did the latter, which double-counted
+    // bufferBefore and also pushed displayStart off the clock grid by
+    // adding bufferBefore on the way out — that's what produced slots
+    // like 14:35 / 15:05 / 15:35 for a 5-min buffer.
 
+    // Entire day is free
+    if (blockers.length === 0) {
+      // No previous blocker to leave bufferBefore room for. Start at
+      // currentTime (= dayStart, or earliestBookable if min-notice is
+      // pushing past dayStart) and align up to the clock grid.
+      let slotTime = alignSlotStartUp(currentTime);
+      while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
+        const remaining = differenceInMinutes(dayEnd, slotTime);
+        const { fitsAll, fitsLimited } = calculateServiceFitFromArrival(remaining, services);
         if (fitsAll || fitsLimited) {
-          const displayStart = addMinutes(slotTime, maxBufferBefore);
           availableSlots.push({
-            date: displayStart,
-            time: format(displayStart, "HH:mm"),
-            availableMinutes,
+            date: slotTime,
+            time: format(slotTime, "HH:mm"),
+            availableMinutes: remaining,
             fitsAllServices: fitsAll,
             fitsLimitedServices: fitsLimited,
           });
         }
-
         slotTime = addMinutes(slotTime, SLOT_DURATION);
       }
     } else {
-      // Check gap before first blocker - generate slots every SLOT_DURATION minutes
+      // Gap before first blocker — same as entire-day-free: no preceding
+      // blocker, so no bufferBefore room needed at the start.
       if (isBefore(currentTime, blockers[0].start)) {
-        let slotTime = currentTime;
+        let slotTime = alignSlotStartUp(currentTime);
         while (isBefore(slotTime, blockers[0].start) && availableSlots.length < maxSlots) {
-          const availableMinutes = differenceInMinutes(blockers[0].start, slotTime);
-          const usableMinutes = availableMinutes - maxBufferBefore;
-          const { fitsAll, fitsLimited } = calculateServiceFit(usableMinutes, services);
-
+          const remaining = differenceInMinutes(blockers[0].start, slotTime);
+          const { fitsAll, fitsLimited } = calculateServiceFitFromArrival(remaining, services);
           if (fitsAll || fitsLimited) {
-            const displayStart = addMinutes(slotTime, maxBufferBefore);
             availableSlots.push({
-              date: displayStart,
-              time: format(displayStart, "HH:mm"),
-              availableMinutes,
+              date: slotTime,
+              time: format(slotTime, "HH:mm"),
+              availableMinutes: remaining,
               fitsAllServices: fitsAll,
               fitsLimitedServices: fitsLimited,
             });
           }
-
           slotTime = addMinutes(slotTime, SLOT_DURATION);
         }
       }
 
-      // Check gaps between blockers - generate slots every SLOT_DURATION minutes
+      // Gaps between blockers — there IS a preceding blocker, so leave
+      // bufferBefore room between gapStart and the patient's arrival.
       for (let i = 0; i < blockers.length - 1 && availableSlots.length < maxSlots; i++) {
         const gapStart = blockers[i].end;
         const gapEnd = blockers[i + 1].start;
-
-        // Only consider this gap if it's in the future
-        if (isAfter(gapStart, now) && isBefore(gapStart, gapEnd)) {
-          let slotTime = gapStart;
+        // We only need the gap-END to be in the future. If we're already
+        // inside the gap (gapStart < now < gapEnd), there's still bookable
+        // time from `now` to gapEnd — previously this branch skipped any
+        // gap whose start was in the past, leaving the user with "no
+        // slots" after a morning appointment had passed.
+        if (isAfter(gapEnd, now) && isBefore(gapStart, gapEnd)) {
+          // First valid arrival = gapStart + bufferBefore (prep time after
+          // the previous appointment ends), clamped to `now` so we don't
+          // offer past slots, then aligned to the clock grid.
+          const earliestArrival = addMinutes(gapStart, maxBufferBefore);
+          const effectiveStart = isAfter(now, earliestArrival) ? now : earliestArrival;
+          let slotTime = alignSlotStartUp(effectiveStart);
           while (isBefore(slotTime, gapEnd) && availableSlots.length < maxSlots) {
-            const availableMinutes = differenceInMinutes(gapEnd, slotTime);
-            const usableMinutes = availableMinutes - maxBufferBefore;
-            const { fitsAll, fitsLimited } = calculateServiceFit(usableMinutes, services);
-
+            const remaining = differenceInMinutes(gapEnd, slotTime);
+            const { fitsAll, fitsLimited } = calculateServiceFitFromArrival(remaining, services);
             if (fitsAll || fitsLimited) {
-              const displayStart = addMinutes(slotTime, maxBufferBefore);
               availableSlots.push({
-                date: displayStart,
-                time: format(displayStart, "HH:mm"),
-                availableMinutes,
+                date: slotTime,
+                time: format(slotTime, "HH:mm"),
+                availableMinutes: remaining,
                 fitsAllServices: fitsAll,
                 fitsLimitedServices: fitsLimited,
               });
             }
-
             slotTime = addMinutes(slotTime, SLOT_DURATION);
           }
         }
       }
 
-      // Check gap after last blocker - generate slots every SLOT_DURATION minutes
+      // Gap after last blocker — same bufferBefore behaviour as
+      // between-blockers (preceding appointment needs cleanup time).
       const lastBlocker = blockers[blockers.length - 1];
-      if (isAfter(lastBlocker.end, now) && isBefore(lastBlocker.end, dayEnd)) {
-        let slotTime = lastBlocker.end;
+      // Need dayEnd in the future (else nothing bookable today) AND
+      // blocker.end before dayEnd (else there's no gap). Previously
+      // this required blocker.end > now, which wrongly excluded the
+      // post-blocker gap whenever the user was already inside it.
+      if (isAfter(dayEnd, now) && isBefore(lastBlocker.end, dayEnd)) {
+        const earliestArrival = addMinutes(lastBlocker.end, maxBufferBefore);
+        const effectiveStart = isAfter(now, earliestArrival) ? now : earliestArrival;
+        let slotTime = alignSlotStartUp(effectiveStart);
         while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
-          const availableMinutes = differenceInMinutes(dayEnd, slotTime);
-          const usableMinutes = availableMinutes - maxBufferBefore;
-          const { fitsAll, fitsLimited } = calculateServiceFit(usableMinutes, services);
-
+          const remaining = differenceInMinutes(dayEnd, slotTime);
+          const { fitsAll, fitsLimited } = calculateServiceFitFromArrival(remaining, services);
           if (fitsAll || fitsLimited) {
-            const displayStart = addMinutes(slotTime, maxBufferBefore);
             availableSlots.push({
-              date: displayStart,
-              time: format(displayStart, "HH:mm"),
-              availableMinutes,
+              date: slotTime,
+              time: format(slotTime, "HH:mm"),
+              availableMinutes: remaining,
               fitsAllServices: fitsAll,
               fitsLimitedServices: fitsLimited,
             });
           }
-
           slotTime = addMinutes(slotTime, SLOT_DURATION);
         }
       }
@@ -542,97 +615,87 @@ export const findNextSlotsForService = (
       currentTime = now;
     }
 
-    // Check gap before first blocker
-    if (blockers.length === 0) {
-      // Entire day is free - generate slots every SLOT_DURATION minutes
-      let slotTime = currentTime;
-      while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
-        const availableMinutes = differenceInMinutes(dayEnd, slotTime);
-        const usableMinutes = availableMinutes - bufferBefore;
+    // See findNextAvailableSlots above for the slotTime/displayStart
+    // model — same semantics applied here for the single-service path.
 
-        if (canServiceFit(usableMinutes, service)) {
-          const displayStart = addMinutes(slotTime, bufferBefore);
+    // Entire day free
+    if (blockers.length === 0) {
+      let slotTime = alignSlotStartUp(currentTime);
+      while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
+        const remaining = differenceInMinutes(dayEnd, slotTime);
+        if (canServiceFitFromArrival(remaining, service)) {
           availableSlots.push({
-            date: displayStart,
-            time: format(displayStart, "HH:mm"),
-            availableMinutes,
+            date: slotTime,
+            time: format(slotTime, "HH:mm"),
+            availableMinutes: remaining,
             fitsAllServices: true,
             fitsLimitedServices: false,
           });
         }
-
         slotTime = addMinutes(slotTime, SLOT_DURATION);
       }
     } else {
-      // Check gap before first blocker
+      // Gap before first blocker
       if (isBefore(currentTime, blockers[0].start)) {
-        let slotTime = currentTime;
+        let slotTime = alignSlotStartUp(currentTime);
         while (isBefore(slotTime, blockers[0].start) && availableSlots.length < maxSlots) {
-          const availableMinutes = differenceInMinutes(blockers[0].start, slotTime);
-          const usableMinutes = availableMinutes - bufferBefore;
-
-          if (canServiceFit(usableMinutes, service)) {
-            const displayStart = addMinutes(slotTime, bufferBefore);
+          const remaining = differenceInMinutes(blockers[0].start, slotTime);
+          if (canServiceFitFromArrival(remaining, service)) {
             availableSlots.push({
-              date: displayStart,
-              time: format(displayStart, "HH:mm"),
-              availableMinutes,
+              date: slotTime,
+              time: format(slotTime, "HH:mm"),
+              availableMinutes: remaining,
               fitsAllServices: true,
               fitsLimitedServices: false,
             });
           }
-
           slotTime = addMinutes(slotTime, SLOT_DURATION);
         }
       }
 
-      // Check gaps between blockers
+      // Gaps between blockers — see findNextAvailableSlots for the
+      // gapEnd-vs-now condition; same fix applied here.
       for (let i = 0; i < blockers.length - 1 && availableSlots.length < maxSlots; i++) {
         const gapStart = blockers[i].end;
         const gapEnd = blockers[i + 1].start;
-
-        // Only consider this gap if it's in the future
-        if (isAfter(gapStart, now) && isBefore(gapStart, gapEnd)) {
-          let slotTime = gapStart;
+        if (isAfter(gapEnd, now) && isBefore(gapStart, gapEnd)) {
+          const earliestArrival = addMinutes(gapStart, bufferBefore);
+          const effectiveStart = isAfter(now, earliestArrival) ? now : earliestArrival;
+          let slotTime = alignSlotStartUp(effectiveStart);
           while (isBefore(slotTime, gapEnd) && availableSlots.length < maxSlots) {
-            const availableMinutes = differenceInMinutes(gapEnd, slotTime);
-            const usableMinutes = availableMinutes - bufferBefore;
-
-            if (canServiceFit(usableMinutes, service)) {
-              const displayStart = addMinutes(slotTime, bufferBefore);
+            const remaining = differenceInMinutes(gapEnd, slotTime);
+            if (canServiceFitFromArrival(remaining, service)) {
               availableSlots.push({
-                date: displayStart,
-                time: format(displayStart, "HH:mm"),
-                availableMinutes,
+                date: slotTime,
+                time: format(slotTime, "HH:mm"),
+                availableMinutes: remaining,
                 fitsAllServices: true,
                 fitsLimitedServices: false,
               });
             }
-
             slotTime = addMinutes(slotTime, SLOT_DURATION);
           }
         }
       }
 
-      // Check gap after last blocker
+      // Gap after last blocker — see findNextAvailableSlots for the
+      // dayEnd-vs-now condition; same fix applied here.
       const lastBlocker = blockers[blockers.length - 1];
-      if (isAfter(lastBlocker.end, now) && isBefore(lastBlocker.end, dayEnd)) {
-        let slotTime = lastBlocker.end;
+      if (isAfter(dayEnd, now) && isBefore(lastBlocker.end, dayEnd)) {
+        const earliestArrival = addMinutes(lastBlocker.end, bufferBefore);
+        const effectiveStart = isAfter(now, earliestArrival) ? now : earliestArrival;
+        let slotTime = alignSlotStartUp(effectiveStart);
         while (isBefore(slotTime, dayEnd) && availableSlots.length < maxSlots) {
-          const availableMinutes = differenceInMinutes(dayEnd, slotTime);
-          const usableMinutes = availableMinutes - bufferBefore;
-
-          if (canServiceFit(usableMinutes, service)) {
-            const displayStart = addMinutes(slotTime, bufferBefore);
+          const remaining = differenceInMinutes(dayEnd, slotTime);
+          if (canServiceFitFromArrival(remaining, service)) {
             availableSlots.push({
-              date: displayStart,
-              time: format(displayStart, "HH:mm"),
-              availableMinutes,
+              date: slotTime,
+              time: format(slotTime, "HH:mm"),
+              availableMinutes: remaining,
               fitsAllServices: true,
               fitsLimitedServices: false,
             });
           }
-
           slotTime = addMinutes(slotTime, SLOT_DURATION);
         }
       }

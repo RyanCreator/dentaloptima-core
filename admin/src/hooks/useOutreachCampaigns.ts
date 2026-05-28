@@ -127,6 +127,57 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Outrea
   return campaign as OutreachCampaign;
 }
 
+/**
+ * Adds contacts to an existing campaign as recipients. Used by the
+ * Contacts page's "Add to campaign" flow — the user multi-selects on
+ * Contacts, then bulk-adds in one round trip.
+ *
+ * The unique (campaign_id, contact_id) constraint on outreach_send
+ * means re-adding a contact already in the campaign is a no-op (via
+ * upsert with ignoreDuplicates). Returns the count actually inserted.
+ */
+export async function addContactsToCampaign(
+  campaignId: string,
+  contactIds: string[],
+): Promise<{ inserted: number; alreadyPresent: number }> {
+  if (contactIds.length === 0) return { inserted: 0, alreadyPresent: 0 };
+
+  // Find which contacts are already on the campaign so we can report
+  // an honest "inserted N (M were already there)" number.
+  const { data: existing } = await supabase
+    .from("outreach_send")
+    .select("contact_id")
+    .eq("campaign_id", campaignId)
+    .in("contact_id", contactIds);
+  const existingSet = new Set((existing ?? []).map((r) => r.contact_id));
+  const toInsert = contactIds.filter((id) => !existingSet.has(id));
+
+  if (toInsert.length === 0) {
+    return { inserted: 0, alreadyPresent: contactIds.length };
+  }
+
+  const rows = toInsert.map((cid) => ({ campaign_id: campaignId, contact_id: cid }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const batch = rows.slice(i, i + 500);
+    const { error } = await supabase.from("outreach_send").insert(batch);
+    if (error) throw error;
+  }
+  return { inserted: toInsert.length, alreadyPresent: existingSet.size };
+}
+
+/** Lists DRAFT campaigns — the only ones it's safe to add recipients to.
+ *  SENDING / COMPLETED campaigns shouldn't grow new rows mid-flight. */
+export async function fetchDraftCampaigns(): Promise<OutreachCampaign[]> {
+  const { data, error } = await supabase
+    .from("outreach_campaign")
+    .select("*")
+    .eq("status", "DRAFT")
+    .is("archived_at", null)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as OutreachCampaign[];
+}
+
 export async function startCampaign(id: string) {
   const { error } = await supabase
     .from("outreach_campaign")
