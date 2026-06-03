@@ -31,6 +31,17 @@ Thumbs.db
 *.tsbuildinfo
 coverage/
 
+# Playwright E2E artefacts (web/)
+web/e2e/.auth/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/.last-run.json
+
 # Operator training videos — large binary, not source. Hosted elsewhere
 # (helpGuides.ts references YouTube IDs).
 Guide Videos/
+
+# NHS reference PDFs — large external source docs (NHSBSA). Kept locally; the
+# extracted text we built the validator from lives in docs/nhs/spec-text/.
+docs/nhs/source-pdfs/

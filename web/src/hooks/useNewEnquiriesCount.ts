@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useId } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -10,6 +10,11 @@ export function useNewEnquiriesCount() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
+  // Unique channel name per hook instance — this hook is now mounted in
+  // more than one place at once (the top-bar notifications bell + the
+  // sidebar/enquiries badge), and a shared static channel name makes the
+  // second subscriber throw "cannot add postgres_changes after subscribe".
+  const channelId = useId();
 
   const fetchCount = async () => {
     const { count: newCount, error } = await supabase
@@ -28,7 +33,7 @@ export function useNewEnquiriesCount() {
 
     // Subscribe to changes in booking_request table
     const channel = supabase
-      .channel("new-enquiries-count")
+      .channel(`new-enquiries-count-${channelId}`)
       .on(
         "postgres_changes",
         {

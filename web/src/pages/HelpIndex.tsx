@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
@@ -20,7 +20,8 @@ import {
   type HelpGuide,
   youtubeEmbedUrl,
 } from "@/lib/helpGuides";
-import { PlayCircle, Search, HelpCircle, BookOpen } from "lucide-react";
+import { PlayCircle, Search, HelpCircle, BookOpen, Keyboard } from "lucide-react";
+import { KEYBOARD_SHORTCUTS } from "@/lib/keyboardShortcuts";
 
 // /help — full guide library, grouped by section. Direct-link to a guide
 // via /help#guideId so we can deep-link from emails, release notes, or
@@ -151,6 +152,11 @@ export default function HelpIndex() {
             )}
           </>
         )}
+
+        {/* Keyboard shortcuts reference — always shown (independent of the
+            guide library) so power users have a single place to learn the
+            time-savers. */}
+        <KeyboardShortcutsSection />
       </div>
 
       {/* Player dialog — same iframe-with-noise-suppressed pattern as the
@@ -186,6 +192,49 @@ export default function HelpIndex() {
         </DialogContent>
       </Dialog>
     </Layout>
+  );
+}
+
+function KeyboardShortcutsSection() {
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Keyboard className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Keyboard shortcuts
+        </h2>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {KEYBOARD_SHORTCUTS.map((group) => (
+          <div key={group.area} className="rounded-lg border bg-card p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              {group.area}
+            </h3>
+            <ul className="space-y-2">
+              {group.shortcuts.map((s, i) => (
+                <li key={i} className="flex items-start justify-between gap-3">
+                  <span className="text-sm text-muted-foreground flex-1 min-w-0">
+                    {s.label}
+                  </span>
+                  <span className="flex items-center gap-1 shrink-0">
+                    {s.keys.map((k, ki) => (
+                      <Fragment key={ki}>
+                        {ki > 0 && (
+                          <span className="text-[10px] text-muted-foreground">or</span>
+                        )}
+                        <kbd className="inline-flex items-center rounded border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground shadow-sm">
+                          {k}
+                        </kbd>
+                      </Fragment>
+                    ))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

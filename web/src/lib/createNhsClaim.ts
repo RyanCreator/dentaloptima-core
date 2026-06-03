@@ -1,17 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logger } from "@/lib/logger";
+import type { ClaimActivityInput } from "@/lib/nhs/validateClaim";
 
-// FP17 claim writer. Creates or updates an `nhs_claim` row plus its 1:1
-// `nhs_claim_treatment` row in two steps. Atomicity isn't critical here —
-// if the treatment write fails after the claim has been created, the
-// claim row is in DRAFT state with no treatment row, which surfaces in
-// the claims list as "incomplete" and the dentist re-saves. Worse than a
-// transaction, but avoids a service-role round-trip.
-//
-// FP17O (orthodontic) and FP17W (domiciliary) extensions are intentionally
-// excluded for now — they get their own writers when those forms are wired
-// up. The form_type column accepts them, so a half-built ortho claim sits
-// in DRAFT state until the ortho UI lands.
+// FP17 claim writer. Creates or updates an `nhs_claim` row (header + patient
+// identity snapshot) and replaces its canonical 9000-code activity lines in
+// `nhs_claim_activity`. Atomicity isn't critical — a partial write leaves the
+// claim in DRAFT and the dentist re-saves.
 
 export type FP17FormType = "FP17" | "FP17O" | "FP17W" | "FP17PR";
 
@@ -55,6 +49,24 @@ export interface ClaimTreatmentDetails {
   treated_tooth_numbers: number[] | null;
 }
 
+// Patient identity SNAPSHOT — frozen onto the claim at save (the claim is an
+// immutable record; the live patient row can change). Validated by Compass
+// errors 101 (name/sex) and 102 (DOB).
+export interface ClaimPatientSnapshot {
+  nhsNumber?: string | null;
+  title?: string | null;
+  forename?: string | null;
+  surname?: string | null;
+  sex?: "M" | "F" | null;
+  dateOfBirth?: string | null; // YYYY-MM-DD
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  addressLine3?: string | null;
+  postcode?: string | null;
+  email?: string | null;
+  mobile?: string | null;
+}
+
 export interface CreateNhsClaimInput {
   practiceId: string;
   patientId: string;
@@ -62,8 +74,10 @@ export interface CreateNhsClaimInput {
   performerId: string;
   formType: FP17FormType;
   treatmentBand: FP17TreatmentBand;
+  country?: "ENGLAND" | "WALES" | "ISLE_OF_MAN";
   dateOfAcceptance: string; // YYYY-MM-DD
   dateOfCompletion?: string | null;
+  dateOfReferral?: string | null;
   isUrgentTreatment?: boolean;
   numberOfVisits?: number;
   patientChargePence: number;
@@ -71,7 +85,9 @@ export interface CreateNhsClaimInput {
   exemptionEvidenceSeen: boolean;
   patientSignatureReceived: boolean;
   patientSignatureMethod?: string | null;
-  treatments: ClaimTreatmentDetails;
+  /** Canonical 9000-code activity lines (nhs_claim_activity). */
+  activities: ClaimActivityInput[];
+  snapshot: ClaimPatientSnapshot;
   recallIntervalMonths?: number | null;
   status?: NHSClaimStatus;
   existingClaimId?: string;
@@ -86,6 +102,7 @@ export interface CreateNhsClaimResult {
 export async function saveNhsClaim(
   input: CreateNhsClaimInput,
 ): Promise<CreateNhsClaimResult> {
+  const s = input.snapshot;
   const claimPayload = {
     practice_id: input.practiceId,
     patient_id: input.patientId,
@@ -93,6 +110,7 @@ export async function saveNhsClaim(
     source_appointment_id: input.appointmentId,
     form_type: input.formType,
     treatment_band: input.treatmentBand,
+    country: input.country ?? "ENGLAND",
     date_of_acceptance: input.dateOfAcceptance,
     date_of_completion: input.dateOfCompletion ?? null,
     is_urgent_treatment: input.isUrgentTreatment ?? false,
@@ -103,6 +121,19 @@ export async function saveNhsClaim(
     patient_signature_received: input.patientSignatureReceived,
     patient_signature_method: input.patientSignatureMethod ?? null,
     recall_interval_months: input.recallIntervalMonths ?? null,
+    // Patient identity snapshot (frozen at save).
+    snapshot_nhs_number: s.nhsNumber ?? null,
+    snapshot_title: s.title ?? null,
+    snapshot_forename: s.forename ?? null,
+    snapshot_surname: s.surname ?? null,
+    snapshot_sex: s.sex ?? null,
+    snapshot_date_of_birth: s.dateOfBirth ?? null,
+    snapshot_address_line1: s.addressLine1 ?? null,
+    snapshot_address_line2: s.addressLine2 ?? null,
+    snapshot_address_line3: s.addressLine3 ?? null,
+    snapshot_postcode: s.postcode ?? null,
+    patient_email: s.email ?? null,
+    patient_mobile: s.mobile ?? null,
     status: input.status ?? "DRAFT",
     ...(input.status === "READY_TO_SUBMIT"
       ? { ready_to_submit_at: new Date().toISOString() }
@@ -134,58 +165,33 @@ export async function saveNhsClaim(
     claimId = data.id;
   }
 
-  // 1:1 treatment row — UNIQUE on nhs_claim_id at the schema level. Try
-  // INSERT first; if it collides because a row already exists, switch to
-  // UPDATE. Cheaper than a SELECT-then-decide round-trip.
-  const treatmentPayload = {
-    practice_id: input.practiceId,
-    nhs_claim_id: claimId,
-    examination: input.treatments.examination,
-    scale_and_polish: input.treatments.scale_and_polish,
-    fluoride_varnish: input.treatments.fluoride_varnish,
-    fissure_sealants: input.treatments.fissure_sealants,
-    fillings_count: input.treatments.fillings_count,
-    extractions_count: input.treatments.extractions_count,
-    endodontic_count: input.treatments.endodontic_count,
-    crowns_count: input.treatments.crowns_count,
-    bridges_count: input.treatments.bridges_count,
-    dentures_count: input.treatments.dentures_count,
-    x_rays_taken: input.treatments.x_rays_taken,
-    periodontal_treatment: input.treatments.periodontal_treatment,
-    free_repair_or_replacement: input.treatments.free_repair_or_replacement,
-    antibiotic_items: input.treatments.antibiotic_items,
-    treated_tooth_numbers:
-      input.treatments.treated_tooth_numbers &&
-      input.treatments.treated_tooth_numbers.length > 0
-        ? input.treatments.treated_tooth_numbers
-        : null,
-  };
-
-  const insertRes = await supabase
-    .from("nhs_claim_treatment")
-    .insert(treatmentPayload);
-
-  if (insertRes.error) {
-    if (insertRes.error.code === "23505") {
-      // Existing row — switch to update by nhs_claim_id.
-      const updatePayload = { ...treatmentPayload };
-      delete (updatePayload as any).nhs_claim_id;
-      delete (updatePayload as any).practice_id;
-      const updateRes = await supabase
-        .from("nhs_claim_treatment")
-        .update(updatePayload)
-        .eq("nhs_claim_id", claimId);
-      if (updateRes.error) {
-        logger.error("Failed to update FP17 treatment row", updateRes.error);
-        return { success: false, error: updateRes.error.message };
-      }
-    } else {
-      // Friendly hint for the FDI tooth-number CHECK constraint.
-      const message = /tooth/i.test(insertRes.error.message ?? "")
-        ? "Invalid tooth number — use FDI notation (11–48 adult, 51–85 deciduous)"
-        : insertRes.error.message ?? "Failed to save treatment details";
-      logger.error("Failed to insert FP17 treatment row", insertRes.error);
-      return { success: false, error: message };
+  // Canonical 9000-code activity lines (nhs_claim_activity) — the single source
+  // of truth the validator + detail sheet + future WebEDI serialiser use.
+  // Replace-all (delete then insert) keeps edit simple.
+  const { error: delErr } = await supabase
+    .from("nhs_claim_activity")
+    .delete()
+    .eq("nhs_claim_id", claimId);
+  if (delErr) {
+    logger.error("Failed to clear FP17 activity lines", delErr);
+    return { success: false, error: delErr.message };
+  }
+  if (input.activities.length > 0) {
+    const activityRows = input.activities.map((a) => ({
+      practice_id: input.practiceId,
+      nhs_claim_id: claimId,
+      code: a.code,
+      value: a.value ?? null,
+      tooth_number: a.toothNumber ?? null,
+      quadrant: a.quadrant ?? null,
+      dcp_gdc_number: a.dcpGdcNumber ?? null,
+    }));
+    const { error: actErr } = await supabase
+      .from("nhs_claim_activity")
+      .insert(activityRows);
+    if (actErr) {
+      logger.error("Failed to insert FP17 activity lines", actErr);
+      return { success: false, error: actErr.message };
     }
   }
 
@@ -236,11 +242,10 @@ export async function findClaimForAppointment(appointmentId: string) {
 
   if (claimError || !claim) return null;
 
-  const { data: treatment } = await supabase
-    .from("nhs_claim_treatment")
-    .select("*")
-    .eq("nhs_claim_id", claim.id)
-    .maybeSingle();
+  const { data: activities } = await supabase
+    .from("nhs_claim_activity")
+    .select("code, value")
+    .eq("nhs_claim_id", claim.id);
 
-  return { claim, treatment: treatment ?? null };
+  return { claim, activities: activities ?? [] };
 }

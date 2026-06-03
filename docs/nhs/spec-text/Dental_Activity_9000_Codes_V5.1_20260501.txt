@@ -1,0 +1,809 @@
+ Dental Activity 9000 codes
+
+ All General and Orthodontic 9000 codes for England, Wales and Isle of Man are available in
+ this guide.
+ There are two sections highlighted to indicate General Clinical Data Set codes and Orthodontic
+ Data Set codes. Non highlighted information is for all other codes.
+
+                General Clinical Data Set codes
+                Orthodontic Data Set codes
+                All other codes
+
+ If the information does not provide the details you're looking for, our Customer Contact Centre
+ is open 8am to 6pm Monday to Friday.
+ If you submit claims using a Dental Practice Management System, you must contact your
+ system supplier for any queries on how dental treatments are mapped to the 9000 codes.
+
+V5.1_1 May 2026
+Code         Description              Number                  Additional Information
+
+9012  Orthodontic assessment and              In England, if a patient is 18 years or over at the mandatory
+      review                                  Date of Referral, code 9177 for Commissioner Approval
+                                              must be present
+9013  Orthodontic assessment and
+      refuse treatment                        In England, if a patient is 18 years or over at the mandatory
+                                              Date of Referral, code 9177 for Commissioner Approval
+9014  Orthodontic                             must be present
+      assessment/appliance fitted
+                                              In England, if a patient is 18 years or over at the mandatory
+                                              Date of Referral, code 9177 for Commissioner Approval
+                                              must be present.
+                                              In England, Treatment Proposed indicator (code 9415 with
+                                              a value of 1) must be present.
+
+9015  Index of Orthodontic Treatment          In England, must be present on all claims for Assess and
+      Need                                    Review, Assess and Refuse, Assess/Appliance Fitted, Assess
+                                              and Debond, Ortho Treatment Completed, Ortho
+                                              Treatment Abandoned, Ortho Treatment Discontinued
+
+9016  Orthodontic Assessment and              England only from 01/10/2022.
+      Debond - Overseas Patient               Patients must be exempt or have patient charge remission
+                                              and cannot have any previous record of ortho treatment in
+                                              the NHS
+
+9025 Ethnic Origin                            England, Wales
+
+                                              Claim must contain at least one Clinical Data Set item
+
+                                              designated as Band 1.
+
+9150 Band 1                           1       Governs the UDA awarded and, unless Incomplete
+
+                                              Treatment 9164 or Referral for AMS 9319 is present, will
+
+                                              govern any patient charge too.
+
+                                              Discontinued from 01/04/2026 in Wales.
+
+                                              Claim must contain at least one Clinical Data Set item
+
+                                              designated as Band 2.
+
+9150 Band 2                           2       Governs the UDA awarded and, unless Incomplete
+
+                                              Treatment 9164 or Referral for AMS 9319 is present, will
+
+                                              govern any patient charge too.
+
+                                              Discontinued from 01/04/2026 in Wales.
+
+                                              Claim must contain at least one Clinical Data Set item
+
+                                              designated as Band 3.
+
+9150 Band 3                           3       Governs the UDA awarded and, unless Reg 11 9162,
+
+9150 Urgent Treatment                         Incomplete Treatment 9164 or Referral for AMS 9319 is
+9150 Advice Only
+9150 Triage Claim                             present, will govern any patient charge too.
+9151 Nurse Applied Fluoride Varnish
+9152 Domiciliary Services                     Discontinued from 01/04/2026 in Wales.
+
+                                      4       Governs the UDA awarded and, unless Referral for AMS
+                                              9159 is present, will govern any patient charge too.
+
+                                              Discontinued from 01/04/2026 in England and Wales.
+
+                                      5       Discontinued from 01/04/2022
+
+                                      6       England only from 23/03/2020. No longer necessary to
+                                              submit
+
+                                              England only from 01/04/2026
+Code  Description                  Number  Additional Information
+
+9153 Free Repair/Replacement               Claim must be for Band 2, 3 or Urgent.
+9154 Denture Repairs                       Claim for original treatment must be present on the
+                                           Compass database.
+9155 Arrest of Bleeding                    Clinical Data Set must include a repaired or replaced
+                                           restoration, such as filling, crown, or inlay.
+9156 Removal of Sutures                    Discontinued from 01/04/2026 in Wales.
+
+9157 Bridge Repairs                        Before 1/04/2026, it is dropped if appearing on a
+                                           Banded claim. Otherwise governs the UDA
+9158 Prescription Only                     awarded.
+         Repair to [Orthodontic]
+                                           From 01/04/2026, it is retained on a Banded claim
+9159 Appliance Fitted By Another           and no extra UDA is received. Otherwise governs
+         Dentist                           the UDA awarded when it is submitted with code
+                                           9160.
+9160 Charge Exempt Treatment Only
+9161 Ortho Treatment Abandoned             Before 1/04/2026, it is dropped if appearing on a
+9161 Ortho Treatment Discontinued          Banded claim. Otherwise governs the UDA
+                                           awarded.
+
+                                           From 01/04/2026, it is retained on a Banded claim
+                                           and no extra UDA is received. Otherwise governs
+                                           the UDA awarded when it is submitted with code
+                                           9160.
+
+                                           Before 1/04/2026, it is dropped if appearing on a
+                                           Banded claim. Otherwise governs the UDA
+                                           awarded.
+
+                                           From 01/04/2026, it is retained on a Banded claim
+                                           and no extra UDA is received. Otherwise governs
+                                           the UDA awarded when it is submitted with code
+                                           9160.
+
+                                           Before 1/04/2026, it is dropped if appearing on a
+                                           Banded claim. Otherwise governs the UDA
+                                           awarded.
+
+                                           From 01/04/2026, it is retained on a Banded claim
+                                           and no extra UDA is received. Otherwise governs
+                                           the UDA awarded when it is submitted with code
+                                           9160.
+
+                                           Before 1/04/2026, it is dropped if appearing on a
+                                           Banded claim.
+
+                                           From 01/04/2026, it is retained on a Banded claim.
+
+                                           England and IOM only from 01/04/2026
+
+                                           In England, additional code 9415 with a value of 2
+
+                                           signifying Ortho Treatment
+
+                                   1       Completed/Abandoned/Discontinued must also be
+                                           present.
+
+                                           Always accompanied by one of code 9409 (Patient FTR) or
+
+                                           9410 (Patient Requested)
+
+                                           In England, additional code 9415 with a value of 2
+
+                                   2       signifying Ortho Treatment
+
+                                           Completed/Abandoned/Discontinued must also be present
+Code  Description                 Number  Additional Information
+
+                                          In England, additional code 9415 with a value of 2
+
+9161 Ortho Treatment Completed    3       signifying Ortho Treatment
+
+                                          Completed/Abandoned/Discontinued must also be present
+
+9162  Regulation 11 Replacement           A valid patient charge equating to the designated Reg 11
+      Appliance                           charge must be present, even if the patient is otherwise
+                                          exempt from charges. This value will be deducted from
+                                          base line pay but a Band 3 UDA award will be made.
+
+9163  Further Treatment Within 2          Claim must be for Band 1, 2 or 3
+      Months                              Claim for original treatment must be present on the
+                                          Compass database.
+                                          Discontinued from 01/04/2026 in Wales.
+
+                                          Governs any patient charge taken when a course of
+
+9164 Incomplete Treatment Band 1  1       treatment is incomplete.
+                                          Cannot be used with Urgent Treatment.
+
+                                          Must have an accompanying 9150 Band 1, 2 or 3.
+
+                                          Discontinued from 01/04/2026 in Wales.
+
+                                          Governs any patient charge taken when a course of
+
+9164 Incomplete Treatment Band 2  2       treatment is incomplete.
+                                          Cannot be used with Urgent Treatment.
+
+                                          Must have an accompanying 9150 Band 2 or 3.
+
+                                          Discontinued from 01/04/2026 in Wales.
+Code  Description                       Number  Additional Information
+
+                                                Governs any patient charge taken when a course of
+
+9164 Incomplete Treatment Band 3        3       treatment is incomplete.
+                                                Cannot be used with Urgent Treatment.
+
+                                                Must have an accompanying 9150 Band 3
+
+                                                Discontinued from 01/04/2026 in Wales.
+
+9164 Incomplete Treatment               0       Wales only from 01/04/2026
+9165 Aesthetic Component
+9166 Sedation Services                          In England, mandatory on Assess/Appliance Fit claims.
+                                                Generally, must be present if IOTN (code 9015) has a value
+                                                of 3
+
+9167  Orthodontic Regulation 11                 A valid patient charge equating to the designated Reg 11
+      Replacement Appliance                     charge must be present, even if the patient is otherwise
+                                                exempt from charges. But this value will not be deducted
+9172 NICE Guidance Recall Interval              from base line pay but no UOA will be awarded.
+
+                                                In England, mandatory on all adult Band 1, 2 or 3 claims
+
+9173 Best Practice Prevention                   Only valid in Wales up to 01/04/2020
+
+9175 Patient Declined - Email Address           England, Wales. Mandatory on English FP17Os if Email
+                                                Address not present
+9176  Patient Declined - Mobile Phone
+      Number                                    England, Wales. Mandatory on English FP17Os if Mobile
+                                                Phone Number not present
+
+9177 Commissioner Approved                      England 01/04/2019 on.
+                                                Must be present on English assessment claims if patient is
+                                                aged 18 or over at Date of Referral
+
+      Dental Care Professional Type -           Wales 01/04/2020 onward. England from
+      Therapist
+9178                                    1       01/10/2022 onward.
+
+                                                Must be accompanied by a DCP GDC Number.
+
+      Dental Care Professional Type -           Wales 01/04/2020 onward. England from
+      Hygienist
+9178                                    2       01/10/2022 onward.
+
+                                                Must be accompanied by a DCP GDC Number.
+
+      Dental Care Professional Type -           Wales 01/04/2020 onward. England from
+      Dental Nurse
+9178                                    3       01/10/2022 onward.
+
+                                                Must be accompanied by a DCP GDC Number.
+
+      Dental Care Professional Type -           Wales 01/04/2020 onward. England from
+      Clinical Technician
+9178                                    4       01/10/2022 onward.
+
+                                                Must be accompanied by a DCP GDC Number.
+
+9179 ACORN Assessment Carried Out               Wales only from 01/04/2020. BAND 1 ITEM.
+                                                Must be accompanied by a full set of ACORN codes.
+                                                Not allowed on Urgent Treatment claims.
+                                                Allowed on Welsh Free Exam claims
+
+9181  Flexible Commissioning Flag -     1       England only from 01/04/2021
+      Securing Access for Urgent Care
+
+         Flexible Commissioning Flag -  2       England only from 01/04/2021
+9181 Promoting Access to Routine
+
+         Care
+Code  Description                    Number                    Additional Information
+
+9181  Flexible Commissioning Flag -  3       England only from 01/04/2021
+9181  Providing Care of High Needs
+      Groups                         4       England only from 01/04/2021
+
+      Flexible Commissioning Flag -
+      Starting Well
+
+9181  Flexible Commissioning Flag -  5       England only from 01/04/2021
+9181  Enhanced Health in Care Homes
+9182                                 6       England only from 01/04/2021
+      Flexible Commissioning Flag -
+      Collaboration in Local Care    1       Dental Therapist
+      Networks
+      DCP Direct Access Clinician
+      Type
+
+        DCP Direct Access Clinician  2       Dental Hygienist
+9182 Type
+
+9182  DCP Direct Access Clinician    3       Dental Nurse. England only from 01/04/2026
+      Type
+
+        DCP Direct Access Clinician  4       Clinical Dental Technician
+9182 Type
+
+9185 Welsh DAP New Patient                   Wales only from 01/04/2025
+
+9186  Welsh New Urgent Patient               Wales only from 01/04/2025
+      Referral
+
+9187 Patient Did Not Attend                  Wales only from 01/04/2025
+                                             England only from 01/04/2026
+9190 Unscheduled Care
+
+9191 Care Pathway 1                  1 - 6 England only. Start date to be confirmed.
+
+9192 Care Pathway 2                  1 - 12 England only. Start date to be confirmed.
+
+9193 Care Pathway 3                  1 - 6 England only. Start date to be confirmed.
+
+9194 Pathway Incomplete              1       Patient declined. England only. Start date to be confirmed.
+9194 Pathway Incomplete
+9194 Pathway Incomplete              2       Did Not Attend and/or short notice cancellations. England
+                                             only. Start date to be confirmed.
+
+                                     3       Other. England only. Start date to be confirmed.
+
+9195 Pathway Suspended               1       Extended leave. England only. Start date to be confirmed.
+
+9195 Pathway Suspended               2       Unforeseen. England only. Start date to be confirmed.
+9195 Pathway Suspended
+9195 Pathway Suspended               3       Did Not Attend and/or short notice cancellations. England
+                                             only. Start date to be confirmed.
+
+                                     4       Lockdown (prison contracts only). England only. Start date to
+                                             be confirmed.
+Code         Description               Number  Additional Information
+
+9195 Pathway Suspended                 5       Other. England only. Start date to be confirmed.
+
+9196 Pathway Completed                         England only. Start date to be confirmed.
+
+9201 Urgent Care Package                       Wales only from 01/04/2026
+
+9202 Non-urgent Care Package                   Wales only from 01/04/2026
+
+9203  Warranty Permanent               12 or 24 Wales only from 01/04/2026
+      Restorations
+
+9204 Warranty Root Fillings            12 or 24 Wales only from 01/04/2026
+
+9205  Warranty                         24 Wales only from 01/04/2026
+      Crown/Bridge/Inlay/Only/Veneer
+
+9206 Referral for Advanced Services            Wales only from 01/04/2026
+
+9207 Referral for High Needs                   Wales only from 01/04/2026
+
+9208 Lab Fee Commissioner Approved                Wales only from 01/04/2026
+                                                  Wales only from 01/04/2026
+9212  New Patient Assessment Care                 Wales only from 01/04/2026
+      Package                          1 - 3 Wales only from 01/04/2026
+                                                  Wales only from 01/04/2026
+9213 Simple Restoriative Care Package
+
+9214  Extended Restorative Care
+      Package
+
+9215 Periodontal Care Package
+
+9216 Anterior Root Canal Care Package 1 - 6 Wales only from 01/04/2026
+
+9217  Posterior Root Canal Care        1 - 8 Wales only from 01/04/2026
+      Package                          1 - 14 Wales only from 01/04/2026
+
+9218  Crown, Bridge, Inlay, Onlay and
+      Veneer Care Package
+
+9219 Denture Care Package                      Wales only from 01/04/2026
+
+9220 Stabilisation Care Package                Wales only from 01/04/2026
+
+9221 Miscellaneous Care Package                Wales only from 01/04/2026
+
+9222 Recall                                    Wales only from 01/04/2026
+
+9223 Recall 18-24 months                       Wales only from 01/04/2026
+                                               Wales only from 01/04/2026
+9241  Miscellaneous Trauma care
+      package
+Code  Description             Number               Additional Information
+
+9301 Scale and Polish                 England and IOM, Wales up to 31/03/2020. BAND 1 ITEM
+
+9302 Fluoride Varnish                 Can be allowed on Welsh Free Exam claims. BAND 1 ITEM
+
+9303 Fissure Sealants                 BAND 2 ITEM
+
+9304 Radiographs                      BAND 1 ITEM. Used on FP17 and FP17O claims
+
+9305 Endodontic Treatment             IOM, England up to 30/09/2022, Wales up to 31/03/2022,
+                                      IOM up to 30/09/2025. BAND 2 ITEM
+9306 Permanent Fillings               Permanent teeth only
+9307 Extractions (General)
+9308 Crowns Provided                  BAND 2 ITEM
+9309 Upper Denture - Acrylic
+9310 Lower Denture - Acrylic          England and IOM, Wales up to 31/03/2020. BAND 2 ITEM
+9311 Upper Denture - Metal
+                                      BAND 3 ITEM
+
+                                      BAND 3 ITEM
+
+9312 Lower Denture - Metal            BAND 3 ITEM
+
+                                      England and IOM, Wales before 01/04/2020 and again
+                                      from 31/03/2022.
+                                      BAND 3 ITEM
+                                      England and IOM, Wales before 01/04/2020 and again from
+                                      31/03/2022.
+                                      BAND 3 ITEM
+Code         Description              Number               Additional Information
+
+9313 Veneers Applied                          BAND 3 ITEM
+
+9314 Inlays                                   England and IOM, Wales up to 31/03/2020. BAND 3 ITEM
+
+9315 Bridges Fitted                           BAND 3 ITEM. Minimum value of 2 (abutment + pontic)
+
+9316 Referral for Advanced Mandatory          IOM only
+         Services                             England and IOM, Wales up to 31/03/2020 . BAND 1 ITEM
+
+9317 Examination
+Code  Description                 Number  Additional Information
+
+9318 Antibiotic Items Prescribed          England and IOM, Wales up to 31/03/2020
+
+9319  Referral for Advanced               Must be accompanied by a 9150 Band.
+      Mandatory Services Band             The value accompanying code 9319 will govern any
+                                          patient charge applied.
+9320 Decayed Permanent Teeth              Not allowed with Treatment on Referral or
+9321 Missing Permanent Teeth              Free Repair/Replacement.
+9322 Filled Permanent Teeth               Discontinued from 01/04/2026 in Wales.
+9323 Decayed Deciduous Teeth
+9324 Missing Deciduous Teeth              Post 1 April 2016 for England and IOM, Post 01/04/2018 for
+9325 Filled Deciduous Teeth               Wales.
+9326 Medical History - Yellow             Must be present if ACORN Assessment (9179) present on
+9326 Medical History - Green              a Welsh claim for a patient aged 6 or over
+9327 Social History - Yellow
+9327 Social History - Green               Post 1 April 2016 England, IOM
+9328 Dental History -Yellow
+9328 Dental History - Green               Post 1 April 2016 England, IOM
+9329 Periodontitis - Red
+                                          Post 1 April 2016 for England and IOM, Post 01/04/18 for
+                                          Wales.
+                                          Must be present if ACORN Assessment (9179) present on
+                                          a Welsh claim for a patient aged under 12
+
+                                          Post 1 April 2016 England, IOM
+
+                                          Post 1 April 2016 England, IOM
+
+                                          Post 1 April 2018 Wales only.
+
+                                  2       Code 9326 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  3       Code 9326 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  2       Code 9327 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  3       Code 9327 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  3       Code 9328 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  2       Code 9328 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim
+
+                                          Post 1 April 2018 Wales only.
+
+                                  1       Code 9329 must be present if ACORN Assessment (9179)
+
+                                          present on a Welsh claim for a patient aged 12 or over.
+Code  Description                     Number               Additional Information
+
+                                              Post 1 April 2018 Wales only.
+
+9329 Periodontitis - Amber            2       Code 9329 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim for a patient aged 12 or over.
+
+                                              Post 1 April 2018 Wales only.
+
+9329 Periodontitis - Green            3       Code 9329 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim for a patient aged 12 or over.
+
+      Periodontitis - Perio Exam Not          Post 1 April 2018 Wales only.
+      Possible
+9329                                  4       Code 9329 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim for a patient aged 12 or over.
+
+                                              Post 1 April 2018 Wales only.
+
+9329 Periodontitis - Edentulous       5       Code 9329 must be present if ACORN Assessment (9179)
+                                              present on a Welsh claim for a patient aged 12 or over.
+
+                                              Accompanying code 9331 must show zero teeth.
+
+                                              Post 1 April 2018 Wales only.
+
+                                              Code 9330 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim.
+
+9330 Tooth Decay - Red                1       Accompanying codes 9320 and/or 9323 must show a non-
+
+                                              zero value.
+
+                                              Code 9331 cannot be zero, indicating an edentulous
+
+                                              patient
+
+                                              Post 1 April 2018 Wales only.
+
+                                              Code 9330 must be present if ACORN Assessment (9179)
+
+9330 Tooth Decay - Amber              2       present on a Welsh claim.
+9330 Tooth Decay - Green
+                                              Code 9331 cannot be zero, indicating an edentulous
+
+                                              patient
+
+                                              Post 1 April 2018 Wales only.
+
+                                      3       Code 9330 must be present if ACORN Assessment (9179)
+                                              present on a Welsh claim but is optional if the patient is
+
+                                              edentulous.
+
+9331 Total Number of Teeth in mouth           Post 1 April 2018 Wales only.
+                                              Code 9331 must be present if ACORN Assessment (9179)
+9332 Other Dental Need - Red                  present on a Welsh claim.
+9332 Other Dental Need - Amber                Must be greater than or equal to the sum of teeth with
+9332 Other Dental Need - Green                codes 9320 and 9323.
+                                              Must be zero if Periodontitis code (9329) shows patient as
+                                              edentulous.
+                                              Cannot be zero if Tooth Decay (code 9330) shows as Red
+
+                                              Post 1 April 2018 Wales only.
+
+                                      1       Code 9332 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim
+
+                                              Post 1 April 2018 Wales only.
+
+                                      2       Code 9332 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim
+
+                                              Post 1 April 2018 Wales only.
+
+                                      3       Code 9332 must be present if ACORN Assessment (9179)
+
+                                              present on a Welsh claim
+Code  Description                         Number  Additional Information
+
+         Toothbrushing Instruction/Inter          Wales Only 01/04/2020 to 31/03/2022
+9413 Dental Cleaning/Plaque                       Wales Only 01/04/2020 to 31/03/2022
+
+         Retentive Factors
+
+9334 Number of Metal dentures
+
+9335 Prevention and Stabilisation                 Wales Only 01/04/2020 onward. BAND 2 ITEM
+
+9336 Number of Onlays                             Wales Only 01/04/2020 onward. BAND 3 ITEM
+
+9337  Examination code - Exam Not         0       Wales Only 01/04/2020 to 31/03/2022
+      Possible
+
+9337  Examination code - Exam             1       Wales Only 01/04/2020 to 31/03/2022
+      Carried Out
+
+9338 Number of Pre-Formed Crowns                  England/IOM from 01/12/2021 onward, Wales from
+                                                  01/04/2020 onward. BAND 2 ITEM
+9339  Advanced Perio Root
+      Debridement                                 England/IOM from 01/12/2021 onward, Wales from
+                                                  01/04/2020 onward. BAND 2 ITEM
+9340  Aerosol Generating Procedure
+      number of appointments                      England from 23/03/2020 onward, Wales/IOM from
+                                                  01/12/2021 onward. No longer necessary to record this.
+
+9341 Plaque Score - Low                   1       Wales only from 01/04/2022
+
+9341 Plaque Score - Moderate              2       Wales only from 01/04/2022
+
+9341 Plaque Score - High                  3       Wales only from 01/04/2022
+
+9342  Basic Periodontal Exam Upper                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Right Score                                 10 to 14 if Furcation involved. 5 represents score of "-".
+
+9343  Basic Periodontal Exam Upper                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Anterior Score                              10 to 14 if Furcation involved. 5 represents score of "-".
+
+9344  Basic Periodontal Exam Upper                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Left Score                                  10 to 14 if Furcation involved. 5 represents score of "-".
+
+9345  Basic Periodontal Exam Lower                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Right Score                                 10 to 14 if Furcation involved. 5 represents score of "-".
+
+9346  Basic Periodontal Exam Lower                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Anterior Score                              10 to 14 if Furcation involved. 5 represents score of "-".
+
+9347  Basic Periodontal Exam Lower                Wales only from 01/04/2022. Scores of 0 to 4 accepted, or
+      Left Score                                  10 to 14 if Furcation involved. 5 represents score of "-".
+
+9348  Removal of Plaque Retentive                 Wales only from 01/04/2022. BAND 1 ITEM
+      Factors
+
+9349 Toothbrushing Advice                         Wales only from 01/04/2022
+
+9350 Inter Dental Cleaning Aids                   Wales only from 01/04/2022
+
+9351 Oral Hygiene Improvement Plan                Wales only from 01/04/2022
+Code             Description             Number         Additional Information
+
+9353  Denture                                    From 01/12/2021 to 31/03/2026. BAND 2 ITEM
+      Additions/Reline/Rebase                    Wales only from 01/04/2022
+                                                 Wales only from 01/04/2022
+9354  Virtual Consultation Provided as
+      Part of the Course of Treatment
+
+9355  Caries Treatment Offered but               Wales only from 01/04/2022
+9356  Further Self Care Improvement
+      Required
+
+      Perio Treatment Offered but
+      Further Self Care Improvement
+      Required
+
+                                                 Wales only from 01/04/2022. BAND 1 ITEM.
+
+9357 Examination - Exam Not Possible     0       Code 9357 must be present on all Welsh claims if ACORN
+
+                                                 (9179) is not present.
+
+                                                 For use when exam attempted but not
+
+                                                 possible. Acceptable on a Welsh Free Exam
+
+                                                 claim
+
+      Examination - Interim Care                 Wales only from 01/04/2022. BAND 1 ITEM.
+      Review
+9357                                     1       Code 9357 must be present on all Welsh claims if ACORN
+
+                                                 (9179) is not present.
+
+                                                 Acceptable on a Welsh Free Exam claim.
+
+                                                 Wales only from 01/04/2022.
+
+9357  Examination - Exam Not             2       Code 9357 must be present on all Welsh claims if ACORN
+      Necessary
+                                                 (9179) is not present.
+
+                                                 For use when no exam is considered necessary or is not
+
+                                                 appropriate to the course of treatment
+
+9358 Antibiotic                                  Wales only from 01/04/2022
+
+9359  High Fluoride Toothpaste/Daily             Wales only from 01/04/2022
+      Rinse                                      Wales only from 01/04/2022
+
+9360 Oral Hygiene Mouthwash
+
+9361  Oral Medicine                              Wales only from 01/04/2022
+      Mouthwash/Sprays                           Wales only from 01/04/2022
+
+9362 Analgesics
+
+9363 Antifungals/Antivirals                      Wales only from 01/04/2022
+
+9364 Anxiolysis                                  Wales only from 01/04/2022
+
+9365 Artificial Saliva Products                  Wales only from 01/04/2022
+
+9366 Dietary Changes Agreed                      Wales only from 01/04/2022
+                                                 Wales only from 01/04/2022
+9367  Brief Intervention in                      Wales only from 01/04/2022
+9368  Smoking/Tobacco Use and
+      Referral
+
+      Brief Intervention in Alcohol Use
+      and Referral
+Code  Description                    Number               Additional Information
+
+9369  Advice on Fluoride Toothpaste          Wales only from 01/04/2022
+      and Spit No Rinse
+
+9370 Endodontics - Molar                     Wales from 01/04/2022, England from 01/10/2022, IOM
+                                             from 01/10/2025. BAND 2 ITEM.
+                                             Generates Band 2(c) UDA in England from 26/11/2022
+
+9371 Endodontics - Non-molar                 Wales from 01/04/2022, England from 01/10/2022, IOM
+                                             from 01/10/2025. BAND 2 ITEM.
+                                             Generates Band 2(b) UDA in England from 26/11/2022
+
+9372  Patient Presented With -       1       Code 9372 mandatory on FP17W, Wales only from
+      Routine Visit
+                                             01/04/2022
+
+9372  Patient Presented With -       2       Code 9372 mandatory on FP17W, Wales only from
+      Pain/Infection
+                                             01/04/2022
+
+9372  Patient Presented With -       3       Code 9372 mandatory on FP17W, Wales only from
+      Other/Advice
+                                             01/04/2022
+
+9373 Non-surgical Extraction                 Wales only from 01/04/2022. BAND 2 ITEM
+
+9374 Surgical Removal                        Wales only from 01/04/2022. BAND 2 ITEM
+
+9375 Phased Treatment                        England/IOM only from 01/12/2021
+
+9376  Custom Made Occlusal                   From 01/12/2021. BAND 3 ITEM
+      Appliance - Hard Bite
+                                             From 01/12/2021. BAND 3 ITEM
+9377  Custom Made Occlusal
+      Appliance - Soft Bite                  England only from 01/10/2022.
+                                             Mandatory on English adult Band 1, 2 or 3 claims.
+9378 Highest BPE Sextant Score               Scores of 0 to 4 accepted, regardless of Furcation
+                                             involvement. 5 represents score of "-".
+9379 Untreated Decayed Teeth                 England only from 01/10/2022.
+                                             Mandatory on English adult Band 1, 2 or 3 claims.
+9380 Soft Tissue Surgery
+                                             BAND 2 ITEM
+9381 Non-Laboratory Made
+         Splint/Appliance                    BAND 2 ITEM
+
+9382 Laboratory Made Splint                  BAND 3 ITEM
+
+9383 Crown Refix with Post/Core              BAND 1 ITEM
+         Retention
+                                             From 01/04/2026. BAND 2 ITEM.
+9384 Denture Relines/Rebase
+                                             From 01/04/2026. BAND 2 ITEM
+9385 Denture Additions
+                                             BAND 1 ITEM. Only covers miscellaneous treatment
+9399 Other Treatment                         classed as Band 1. Cannot be used as of itself to justify a
+                                             Band 2 or 3 claim.
+Code  Description               Number  Additional Information
+
+9401 Removable Upper Appliance
+
+9402 Removable Lower Appliance
+
+9403 Functional Appliance
+
+9404 Fixed Upper Appliance
+
+9405 Fixed Lower Appliance
+
+9406 Retainer Upper
+
+9407 Retainer Lower
+9408 Extractions (Orthodontic)          Actual tooth notations are required
+
+9409  Patient Failed to Return -        Accompanies code 9161 where it has a value of 1
+      Treatment Abandoned
+
+9410  Patient Requested - Treatment     Accompanies code 9161 where it has a value of 1
+      Abandoned
+
+9411 PAR Scores Calculated              Wales only. Discontinued in England from 01/04/2019
+
+9412 Photographs taken                  England only
+
+9413 Pre-Treatment PAR Score            England only.
+
+9414 Post-Treatment PAR Score           England only.
+
+9415 Treatment Proposed              1  England only. Must be present on Assess/Appliance Fitted
+
+                                        claims
+
+9415  Treatment                      2  England only. Must be present on Ortho Treatment
+9416  Completed/Abandoned/Disconti
+      nued                              Completed, Abandoned or Discontinued claims
+
+      Pre-Treatment PAR Score -         Compass Generated, England Only. Placed on claim
+      Sample                            following completion of a PAR Score sample
+
+9417  Post-Treatment PAR Score -        Compass Generated, England Only. Placed on claim
+      Sample                            following completion of a PAR Score sample
+

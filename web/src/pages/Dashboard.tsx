@@ -291,7 +291,9 @@ function BucketRow({
           )}
         </div>
       </div>
-      {trailing}
+      {/* shrink-0 so a long patient name can't squeeze/wrap the status
+          or "X min remaining" badge on a narrow phone. */}
+      <div className="shrink-0">{trailing}</div>
     </button>
   );
 }

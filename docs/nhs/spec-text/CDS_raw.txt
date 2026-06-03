@@ -1,0 +1,153 @@
+1
+Back to top
+1
+Clinical Data Set validation
+FP17 and FP17W submissions must include at least one Clinical Data Set (CDS) item
+relating to the band of treatment claimed.
+For example, an FP17 for a Band 2 treatment must include at least one CDS item that
+relates to Band 2 treatment item, such as an extraction. If the submission contained only
+Band 1 CDS items, or if it included Band 3 CDS items this would be incorrect.
+Incorrectly submitted FP17s will receive one of the following comment codes:
+· 011 ­ if no CDS items matching the band of treatment claimed are present.
+· 012 ­ if CDS item relating to a higher band of treatment than claimed are present.
+· 013 ­ if a `Regulation 11' FP17 is submitted without a relevant CDS item.
+· 014 ­ if a `Free Repair/Replacement' FP17 is submitted without a relevant CDS
+item.
+This document outlines the CDS items relating to each band of treatment.
+England and Wales have different CDS items, select the country below to jump to the
+relevant section:
+For further help and guidance, contact our Helpdesk on:
+· nhsbsa.dentalservices@nhsbsa.nhs.uk
+· 0300 330 1348
+Last Updated: April 2025
+CDS items England
+CDS items Wales
+1
+Back to top
+2
+CDS Items and Bands ­ England
+CDS Item - England Band
+Antibiotic Items Any
+Best Practice Prevention According to Delivering Better
+Oral Health Offered
+Any
+Exam 1
+Scale and Polish 1
+Fluoride Varnish 1
+Fissure Sealants 1
+Radiographs 1
+Phased Treatment 1
+Other Treatment 1
+Endodontics 2
+Permanent Fillings 2
+Extractions 2
+Pre-Formed Crowns 2
+Advanced Perio/Root Surface Debridement 2
+Denture Addition/Reline/Rebase 2
+Crowns 3
+Upper Denture Acrylic 3
+Lower Denture Acrylic 3
+Upper Denture Metal 3
+Lower Denture Metal 3
+Veneers 3
+Inlays 3
+Bridges 3
+Custom Made Occlusal Appliance ­ Hard Bite 3
+Custom Made Occlusal Appliance ­ Soft Bite 3
+1
+Back to top
+3
+CDS Item - England Band
+Upper Denture Acrylic Regulation 11
+Lower Denture Acrylic Regulation 11
+Upper Denture Metal Regulation 11
+Lower Denture Metal Regulation 11
+Bridges Regulation 11
+Endodontics Free Repair/Replacement
+Permanent Fillings Free Repair/Replacement
+Crowns Free Repair/Replacement
+Veneers Free Repair/Replacement
+Inlays Free Repair/Replacement
+Pre-Formed Crowns Free Repair/Replacement
+1
+Back to top
+4
+CDS Items and Bands ­ Wales
+CDS Item - Wales Band
+Exam Not Necessary Urgent/Charge Exempt/
+Regulation 11
+Patient Presented With... Any
+Virtual Consultation Any
+Caries Treatment Offered but Further Self Care
+Improvement Required
+Any
+Perio Treatment Offered but Further Self Care
+Improvement Required
+Any
+Prescribed Items Antibiotics Any
+Prescribed Items High Fluoride Toothpaste/ Daily Rinse Any
+Prescribed Items Oral Hygiene Mouthwash Any
+Prescribed Items Oral Medicine Mouthwash/Sprays Any
+Prescribed Items Analgesics Any
+Prescribed Items Antifungals/Antivirals Any
+Prescribed Items Anxiolysis Any
+Prescribed Items Artificial Saliva Product Any
+Toothbrushing Advice Any
+Inter Dental Cleaning Aids Any
+Oral Hygiene Improvement Plan Any
+Best Practice Prevention Dietary Changes Agreed Any
+Best Practice Prevention Brief Intervention in
+Smoking/Tobacco Use
+Any
+Best Practice Prevention Brief Intervention in Alcohol Any
+Best Practice Prevention Advice on Fluoride Toothpaste/
+Spit No Rinse
+Any
+Exam Not Possible 1
+Interim Care Review 1
+ACORN Assessment Carried Out 1
+Fluoride Varnish 1
+Fissure Sealants 1
+Radiographs 1
+Removal of Plaque Retentive Factors 1
+Other Treatment 1
+Permanent Fillings 2
+Prevention and Stabilisation 2
+1
+Back to top
+5
+Pre-Formed Crowns 2
+1
+Back to top
+6
+Advanced Perio/Root Surface Debridement 2
+Denture Addition/Reline/Rebase 2
+Endodontic Treatment Molar 2
+Endodontic Treatment Non-Molar 2
+Non-Surgical Extractions 2
+Surgical Removal of Teeth 2
+Crowns 3
+Upper Denture Acrylic 3
+Lower Denture Acrylic 3
+Upper Denture Metal 3
+Lower Denture Metal 3
+Veneers 3
+Bridges 3
+Onlay with Cusp Coverage 3
+Custom Made Occlusal Appliance ­ Hard Bite 3
+Custom Made Occlusal Appliance ­ Soft Bite 3
+CDS Item - Wales Band
+Upper Denture Acrylic Regulation 11
+Lower Denture Acrylic Regulation 11
+Upper Denture Metal Regulation 11
+Lower Denture Metal Regulation 11
+Bridges Regulation 11
+Endodontics Free Repair/Replacement
+Permanent Fillings Free Repair/Replacement
+Crowns Free Repair/Replacement
+Veneers Free Repair/Replacement
+Onlays Free Repair/Replacement
+Pre-Formed Crowns Free Repair/Replacement
+Endodontic Treatment Molar Free Repair/Replacement
+Endodontic Treatment Non-Molar Free Repair/Replacement
+

@@ -27,9 +27,10 @@ import {
 import { ServicesSettings } from "@/components/settings/ServicesSettings";
 import { HoursAndClosures } from "@/components/settings/HoursAndClosures";
 import { ComplaintsProcedureSettings } from "@/components/settings/ComplaintsProcedureSettings";
+import { ConsentTemplatesSettings } from "@/components/settings/ConsentTemplatesSettings";
 import { PageLoading } from "@/components/PageLoading";
 import { SettingsShell } from "@/components/SettingsShell";
-import { AlertCircle, ChevronRight, RefreshCw, RotateCcw, Mail, Bell } from "lucide-react";
+import { AlertCircle, ChevronRight, RefreshCw, RotateCcw, Mail, Bell, Eye, EyeOff } from "lucide-react";
 
 // Adapted to dentaloptima-core. Settings are split across two tables:
 //   - `practice`         (name, timezone, address, primary phone — identity)
@@ -103,6 +104,9 @@ interface PracticeSettingRow {
   post_appointment_body: string | null;
   recall_reminder_subject: string | null;
   recall_reminder_body: string | null;
+  // Kiosk exit PIN — gates the "Staff: exit" button on the kiosk
+  // consent flow. NULL means no PIN required (back-compat).
+  kiosk_exit_pin: string | null;
 }
 
 const PLACEHOLDER_TITLES: Record<string, string> = {
@@ -132,6 +136,7 @@ export default function SettingDetail() {
   const isClinic = id === "clinic";
   const isAccount = id === "account";
   const isComplaints = id === "complaints";
+  const isConsents = id === "consents";
 
   // Pages that don't read practice_setting up front — they load their own
   // data — skip the parallel practice + practice_setting fetch.
@@ -241,6 +246,18 @@ export default function SettingDetail() {
         <SettingsShell activeId="complaints">
           <div className="bg-card rounded-lg border p-6">
             <ComplaintsProcedureSettings />
+          </div>
+        </SettingsShell>
+      </Layout>
+    );
+  }
+
+  if (isConsents) {
+    return (
+      <Layout title="Consent Templates" onBack={() => navigate("/settings")}>
+        <SettingsShell activeId="consents">
+          <div className="bg-card rounded-lg border p-6">
+            <ConsentTemplatesSettings />
           </div>
         </SettingsShell>
       </Layout>
@@ -639,6 +656,7 @@ function AppointmentsSettings({
     notify_on_request_rejected: setting.notify_on_request_rejected,
     notify_on_waitlist_added: setting.notify_on_waitlist_added,
     notify_on_recall_due: setting.notify_on_recall_due,
+    kiosk_exit_pin: setting.kiosk_exit_pin ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -666,10 +684,17 @@ function AppointmentsSettings({
       return;
     }
 
+    // Translate empty-PIN to null so practices can clear the PIN field
+    // and revert to "no PIN required" without it being stored as "".
+    const payload = {
+      ...form,
+      kiosk_exit_pin: form.kiosk_exit_pin?.trim() ? form.kiosk_exit_pin.trim() : null,
+    };
+
     setSaving(true);
     const { error } = await supabase
       .from("practice_setting")
-      .update(form)
+      .update(payload)
       .eq("practice_id", setting.practice_id);
     setSaving(false);
 
@@ -811,6 +836,37 @@ function AppointmentsSettings({
           value={form.notify_on_recall_due}
           onChange={(v) => setBool("notify_on_recall_due", v)}
         />
+      </div>
+
+      <Separator />
+
+      <SectionHeading
+        title="Consent Kiosk"
+        subtitle="The kiosk is the iPad/tablet flow where a patient signs their consents. Set a PIN here to prevent them browsing the rest of the booking app when reception hands the device over."
+      />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Exit PIN (optional — leave blank for none)">
+          <KioskExitPinInput
+            value={form.kiosk_exit_pin ?? ""}
+            onChange={(v) =>
+              setForm((prev) => ({ ...prev, kiosk_exit_pin: v }))
+            }
+          />
+        </Field>
+      </div>
+      <div className="rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+        <p className="font-medium">If you forget the PIN, you can still get out.</p>
+        <ul className="list-disc pl-4 space-y-0.5">
+          <li>
+            On the kiosk, tap <strong>Staff: exit → Forgot PIN?</strong> Any
+            practice member can sign in with their email and password to
+            override.
+          </li>
+          <li>
+            Or open the booking app in a separate browser tab on any device,
+            come back here, and read the PIN above.
+          </li>
+        </ul>
       </div>
 
       <div className="flex justify-end pt-4 border-t">
@@ -1443,6 +1499,42 @@ function AccountSettings() {
           </Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// PIN input with a reveal toggle so admins can read the configured PIN
+// without having to wipe and re-set it. Default-masked because the
+// settings page is usually open on the reception monitor where patients
+// can sometimes see the screen.
+function KioskExitPinInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="relative">
+      <Input
+        type={revealed ? "text" : "password"}
+        inputMode="numeric"
+        maxLength={8}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. 0438"
+        className="pr-10"
+      />
+      <button
+        type="button"
+        onClick={() => setRevealed((r) => !r)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+        aria-label={revealed ? "Hide PIN" : "Reveal PIN"}
+        tabIndex={-1}
+      >
+        {revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
     </div>
   );
 }

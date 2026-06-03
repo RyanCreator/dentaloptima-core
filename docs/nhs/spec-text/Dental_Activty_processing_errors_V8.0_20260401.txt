@@ -1,0 +1,2299 @@
+Dental activity processing errors
+
+This guide contains a list of dental activity processing errors, and provides details on how to correct them.
+In this guide, there is listed general and orthodontic errors you might experience in England, Wales or the Isle of Man.
+If you are struggling to correct an activity processing error after following the steps outlined in this guide, you can contact us.
+Our Customer Contact Centre is open 8am to 6pm Monday to Friday.
+
+(V8.0_1 April 2026)
+Error Description                     Possible Causes                        Suggested Action
+Code
+
+101 Invalid Patient's Details         Invalid Patient's Surname, Previous Correct the claim.
+
+                                      Surname, Forename or Gender
+
+102 Invalid Patient's Date of Birth   Caused by:
+
+                                      · the absence of a Date of Birth       Correct the Date of Birth or the treatment
+
+                                      · the patient's Date of Birth being date(s) on the claim appropriately
+
+                                      after a treatment date on the claim
+
+                                      · an incorrect century has been used
+
+                                      on a Date of Birth
+
+103 Invalid Date of Acceptance or     If one of the dates is missing enter it Correct the date
+
+Completion                            into the appropriate field.
+
+                                      If both dates are present, this is
+
+                                      probably caused by either of Date of
+
+                                      Acceptance or Completion being in
+
+                                      the future.
+
+104 Date of Completion prior to Date of The Date of Completion must be       Correct the dates.
+
+Acceptance                            equal to or greater than Date of
+
+                                      Acceptance.
+
+105 Claim is too old to be processed  Claim is too old to be processed       Correct the treatment dates. Alternatively contact
+
+                                                                             NHS Dental Services if the dates are correct.
+
+106 Expected or Nursing Mother where Expected or Nursing Mother where Amend the patient to Female or remove the
+
+the patient is male                   the patient is male                    Expectant/Nursing Mother exemption
+
+107 An ACORN Assessment has been      An ACORN Assessment has been           Remove the Exam Not Possible item
+
+carried out but the Exam Not          carried out but the Exam Not Possible
+
+Possible code is present              code is present
+
+108 Invalid or excessive patient's charge Invalid patient's charge entered   Amend to the correct value or remove
+
+entered
+Error Description                     Possible Causes                         Suggested Action
+Code
+
+109 Remission or exemption box error Remission/exemption category not Amend the remission/exemption category,
+
+due to:                               valid according to claim date:          remove it or amend the Date of Acceptance
+
+· Remission/exemption category not Certain types of remission or
+
+valid                                 exemption are only appropriate from a
+
+according to claim date;              certain Date of Acceptance or cease to
+
+· Inappropriate patient age;          be valid after a certain date.
+
+· Not appropriate to region;
+
+· Absence of a patient's charge on
+
+partial
+
+remission;
+
+· Child exemption claimed on general
+
+Reg 11;
+
+· Inappropriate treatment for the
+
+exemption;                            Inappropriate patient's age:            Amend the remission/exemption category,
+or                                       Some exemption categories only       remove it or amend the Date of Acceptance or
+Not appropriate to the claim type                                             Date of Birth if necessary
+                                      apply to patients of the
+
+                                      appropriate age at the treatment
+
+                                      date (Date of Acceptance on
+
+                                      FP17s, Date of Referral on FP17O
+
+                                      assessments).
+Error Description  Possible Causes                        Suggested Action
+Code
+                   Not appropriate to region:             Amend the remission/exemption category or
+109                   Some remission and exemption        remove it.
+
+                   types are only applicable to
+                   England and not to Wales or vice
+                   versa. Also some exemptions and
+                   remissions are unique to the Isle
+                   of Man.
+
+                   Absence of patient's charge on         Amend the remission/exemption category,
+                   partial remission:                     remove it or add the appropriate patient's
+                                                          charge
+                     When HC3 Certificate partial
+                   remission is entered there             Remove the remission/exemption category
+                   must be an accompanying
+                   non-zero patient's charge
+                   showing the value of the
+                   patient's contribution towards
+                   the treatment.
+                   Child exemption claimed on general
+                   Reg 11:
+
+                       Because a Reg 11 case necessarily
+                   involves a patient charge being
+                   entered, even on cases involving
+                   children, if the case does involve a
+Error Description            Possible Causes                           Suggested Action
+Code
+                             child it is therefore not appropriate to
+109                          enter the Patient Under 18 exemption
+                             category.
+
+                             Inappropriate treatment for the           Remove the exemption or change the claim to
+
+                             exemption:                                Band 1
+
+                             Applies to the Welsh Free Exam
+
+                             exemption if the accompanying Band is
+
+                             not Band 1.
+
+                             Not Appropriate to the claim type: Remove the exemption
+
+                             Applies of the Welsh Free Exam
+
+                             exemption is claimed on an FP17O.
+
+110 An ACORN Assessment Carried Out An ACORN Assessment Carried Out Remove the ACORN Assessment Carried Out
+
+code is present on the wrong type of code can only be present on a claim item
+
+claim                        that also includes Band 1, 2 or 3
+
+111 Treatment performed while clinician Both the Date of Acceptance and Date Review the dates of the claim
+
+was on Long Term Sick Leave  of Completion on an FP17 are within
+
+                             the Long Term Sickness Leave period.
+
+                             If it is an FP17O, the Date of
+
+                             Assessment of an assessment claim, or
+
+                             the Date of Appliance Fitted, or the
+
+                             Date of Completion of a closure claim
+
+                             or ortho Reg 11 falls within the Long
+
+                             Term Sickness Leave period.
+Error  Description                           Possible Causes                     Suggested Action
+Code
+       Quantity or tooth notation following  No quantity entered where one is    If this is the case then remove the PAR score
+113    treatment is incomplete or incorrect  expected. Particularly affects PAR  item or enter the appropriate score.
+                                             scores on ortho claims where the
+                                             code 9414 appears but no quantity
+                                             accompanies it.
+Error Description                             Possible Causes                       Suggested Action
+Code
+
+114 Non-existent treatment code               A treatment code on the claim         Contact your software supplier as to how the
+          submitted                           submission does not belong to the     non-existent code could have been generated
+
+                                              recognised set of codes acceptable to and transmitted
+                                              Compass
+
+115 Treatment code not valid according Treatment item used in the wrong Remove the treatment item(s) concerned and if
+
+to the region (England/Wales/IOM) region. Some treatment items are appropriate, use the correct treatment item for
+
+                                              only appropriate to England and not the region concerned
+
+                                              to Wales and vice versa
+
+119 No charge exempt item present for Charge Exempt Treatment Only claim Add charge exempt item
+
+Charge Exempt Treatment Only                  has no charge exempt item
+
+claim                                         treatment code
+
+123 Unscheduled Care used before              Unscheduled Care code 9190 is only Review and amend the Date of Acceptance if
+
+01/04/26                                      appropriate for claims with a Date of incorrect
+
+                                              Acceptance from 01/04/2026            If the treatment date is correct, replace code
+
+                                                                                    9190
+
+124 Urgent Treatment for England dated Urgent Treatment for England is              Review and amend the Date of Acceptance if
+                                                                                    incorrect
+on or after 01/04/26                          used on an FP17 with a Date of
+
+                                              Acceptance from 01/04/2026            If the treatment date is correct, use treatment
+
+                                                                                    code for Unscheduled Care
+
+125 Unacceptable combination of               Often caused where a mixture of       Remove the inappropriate items.
+          treatment or data items on a claim  orthodontic codes and non-
+
+                                              orthodontic codes are used on a
+
+                                              claim.
+
+                                              Also caused where there is more than
+
+                                              one assessment or conclusion code
+
+                                              on an FP17O.
+Error Description  Possible Causes                      Suggested Action
+Code
+
+                   A triage related treatment code has  Remove triage treatment code
+                   been used on a normal                Remove non-triage treatment code
+                   FP17/FP17O claim
+
+                   A non-triage related treatment code
+                   has been included on a triage claim
+
+                   A charge exempt treatment only claim Remove inappropriate treatment code
+                   only allows treatment code 9025,
+                   9151 , 9152, 9154, 9155, 9156, 9157,
+                   9158, 9159, 9166, 9175, 9176, 9178,
+                   9181 or 9182
+Error Description                      Possible Causes                        Suggested Action
+Code
+                                       Declined Ethnic Origin only            Review Date of Acceptance. If it is correct, select
+126 Declined Ethnic Origin used on or  appropriate for with a Date of         appropriate category for Ethnic Origin.
+          after 01/04/26               Acceptance prior to 01/04/2026
+
+127 Advanced Mandatory Services and no Where Referral for AMS and its band Enter the appropriate Band.
+
+     Band 9150                         are entered this governs the patient
+
+                                       charge appropriate for the claim.
+
+                                       However, there must also be a
+
+                                       normal Band entered to govern the
+
+                                       allocation of UDA to the non-referral
+
+                                       part of the claim.
+
+128 Inappropriate quantity associated Very often an Ethnic Origin quantity Remove or amend appropriate ethnic origin
+
+     with treatment/data item          that does not equate with 01-16 or 99 entry. You may need to contact your software
+
+                                       (this is very hard to discern because supplier for advice.
+
+                                       Ethnic Origin is not displayed on
+
+                                       screen).
+
+                                       Can be generated where an incorrect Remove or amend the incorrect quantity value.
+
+128                                    value is entered for Referral for AMS You may need to contact your software
+                                       (1 -3 allowed), NICE Guidance Recall supplier for advice.
+
+                                       Interval (1 - 24 allowed) or on an
+
+                                       FP17O, IOTN (1-5 allowed) or
+
+                                       Aesthetic Component (1 - 10 allowed)
+Error Description  Possible Causes                                   Suggested Action
+Code
+
+129 No treatment item which matches Check currently temporarily      Amend the Band to an appropriate value or add
+
+the band claimed is present on the suspended                         the necessary banded treatment(s) to the claim
+
+claim              The claim has a Band that does not
+
+                   have any accompanying treatment
+
+                   details to justify that band being
+
+                   claimed. This is frequently caused by
+
+                   one of the following:
+
+                   * Other Treatment being claimed as
+
+                   the only significant item on a Band 2
+
+                   or 3 claim
+
+                   * No Band 2 items on a Band 2 claim
+
+                   or no Band 1 or 2 items on an Urgent
+
+                   Treatment claim
+
+130 Treatment item claimed for a higher Check currently temporarily  Amend the Band to an appropriate value or
+
+band than that entered on the claim suspended                        remove the inappropriate treatment item(s)
+
+                   The claim has a treatment item                    from the claim
+
+                   present which relates to a higher
+
+                   band than that being claimed. This is
+
+                   frequently caused by one of the
+
+                   following:
+
+                   * Custom Made Appliance claimed on
+
+                   a non-Band 3 claim
+
+                   * Other Treatment claimed on an
+
+                   unbanded claim
+Error Description                  Possible Causes                         Suggested Action
+Code
+
+131 Treatment entered on claim that is On a Welsh claim that includes Free Remove the Free Exam exemption or remove
+
+not applicable to a Welsh Free Exam Exam exemption the only significant the non ACORN/Interim Care Review Band 1
+
+claim                              treatment items that can appear are items from the claim
+
+                                   a mandatory ACORN Assessment
+
+                                   Carried Out or Interim Care Review
+
+                                   plus possible Fluoride Varnish. The
+
+                                   inclusion of any other Band 1 code
+
+                                   (eg Radiographs, Cleaning and
+
+                                   Instruction) will result in this error
+
+132 Reg 11 claim without any replaceable Check currently temporarily       Add the missing appliance item
+
+appliance treatment item entered suspended
+
+                                   A Reg 11 claim does not include the
+
+                                   appliance item that was replaced
+
+133 Free Repair/Replacement claim  Check currently temporarily             Add the missing item that caused the free
+
+without any repairable or replaceable suspended                            repair/replacement
+
+treatment item entered             A claim for Free Repair/Replacement
+
+                                   Within 12 Months does not include
+
+                                   any repairable or replaceable
+
+                                   treatment item
+
+134 Welsh Prescription Only claim  On a Welsh Prescription Only claim Add the prescribed item(s)
+
+without any prescribed items present there is no accompanying prescribed
+
+                                   item e.g. antibiotics, analgesics. One
+
+                                   or more of these must be present
+Error Description                Possible Causes                         Suggested Action
+Code
+
+135 An ACORN Assessment or       From 1st April 2022 all Welsh FP17W Add the necessary ACORN or exam item
+
+Examination code is mandatory on claims must include either an ACORN
+
+Welsh claims                     Assessment Carried Out or one of the
+
+                                 examination options viz. Exam not
+
+                                 possible, Interim Care Review or
+
+                                 Exam not necessary
+
+136 ACORN Assessment not appropriate From 1st April 2022 ACORN           Remove the ACORN Assessment Carried Out or
+
+for an Urgent Treatment claim    Assessment Carried Out is not           change the claim to a Band 1 or 2 if appropriate
+
+                                 allowed on Urgent Treatment claims
+
+137 'Patient Presented With' is  Check currently suspended               Add 'Patient Presented With' item and reason
+
+mandatory on all Welsh FP17W     From 1st April all Welsh FP17W
+
+claims                           claims must include a reason why the
+
+                                 patient presented at the surgery. This
+
+                                 can either be:
+
+                                 Routine Treatment
+
+                                 Pain/Swelling
+
+                                 Advice/Other
+
+138 ACORN used pre 1.4.20        ACORN Assessment Carried Out code Review and amend the Date of Acceptance if
+
+                                 9179 is only appropriate for claims incorrect
+
+                                 with a Date of Acceptance from          If the treatment date is correct, remove code
+
+                                 01/04/20                                9179
+
+139 Flex Comm Flag pre 1.4.21    Flexible Commissioning Flag is only Review and amend the Date of Acceptance if
+
+                                 appropriate on English claims with a incorrect.
+
+                                 Date of Acceptance from 01/04/21
+Error Description                  Possible Causes                       Suggested Action
+Code
+
+                                                                         If the treatment date is correct, remove code
+
+                                                                         9181
+
+140 Commissioner Approved used on  Commissioner Approved code 9177 Review and amend the Date of Referral or Date
+
+child or on a non-assessment claim or can only be used on an English FP17O of Birth where necessary.
+
+on a claim with Date of Assessment claim for a patient who is an adult at If it is not on an assessment claim or if the
+
+pre 01/04/19                       the Date of Referral and can only be treatment dates are correct, remove code
+
+                                   used on an FP17O Assess and Review, 9177.
+
+                                   Assess and Refuse or
+
+                                   Assess/Appliance Fit claim where the
+
+                                   Date of Assessment is from 01/04/19
+
+141 Scale and Polish post 31.3.20  Scale and Polish code 9301 no longer Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/20 If the treatment date is correct, remove code
+
+                                                                         9301 and replace with a more up to date code.
+
+142 Endodontic Treatment post 31.3.22 Endodontics code 9305 no longer    Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/22 If the treatment date is correct, remove code
+
+                                                                         9305 and replace with either code 9370 (Molar
+
+                                                                         Endodontics) or 9371 (Non-molar Endodontics).
+
+143 Extractions post 31.3.22       Extractions code 9307 no longer       Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/22 If the treatment date is correct, remove code
+
+                                                                         9307 and replace with either code 9373 (Non-
+
+                                                                         surgical extraction) or 9374 (Surgical Removal)
+Error Description                  Possible Causes                   Suggested Action
+Code
+
+144 Upper Metal Denture used between Upper Metal Denture code 9311 was Review and amend the Date of Acceptance if
+
+1.4.20 and 31.3.22                 not used for Welsh claims with Dates incorrect.
+
+                                   of Acceptance between 01/04/20 and If the treatment date is correct and is between
+
+                                   31/03/22                          01/04/20 and 31/03/22 then remove code
+
+                                                                     9311 and replace with code 9334 plus the
+
+                                                                     number of dentures supplied
+
+145 Lower Metal Denture used between Lower Metal Denture code 9312 was Review and amend the Date of Acceptance if
+
+1.4.20 and 31.3.22                 not used for Welsh claims with Dates incorrect.
+
+                                   of Acceptance between 01/04/20 and If the treatment date is correct and is between
+
+                                   31/03/22                          01/04/20 and 31/03/22 then remove code
+
+                                                                     9312 and replace with code 9334 plus the
+
+                                                                     number of dentures supplied
+
+146 Inlays post 31.3.20            Inlays code 9314 no longer        Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/20 If the treatment date is correct remove code
+
+                                                                     9314 and replace with code 9336 for Onlays
+
+147 Examination code post 31.3.20  Examination code 9317 no longer   Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/20 If the treatment date is correct remove code
+
+                                                                     9317 and replace with a more up to date
+
+                                                                     Examination code
+
+148 Antibiotics code post 31.3.20  Antibiotics code 9318 no longer   Review and amend the Date of Acceptance if
+
+                                   appropriate for Welsh claims with a incorrect.
+
+                                   Date of Acceptance from 01/04/20
+Error Description                     Possible Causes                     Suggested Action
+Code
+
+                                                                          If the treatment date is correct remove code
+
+                                                                          9318.
+
+149 Best Practice Prevention post 31.3.20 Best Practice Prevention code 9173 Review and amend the Date of Acceptance if
+
+                                      no longer appropriate for Welsh     incorrect.
+
+                                      claims with a Date of Acceptance    If the treatment date is correct remove code
+
+                                      from 01/04/20                       9173.
+
+150 9333 pre 1.4.20 or after 31.3.22  Code 9333 for Toothbrushing         Review and amend the Date of Acceptance if
+
+                                      Instruction/Inter Dental            incorrect.
+
+                                      Cleaning/Plaque Retentive Factors If the treatment date is correct remove code
+
+                                      was only appropriate for Welsh      9333 and replace with a more up to date
+
+                                      claims with a Date of Acceptance    Cleaning and Instruction code
+
+                                      between 01/04/20 and 31/03/22
+
+151 Metal Denture used pre 1.4.20 or  Code 9334 for Metal Dentures was    Review and amend the Date of Acceptance if
+          post 31.3.22                only appropriate for Welsh claims   incorrect.
+                                      with a Date of Acceptance between   If the treatment date is correct remove code
+152 Prevention and Stabilisation pre  01/04/20 and 31/03/22               9334 and replace with code 9311 for an Upper
+          1.4.20                                                          Metal Denture and/or 9312 for a Lower Metal
+                                      Prevention and Stabilisation code   Denture plus the number of teeth involved in
+                                      9335 is only appropriate for Welsh  each.
+                                      claims with a Date of Acceptance    Review and amend the Date of Acceptance if
+                                      from 01/04/20                       incorrect.
+                                                                          If the treatment date is correct remove code
+                                                                          9335
+Error Description                    Possible Causes                     Suggested Action
+Code
+
+153 Onlays pre 1.4.20                Onlays code 9336 is only appropriate Review and amend the Date of Acceptance if
+
+                                     for Welsh claims with a Date of     incorrect.
+
+                                     Acceptance from 01/04/20            If the treatment date is correct remove code
+
+                                                                         9336
+
+154 Examination pre 1.4.20 or post   Code 9337 for Examination was only Review and amend the Date of Acceptance if
+
+31.3.22                              appropriate for Welsh claims with a incorrect.
+
+                                     Date of Acceptance between          If the treatment date is correct remove code
+
+                                     01/04/20 and 31/03/22               9337 and replace with code 9357 plus a value
+
+                                                                         of 0 (Exam Not Possible), 1 (Interim Care
+
+                                                                         Review) or 3 (Exam Not Necessary)
+
+155 Preformed Crowns pre 01.04.20    Preformed Crowns code 9338 is only Review and amend the Date of Acceptance if
+
+(Wales) or pre-01.12.21 (England) appropriate for English claims with a incorrect.
+
+                                     Date of Acceptance from 01/12/21 If the treatment date is correct remove code
+
+                                     and for Welsh claims with a Date of 9338
+
+                                     Acceptance from 01/04/20
+
+156 Advanced Perio RSD pre 01.04.20  Advanced Perio RSD code 9339 is only Review and amend the Date of Acceptance if
+
+(Wales) or pre 01.12.21 (England)    appropriate for English claims with a incorrect.
+
+                                     Date of Acceptance from 01/12/21 If the treatment date is correct remove code
+
+                                     and for Welsh claims with a Date of 9339
+
+                                     Acceptance from 01/04/20
+
+157 AGP Indicator pre 23.3.20 (England) AGP Indicator code 9340 is only  Review and amend the Date of Acceptance if
+
+or pre 01.12.21 (Wales)              appropriate for English claims with a incorrect.
+
+                                     Date of Acceptance from 23/03/20 If the treatment date is correct remove code
+
+                                                                         9340
+Error Description                     Possible Causes                      Suggested Action
+Code
+
+                                      and for Welsh claims with a Date of
+
+                                      Acceptance from 01/12/21
+
+158 Patient COVID Status pre 23.3.20  Patient COVID Status codes 9615 to Review and amend the Date of Acceptance if
+
+(England)                             9619 are only appropriate for English incorrect.
+
+                                      claims with a Date of Acceptance     If the treatment date is correct remove the
+
+                                      from 23/03/20                        code
+
+159 Custom Made Occlusal Appliance pre Custom Made Occlusal Appliance      Review and amend the Date of Acceptance if
+
+1.12.21                               codes 9376 and 9377 are only         incorrect.
+
+                                      appropriate for claims with a Date of If the treatment date is correct remove the
+
+                                      Acceptance from 01/12/21             code
+
+160 Denture Additions/Reline/Rebase pre Denture Additions/Reline/Rebase    Review and amend the Date of Acceptance if
+
+1.12.21                               code 9353 is only appropriate for    incorrect.
+
+                                      claims with a Date of Acceptance     If the treatment date is correct remove code
+
+                                      from 01/12/21                        9353
+
+161 Phased Treatment pre 1.12.21      Phased Treatment code 9375 is only Review and amend the Date of Acceptance if
+
+                                      appropriate for English claims with a incorrect.
+
+                                      Date of Acceptance from 01/12/21 If the treatment date is correct remove code
+
+                                                                           9375
+
+162 Plaque Score pre 1.4.22           Plaque Score code 9351 is only       Review and amend the Date of Acceptance if
+
+                                      appropriate for Welsh claims with a incorrect.
+
+                                      Date of Acceptance from 01/04/22 If the treatment date is correct remove code
+
+                                                                           9351
+
+163 Basic Perio Exam pre 1.4.22       Basic Perio Exam Score codes 9341 to Review and amend the Date of Acceptance if
+
+                                      9347 are only appropriate for Welsh incorrect.
+Error Description                    Possible Causes                    Suggested Action
+Code
+
+                                     claims with a Date of Acceptance   If the treatment date is correct remove the
+
+                                     from 01/04/22                      codes
+
+164 Removal of Plaque Retentive Factors Removal of Plaque Retentive Factors Review and amend the Date of Acceptance if
+
+pre 1.4.22                           code 9348 is only appropriate for  incorrect.
+
+                                     Welsh claims with a Date of        If the treatment date is correct remove code
+
+                                     Acceptance from 01/04/22           9348 and replace with code 9333
+
+165 Toothbrushing Advice pre 1.4.22  Toothbrushing Advice code 9349 is Review and amend the Date of Acceptance if
+
+                                     only appropriate for Welsh claims incorrect.
+
+                                     with a Date of Acceptance from     If the treatment date is correct remove code
+
+                                     01/04/22                           9349
+
+166 Inter Dental Cleaning Aids pre 1.4.22 Inter Dental Cleaning Aids code 9350 Review and amend the Date of Acceptance if
+
+                                     is only appropriate for Welsh claims incorrect.
+
+                                     with a Date of Acceptance from     If the treatment date is correct remove code
+
+                                     01/04/22                           9350
+
+167 OHI Improvement Plan pre 1.4.22  OHI Improvement Plan code 9351 is Review and amend the Date of Acceptance if
+
+                                     only appropriate for Welsh claims incorrect.
+
+                                     with a Date of Acceptance from     If the treatment date is correct remove code
+
+                                     01/04/22                           9351
+
+168 Virtual Consultation pre 1.4.22  Virtual Consultation code 9354 is only Review and amend the Date of Acceptance if
+
+                                     appropriate for Welsh claims with a incorrect.
+
+                                     Date of Acceptance from 01/04/22 If the treatment date is correct remove code
+
+                                                                        9354
+
+169 Caries Treatment Offered pre 1.4.22 Caries Treatment Offered code 9355 Review and amend the Date of Acceptance if
+
+                                     is only appropriate for Welsh claims incorrect.
+Error Description                    Possible Causes                 Suggested Action
+Code
+
+                                     with a Date of Acceptance from  If the treatment date is correct remove code
+
+                                     01/04/22                        9355
+
+170 Perio Treatment Offered pre 1.4.22 Perio Treatment Offered code 9356 is Review and amend the Date of Acceptance if
+
+                                     only appropriate for Welsh claims incorrect.
+
+                                     with a Date of Acceptance from  If the treatment date is correct remove code
+
+                                     01/04/22                        9356
+
+171 Examination pre 1.4.22           New Examination code 9357 is only Review and amend the Date of Acceptance if
+
+                                     appropriate for Welsh claims with a incorrect.
+
+                                     Date of Acceptance from 01/04/22 If the treatment date is correct remove code
+
+                                                                     9357 and replace with the appropriate
+
+                                                                     examination code
+
+172 Prescribed Items pre 1.4.22      Prescribed Items codes 9358 to 9365 Review and amend the Date of Acceptance if
+
+                                     are only appropriate for Welsh claims incorrect.
+
+                                     with a Date of Acceptance from  If the treatment date is correct remove the
+
+                                     01/04/22                        codes
+
+173 New Best Practice Prevention codes New Best Practice Prevention codes Review and amend the Date of Acceptance if
+
+pre 1.4.22                           9366 to 9369 are only appropriate for incorrect.
+
+                                     Welsh claims with a Date of     If the treatment date is correct remove the
+
+                                     Acceptance from 01/04/22        codes
+
+174 Endodontics - Molar Pre 01.4.22  New Endodontics - Molar code 9370 Review and amend the Date of Acceptance if
+
+(Wales), pre 01.10.22 (England), pre only appropriate for Welsh claims incorrect.
+
+01.10.25 (IOM)                       with a Date of Acceptance from  If the treatment date is correct remove code
+
+                                     01/04/22 or for English claims with a 9370 and replace with the previous
+
+                                     Date of Acceptance from 01/10/22 or endodontics code 9305
+
+                                     for IOM claims with a Date of
+
+                                     Acceptance from 01/10/25.
+Error Description                          Possible Causes                         Suggested Action
+Code
+175 Endodontics - Non Molar Pre            New Endodontics - Non-Molar code Review and amend the Date of Acceptance if
+
+          01.04.22 Wales) or pre 01.10.22  9371 only appropriate for Welsh         incorrect.
+          (England), pre 01.10.25 (IOM)
+                                           claims with a Date of Acceptance        If the treatment date is correct remove code
+176 Patient Presented With Pre 1.4.22
+                                           from 01/04/22 or for English claims 9371 and replace with the previous
+177 Non-surgical Extraction Pre 1.4.22
+                                           with a Date of Acceptance from          endodontics code 9305
+178 Surgical Removal Pre 1.4.22
+                                           01/10/22 or for IOM claims with a Date
+179 DCP used prematurely
+                                           of Acceptance from 01/10/25.
+
+                                           Patient Presented With code 9372 Review and amend the Date of Acceptance if
+
+                                           only appropriate for Welsh claims incorrect.
+
+                                           with a Date of Acceptance from          If the treatment date is correct remove code
+
+                                           01/04/22                                9372
+
+                                           New Non-surgical Extraction code        Review and amend the Date of Acceptance if
+
+                                           9373 only appropriate for Welsh         incorrect.
+
+                                           claims with a Date of Acceptance        If the treatment date is correct remove code
+
+                                           from 01/04/22                           9373 and replace with the previous extractions
+
+                                                                                   code 9307
+
+                                           New Surgical removal code 9374 only Review and amend the Date of Acceptance if
+
+                                           appropriate for Welsh claims with a incorrect.
+
+                                           Date of Acceptance from 01/04/22 If the treatment date is correct remove code
+
+                                                                                   9374 and replace with the previous extractions
+
+                                                                                   code 9307
+
+                                           Dental Care Professional GDC            Review and amend the Date of Acceptance if
+
+                                           Number and Type (code 9178) only incorrect.
+
+                                           appropriate for Welsh claims with a If the treatment date is correct remove code
+
+                                           Date of Acceptance from 01/04/20 or 9178 and the DCP's GDC Number for the claim
+Error Description             Possible Causes                      Suggested Action
+Code
+
+                              English claims with a Date of
+
+                              Acceptance from 01/10/22.
+
+180 Treatment Proposed on non-Fit claim Treatment Proposed code 9415 1 can Review and amend the treatment dates if
+
+or Treatment                  only be used on an English FP17O     incorrect.
+
+Completed/Abandoned/Discontinued Assess/Appliance Fit claim whose  If the treatment dates are correct remove code
+
+on inappropriate claim        Date of Assessment is from 01/04/19 9415
+
+                              and Treatment
+
+                              Completed/Abandoned/Discontinued
+
+                              code 9415 can only be used on an
+
+                              English FP17O Treatment Completed,
+
+                              Treatment Abandoned or Treatment
+
+                              Discontinued claim whose Date of
+
+                              Completion is from 01/04/19
+
+181 Inappropriate PAR Scores  Pre or Post Treatment PAR Scores Review and amend the Date of Completion if
+
+                              (codes 9413 and 9414) can only be incorrect.
+
+                              used on English FP17O Completion If the treatment date is correct remove the
+
+                              claim with a Date of Completion from codes
+
+                              01/04/19
+
+182 Triage Pre 23.3.20        Triage claims are only applicable from Review and amend the triage date if incorrect.
+
+                              23/03/20                             Otherwise, withdraw the triage claim
+
+183 Welsh Free Exam without ACORN or Welsh Free Exam claimed without Add one of code 9179 for ACORN (plus all
+
+Interim Care Review           ACORN or Interim Care Review on the necessary ACORN items) or code 9357 with a
+
+                              claim.                               value of 1 for Interim Care Review.
+
+                                                                   Otherwise. Remove the Free Exam exemption
+Error Description                  Possible Causes                      Suggested Action
+Code
+
+184 Treatment Band entered on Reg 11 Treatment Band entered on Reg 11   If the Reg 11 does apply to the claim then
+                                                                        remove the code 9150 for treatment band
+claim                              claim
+
+185 Treatment on Referral and Referral Treatment on Referral and Referral If the treatment is being referred to another
+
+for AMS on the same claim          for AMS on the same claim            dentist for AMS then remove the Treatment on
+
+                                                                        Referral item.
+
+                                                                        If the treatment is being performed under
+
+                                                                        referral from another dentist then remove the
+
+                                                                        Referral for AMS band.
+
+                                                                        Both cannot exist on the same claim
+
+186 Basic Perio exam with fewer than 6 Basic Periodontal exam scores must Ensure that scores exist for all 6 sextants. If one
+
+sextant scores                     have scores for all 6 sextants present sextant is not available then record this as "-"
+
+                                                                        which will generate a notional score of 5
+
+                                                                        against the BPE code for that sextant
+
+187 ACORN and Examination both on  ACORN Assessment Carried Out code Code 9357 should only be used where a full
+
+same claim                         9179 and Examination code 9357       ACORN Assessment is not appropriate to the
+
+                                   both on the same claim               course of treatment
+
+188 DMF codes on ortho claim       DMF codes 9320 to 9325 present on Remove the DMF codes from the FP17O claim
+                                   an FP17O
+
+191 Molar or Non-Molar Endodontics on Codes 9370 or 9371 used on claim  If Date of Acceptance is correct then use the
+                                                                        old endodontics code 9305.
+a claim dated prior to 01/10/22    with a Date of Acceptance pre
+
+                                   01/10/22
+Error Description                 Possible Causes                        Suggested Action
+Code
+
+192 Old endodontics code 9305 no longer Old endodontics code 9305 not    If Date of Acceptance is correct then use one of
+
+applicable                        applicable to claims dated on or after the new endodontics codes 9370 (Molar
+
+                                  01/10/22 in England, on or after       Endodontics) or 9371 (Non-molar endodontics)
+
+                                  01/04/22 in Wales, on or after
+
+                                  01/10/25 in IOM
+
+193 Highest BPE Sextant Score code 9378 Check currently suspended and    Add the Highest BPE Sextant Score code 9378
+
+is mandatory                      replaced by a comment.
+
+                                  Missing code 9378 on an adult English
+
+                                  Band 1, 2 or 3 claim with a Date of
+
+                                  Acceptance from 01/10/22
+
+194 Number of Untreated Decayed Teeth Check currently suspended and      Add the number of Untreated Decayed Teeth
+
+code 9379 is mandatory            replaced by a comment.                 code 9379
+
+                                  Missing code 9379 on an adult English
+
+                                  Band 1, 2 or 3 claim with a Date of
+
+                                  Acceptance from 01/10/22
+
+195 Recall Interval is mandatory  Check currently suspended and          Add the Recall Interval in months with code
+
+                                  replaced by a comment.                 9172
+
+                                  Missing code 9172 on an adult English
+
+                                  Band 1, 2 or 3 claim with a Date of
+
+                                  Acceptance from 01/10/22
+
+196 Highest BPE Score not applicable to Highest BPE Score not applicable to Remove Highest BPE Score or correct the
+
+claims dated before 01/10/22      claims dated before 01/10/22           treatment dates.
+Error  Description                           Possible Causes                        Suggested Action
+Code
+       Untreated Decayed Teeth not           Untreated Decayed Teeth not            Remove Untreated Decayed Teeth or correct the
+197    applicable to claims dated before     applicable to claims dated before      treatment dates.
+       01/10/2022                            01/10/2022
+
+198 Assess and Debond - Overseas             Code 9016 for Assess and Debond -      Review Date of Assessment or remove 9016
+          Patient on a claim dated prior to  Overseas Patient used on a claim with  Assess and Debond - Overseas Patient
+          01/10/22                           a Date of Assessment prior to
+                                             01/10/22
+                                             Assess and Debonds cannot be
+Error Description                           Possible Causes                       Suggested Action
+Code
+
+                                            claimed if the Date of Assessment is
+                                            prior to 01/10/22
+
+199 Missing Fluoride Varnish or invalid Clinical Data Set for Fluoride Varnish is Add Fluoride Varnish
+
+treatment carried out by a Direct           missing
+
+Access Dental Nurse or patient not
+
+under 16 at Date of Acceptance              DCP Direct Access Clinician Type is not Use the correct value for Dental Nurse
+
+                                            a Dental Nurse
+
+                                            Treatment other than Fluoride Varnish Remove inappropriate treatment codes
+                                            is on the claim
+
+                                            The patient is over 16 years of age on Review the patient's Date of Birth or the Date of
+
+                                            the Date of Acceptance                Acceptance
+
+200 Dental Nurse applied Fluoride           Treatment code 9160 - Charge Exempt Add Charge Exempt Treatment Only and Nurse
+          Varnish less than 3 months after  Treatment Only and Treatment code Applied Fluoride Varnish
+          Banded course of treatment        9151 ­ Nurse Applied Fluoride Varnish
+                                            are missing
+                                            The Date of Acceptance is within three Review Date of Acceptance
+                                            months of the date of completion of a
+                                            previous claim for Band 1, 2 or 3, or
+                                            Nurse applied fluoride varnish, for the
+                                            same patient under the same contract,
+                                            provider or clinician
+Error  Description                         Possible Causes                          Suggested Action
+Code
+       Dental Nurse treatment carried out  A claim with the Date of Acceptance      Review Date of Acceptance
+201    before 01/04/26                     before 01/04/2026 is provided by a
+                                           Dental Nurse
+
+202 Complex Care Pathway submission Complex Care Pathway submission Review Date of Acceptance. If it is correct,
+
+       items submitted too early           items prior to designated start date remove Complex Care Pathway codes
+
+203 Unscheduled Care not acceptable        Unscheduled Care is entered on a         Remove inappropriate treatment codes
+
+       with Band, Reg 11 or Charge Exempt Band 1, 2 or 3, Regulation 11, Charge
+
+                                           Exempt item, Care Pathway or
+
+                                           Orthodontic claim
+
+204 Code 9384 (Denture Reline) or 9385 Code 9384 (Denture Reline) or 9385 Review Date of Acceptance. If it is correct, use
+
+       (Denture Additions) used prior to   (Denture Additions) is used on a claim the old treatment code 9353 instead
+
+       01/04/26                            with the Date of Acceptance before
+
+                                           01/04/2026
+
+205 Code 9353 (Denture                     Code 9353 (Denture                       Review Date of Acceptance. If it is correct, use
+
+       Additions/Reline/Rebase) no longer Additions/Reline/Rebase) is used on a the appropriate new treatment code instead
+
+       applicable from 01/04/26            claim with the Date of Acceptance after
+
+                                           01/04/2026
+
+206 Complex Care Pathway but patient is Complex Care Pathway but patient is Review patient's Date of Birth. If it is correct,
+
+       under 16 years old                  under 16 years old                       remove Complex Care Pathway codes
+Error  Description                   Possible Causes                           Suggested Action
+Code   Notified NHS Number not used
+                                     An NHS Number has been transmitted Use the patient's NHS Number.
+207
+
+                                     to your practice on the monthly
+
+                                     schedule file following a previous
+
+                                     submission for this patient. It is noted
+
+                                     that the NHS Number has not been
+
+                                     used on a subsequent transmission
+
+208 Invalid Submission Number        The Submission Number is missing or Add the correct Submission Number if it is
+          accompanying Complex Care
+          Pathway claim              outside the acceptable range.             missing or outside the acceptable range.
+
+                                     Code 9196 is not on the final             Add code 9196 if it is the final submission claim
+                                     Submission Number.
+
+                                     Code 9194 or 9195 is on Submission Remove code 9194 or 9195 if it is Submission
+
+                                     Number 1.                                 Number 1 claim.
+
+                                     The final submission does not contain Add code 9194, 9195 or 9196 on the final
+
+                                     one of codes 9194, 9195 or 9196.          submission claim.
+
+                                     Code 9194 or 9195 is not accompanied Add an appropriate value to code 9194 or 9195.
+                                     by a valid value.
+Error  Description                        Possible Causes                         Suggested Action
+Code
+       Incompatible Care Pathway          More than one of codes 9194, 9195 or If more than one of codes 9194, 9195 or 9196 is
+209    declarations
+
+                                          9196 is present.                        present, remove the incorrect one(s).
+
+                                          Care Pathway declaration is not         Amend declaration value.
+
+                                          acceptable with the rules.
+
+                                          Declaration for a denture
+
+                                          modification, denture repair or Band 3
+
+                                          course of treatment that overlaps a
+
+                                          Complex Care Pathway is not
+
+                                          acceptable with the rules.
+
+210 Mandatory codes missing from final Code 9194, 9195 or 9196 is not             Add code 9191, 9192 or 9193.
+
+       Care Pathway claims                accompanied by one of codes 9191,
+
+                                          9192 or 9193.
+
+211 Welsh Contract Reform Package         Welsh Care Package claimed on a claim Review Date of Completion. If it is correct,
+          claims not applicable prior to
+          01/04/26                        with a Date of Completion before 1 remove Care Packages and submit it as a
+
+                                          April 2026.                             Banded claim.
+
+212 Urgent Care Package not allowed       Non-Urgent Care Package code is         If Urgent Care Package should be claimed, then
+          with Non-Urgent Care Packages   present with Urgent Care Package.       remove codes for Non-Urgent Care Packages
+
+214 Non-urgent care package elements No code present to indicate which care Add appropriate non-urgent care package(s)
+
+       not defined                        package(s) or warranty items are
+
+                                          claimed.
+Error  Description                      Possible Causes                          Suggested Action
+Code
+       Initial assessment claimed with  A New Patient Assessment Package         If New Patient Assessment package should be
+215    other packages                   9212 is not the only package present     claimed, then remove other package(s).
+                                        on a claim.
+
+216 Incomplete Treatment                Welsh incomplete treatment claimed If the treatment was incomplete, add value 0 to
+          inappropriately claimed
+                                        without value 0.                         code 9164
+
+                                        Only a new patient assessment or         If only a new patient assessment or recall care
+                                        recall care package is claimed.          package is claimed, remove Incomplete
+                                                                                 Treatment code 9164
+
+217 No laboratory fee for Welsh         Laboratory fee is missing or less than Add laboratory fee.
+          appliance claim               zero on a claim.
+
+218 Excessive laboratory fee claimed    Laboratory fee is greater than £1,000    Review laboratory fee. If it is correct and it has
+                                        but lab fee commissioner approved        been approved by a commissioner, add lab fee
+219 Laboratory fee not appropriate for  code (9218) is not present.              commissioner approved code.
+          the package claimed
+                                        Laboratory fee is greater than zero but  Review care packages. If they are correct, enter
+                                        no valid Care Package (9218, 9219,       a zero as laboratory fee. If not, add additional
+                                        9221) is claimed and incomplete          care packages that occur laboratory fee.
+                                        treatment code (9164) is not present
+Error  Description                         Possible Causes                  Suggested Action
+Code
+       Charge exempt items must be         Charge exempt items present without Add Miscellaneous Care Package
+220    claimed with Miscellaneous Care     Miscellaneous Care Package
+       Package
+
+221 Reg 11 no longer applicable for        General Reg 11 claimed on a Welsh Review Date of Acceptance. If it is correct,
+          Welsh claims                     claim with a Date of Acceptance on or appropriate care packages should be claimed.
+                                           after 1 April 2026
+
+222 Inappropriate treatment included on
+          a Replacement bridge or denture
+          claim
+
+223 Treatment bands no longer              Banded course of treatment on a  Review Date of Acceptance. If it is correct,
+          appropriate for Welsh claims
+                                           Welsh claim with a Date of Acceptance remove code 9150.
+
+                                           on or after 1 April 2026.
+
+224 Further Treatment no longer            Further treatment on a Welsh claim Review Date of Acceptance. If it is correct,
+          appropriate for Welsh claims     with a Date of Acceptance on or after 1 remove code 9163.
+                                           April 2026.
+
+225 High Needs Referral indicator only     High Needs Referral indicator on a non- Remove High Needs Referral indicator.
+          applies to Wales contract        Welsh claim
+Error  Description                          Possible Causes                       Suggested Action
+Code
+       Code 9153 not applicable for         Free repair/replacement is present on Review Date of Acceptance. If it is correct,
+226    contracts in Wales after 1/4/26
+
+                                            a Welsh claim with a Date of          remove code 9153.
+
+                                            Acceptance on or after 1 April 2026.
+
+227 Treatment on referral flag not          Treatment on referral flag is present on Review Date of Acceptance. If it is correct,
+          applicable in Wales after 1/4/26
+                                            a Welsh claim with a Date of          remove treatment on referral flag.
+
+                                            Acceptance on or after 1 April 2026.
+
+228 Referral for AMS used after             Refarral for AMS is present on a Welsh Review Date of Acceptance. If it is correct,
+          01/04/26                          claim with a Date of Acceptance on or remove Referral for AMS code 9139.
+                                            after 1 April 2026.
+
+229 An ACORN Assessment is mandatory An ACORN assessment is missing on a Add ACORN assessment.
+
+       on New/Initial Assessment care       claim where New Patient Assessment
+
+       package claims                       care package is claimed.
+
+231 Charge Exempt Treatment Only            Charge Exempt Treatment Only is only Review Date of Acceptance. If it is correct,
+          (9160) used before 01/04/26       appropriate for claims with Date of remove Charge Exempt Treatment Only.
+                                            Acceptance on or after 1 April 2026.
+
+257 Claim already deleted                   The claim being updated has already   Use Compass to re-locate the claim and assess
+                                            been simultaneously deleted by        whether the desired action has been carried
+                                            another user.                         out.
+                                            Usually caused by two users, or more
+                                            commonly two Compass sessions,
+                                            accessing the same claim at the same
+                                            time.
+Error  Description                            Possible Causes                       Suggested Action
+Code
+       Claim overlaps/duplicates an existing  On FP17s the dates of acceptance and
+401    claim for the same patient the same    completion match or overlap with the
+       contract or performer                  dates of acceptance and completion
+                                              of a previously processed claim for   Check the dates of the claim and amend as
+                                              the same patient under the same       necessary. May also require the amendment of
+                                              provider, contract or performer.      the dates of the previously processed claim
+                                              On orthodontic claims this is where   too.
+                                              the Date of Assessment matches that   Alternatively, if the rejected claim was designed
+                                              of a previous FP17O claim for the     to supersede the previous one then use the SQ
+                                              same patient or, for a conclusion     Ind procedure to replace the previous claim
+                                              claim, where the Date of Completion   using the previous claim's original Claim
+                                              matches that of a previous FP17O      Reference Number.
+                                                                                    Otherwise do not resubmit the claim
+Error Description                   Possible Causes                        Suggested Action
+Code
+
+                                    claim for the same patient, under the
+                                    same provider, contract or performer
+
+404 New Care Pathway claimed where New Care Pathway claimed where a Review the Date of Acceptance.
+
+one already exists                  Banded course of treatment or a
+
+                                    previous Care Pathway has been
+
+                                    completed within the previous 24
+
+                                    months (Pathways 1 and 2) or 3
+
+                                    months (Pathway 3)
+
+405 Care Pathway submission not in  Care Pathway submission not in         Amend submission number
+
+sequence order                      sequence order
+
+406 Care Pathway submission number  Care Pathway submission number         Amend submission number
+          already exists            already exists
+
+407 Claim not allowed due to the    Claim not allowed due to the presence If it is a denture modification, denture repair
+
+presence of an open Care Pathway of an open Care Pathway                   or Band 3 course of treatment, amend
+
+                                                                           declaration value.
+Error Description                     Possible Causes                           Suggested Action
+Code
+
+408 Care Pathway declaration submitted Care Pathway declaration submitted
+
+too soon after the previous claim in too soon after the previous claim in
+
+the package                           the package
+
+409 New/Initial patient assessment    New Patient Assessment package was Review Date of Acceptance and amend as
+
+where patient has previous history submitted for a patient who had              necessary or replace New Patient Assessment
+
+with provider/clinician               received treatment from the same care package with an appropriate recall care
+
+                                      provider, contract or clinician in the package
+
+                                      previous 36 months.
+
+                                      Another very common cause for this is Reference to NHS Dental Services is advisable.
+
+                                      the inability to find the previous claim
+
+                                      because (a) the patient has moved
+
+                                      house in the meantime or (b) has
+
+                                      visited another practice in the
+
+                                      meantime. In both instances, in the
+
+                                      absence of the unique NHS Number
+
+                                      being used, Compass has assumed
+
+                                      that patient to be a different person to
+
+                                      that of the original course of
+
+                                      treatment
+
+410 Recall where no previous history  Recall package was submitted for a Review Date of Acceptance and amend as
+
+found for patient with                patient who had not received              necessary
+
+provider/clinician                    treatment from the same provider,
+
+                                      contract or clinician in the previous 36
+
+                                      months.
+Error Description                         Possible Causes  Suggested Action
+Code
+
+411 Maximum number of recalls             Another very common cause for this is Reference to NHS Dental Services is advisable.
+          exceeded for the year           the inability to find the previous claim
+                                          because (a) the patient has moved
+412 Claim found for this patient          house in the meantime or (b) has
+          pertaining to a different Care  visited another practice in the
+          Pathway                         meantime. In both instances, in the
+                                          absence of the unique NHS Number
+                                          being used, Compass has assumed
+                                          that patient to be a different person to
+                                          that of the original course of
+                                          treatment
+                                          More than 4 claims for assessment or
+                                          recall packages have bene made
+                                          within the 12 months up to the Date
+                                          of Acceptance
+
+501 Invalid contract number or performer Invalid contract number or performer Correct the claim.
+Error  Description                           Possible Causes                        Suggested Action
+Code
+       Claim dates are outside of the        On an FP17 the dates of acceptance     Check the dates of the contract or the
+505    contract dates or performer's tenure  and completion are both outside of     performer's tenure on Compass and amend the
+       with that contract                    the contract dates or the performer's  claim dates as appropriate. If the contract dates
+                                             tenure.                                or tenure dates are incorrect then consult the
+                                             On an FP17O Assess and Review or       local health body.
+                                             Assess and Refuse claim, the Date of
+                                             Assessment is outside of the contract
+                                             dates or the performer's tenure.
+                                             On an FP17O Assess/Appliance Fitted
+                                             claims the Date Appliance Fitted is
+                                             outside of the contract dates or the
+                                             performer's tenure.
+                                             For any other FP17O claim the Date
+Error Description                      Possible Causes                         Suggested Action
+Code
+
+                                       of Completion is outside the contract
+                                       dates or the performer's tenure.
+
+509 Performer Authorised Leave Error Check currently suspended.                Review the dates of the claim.
+
+                                       Performer Authorised Leave Error.
+
+                                       Treatment carried out wholly within a
+
+                                       period of authorised leave for the
+
+                                       performer concerned.
+
+510 DCP cannot be found on GDC register DCP cannot be found on GDC register Check the GDC Number of the DCP.
+
+or is suspended                        or is suspended. Sometimes caused
+
+                                       when the GDC Number entered is
+
+                                       actually that for a dentist and not a
+
+                                       DCP.
+
+511 Date of Completion prior to DCP's  According to the records on Compass Check the GDC Number of the DCP or the Date
+
+registration date                      the DCP entered on the claim was yet of Acceptance of the claim.
+
+                                       not registered at any point during the
+
+                                       course of treatment being claimed.
+Error Description                       Possible Causes                        Suggested Action
+Code
+
+512 DCP Direct Access treatment is not  Code 9182 containing the DCP Type      Will not happen now that DCPs have been set
+          allowed for this claim        has been used prematurely              for all regions
+
+513 DCP Direct Access treatment may not Code 9182 indicating that a DCP        Remove the code 9182 or change the personal
+
+be specified for Dental Performer Clinician has carried out the                id to that of a Direct Access DCP clinician
+
+                                        treatment has been used where the
+
+                                        Personal Id on the claim identifies a
+
+                                        dentist
+
+514 DCP Direct Access Type missing, is The personal id the claim identifies a Add or amend code 9182 with the correct DCP
+
+inappropriate or does not match the Direct Access clinician but either code Type for the clinician concerned
+
+clinician on the claim                  9182 is absent or the DCP Type
+
+                                        specified does not equate with the
+
+                                        DCP's specialties
+
+515 Dental Performer must carry out     The personal id the claim identifies a Add code 9182 with the correct DCP Type for
+
+treatment unless DCP Direct Access Direct Access clinician, but no code the clinician concerned
+
+Type specified                          9182 is present
+
+516 Invalid value supplied for DCP Type An incorrect value has been used for Amend the value accompanying code 9178
+
+code 9178                               the assisting DCP Type code 9178
+Error Description                  Possible Causes                          Suggested Action
+Code
+
+605 Patient details correspond with more Possibly mis-spelled patient's     Correct any mis-spellings encountered.
+
+than one existing patient for the  surname corresponds with more than
+
+contract concerned                 one existing patient for the contract
+
+                                   concerned.
+
+                                   For on-line created claims, if the
+
+                                   patient entered cannot be found on
+
+                                   the list of patients for the contract
+
+                                   concerned but a single entry can be
+
+                                   found with a very similar surname
+
+                                   spelling it will be assumed to be a
+
+                                   match with that patient if all other
+
+                                   factors (forename, sex and date of
+
+                                   birth) match. This error occurs where
+
+                                   more than one potential match is
+
+                                   found.
+
+                                   It is likely that the patient's surname
+
+                                   on the claim is mis-spelled or that the
+
+                                   surname(s) on an existing claim for
+
+                                   the patient on our database is mis-
+
+                                   spelled. To find the potential matches
+
+                                   enter your contract, the patient's
+
+                                   forename and the patient's date of
+
+                                   birth on the Activity Search (Detail)
+
+                                   screen.
+Error Description                   Possible Causes                     Suggested Action
+Code
+
+804 Treatment code appears more than Usually a claim with two Bands or an Remove the inappropriate item.
+
+once on the same claim              FP17O with two IOTN and/or
+
+                                    Aesthetic Component codes present.
+
+854 Missing or Invalid Location Id  Missing Location Id or the Location Id Correct the Location Id or ensure that the
+
+                                    is not linked to the contract       Location is added to the contract.
+
+                                    concerned
+
+856 No significant treatment found on An F17, to be valid, must have one, Enter whichever of the aforementioned items
+
+the claim                           and one only, of the following      applies.
+
+                                    treatment items present:
+
+                                    Band
+
+                                    Urgent Treatment (also known as
+
+                                    Band 4)
+
+                                    Prescription Issued
+
+                                    Repairs to Dentures
+
+                                    Repairs to Bridges
+
+                                    Arrest of Bleeding
+
+                                    Removal of Sutures
+
+                                    Reg 11
+
+                                    Those treatments may be absent and
+
+                                    accepted as long as there is a
+
+                                    Domiciliary Services or Sedations
+
+                                    recorded
+
+                                    On an FP17O one, and one only, of
+
+                                    the following treatments must be
+Error Description  Possible Causes                                       Suggested Action
+Code
+
+                   present:
+
+                   Assess and Review
+
+                   Assess and Refuse
+
+                   Assess/Appliance Fitted
+
+                   Treatment Completed
+
+                   Treatment Abandoned
+
+                   Treatment Discontinued
+
+                   Ortho Reg 11
+
+                   Repair to an Appliance
+
+858 Date missing on an orthodontic claim Date of Assessment and/or Date  Enter the hitherto missing date.
+
+                   Appliance Fitted missing on an
+
+                   orthodontic assessment claim or Date
+
+                   of Completion missing on an
+
+                   orthodontic conclusion claim, an
+
+                   Ortho Reg 11 claim or a Repair to
+
+                   Appliance claim.
+
+                   Date of Assessment is mandatory on
+
+                   an FP17O assessment claim
+
+                   Date Appliance Fitted is mandatory
+
+                   on an FP17O Assess/Appliance Fitted
+
+                   claim
+
+                   Date of Completion is mandatory on
+
+                   any other type of FP17O claim
+Error Description                  Possible Causes                       Suggested Action
+Code
+
+859 Aesthetic component missing on an Any FP17O with an IOTN score of 3 Enter the Aesthetic value or amend the IOTN
+
+FP17O with IOTN value of 3         must be accompanied by an Aesthetic value.
+
+                                   Component value in the range 1 to 10
+
+860 Incomplete Treatment Band not  Incomplete Treatment Band claimed Remove or amend the Incomplete Treatment
+
+consistent with Band claimed       on an Urgent Treatment claim;         Band or amend the main Band
+
+                                   Incomplete Treatment Band greater
+
+                                   than the accompanying Band;
+
+                                   There is no accompanying Band
+
+                                   The Incomplete Treatment Band
+
+                                   governs any patient charge to be
+
+                                   levied on a course of treatment
+
+                                   where not all the planned treatment
+
+                                   has been carried out. However, the
+
+                                   Band for the planned treatment
+
+                                   governs the UDA awarded so must
+
+                                   also be present but must be of a
+
+                                   greater or equal value to any
+
+                                   Incomplete Treatment Band entered.
+
+                                   Incomplete Treatment Bands are not
+
+                                   appropriate to be claimed for urgent
+
+                                   courses of treatment.
+Error Description                   Possible Causes                           Suggested Action
+Code
+
+862 Invalid or inconsistent dates on an Invalid or future dates on an FP17O,
+
+     FP17O                          Date of Referral after Date of            Amend the dates appropriately
+
+                                    Assessment or Date of Assessment
+
+                                    after Date Appliance Fitted
+
+                                    On an FP17O assessment claim the
+
+                                    Date of Referral must be prior to or
+
+                                    equal to the Date of Assessment.
+
+862                                 On an FP17O Assess/Appliance Fitted
+
+                                    claim the Date of Assessment must be
+
+                                    prior to or equal to the Date
+
+                                    Appliance Fitted
+
+863 Inappropriate patient's charge  The patient charge entered on a Reg Amend the patient charge to the correct value
+
+     accompanying Reg 11 (Reg 9 in Isle of 11 claim (Reg 9 in the IOM) does not for the date of the claim.
+
+     Man) claim                     equal, or is not within a £1.00
+
+                                    tolerance of, the appropriate Reg 11
+
+                                    charge or twice the appropriate Reg
+
+                                    11 charge
+
+864 Inappropriate patient's charge  The patient charge entered on an          Amend the patient charge to the correct value
+
+     accompanying an orthodontic Reg 11 orthodontic Reg 11 claim (Reg 9 in for the date of the claim.
+
+     (Reg 9 in Isle of Man) claim   the IOM) does not equal, or is not
+
+                                    within a £1.00 tolerance of, the
+
+                                    appropriate Reg 11 charge or twice
+
+                                    the appropriate Reg 11 charge
+Error Description              Possible Causes                             Suggested Action
+Code
+
+865 Ortho Assessment accompanying a A Reg 11 claim on an FP17O must not Remove the treatment which clashes or the
+
+     Reg 11 claim (Reg 9 in Isle of Man) be accompanied by any of the      Reg 11 from the claim
+
+                               following forms of treatment:
+
+                               Assess and Review
+
+                               Assess and Refuse
+
+                               Assess/Appliance Fitted
+
+                               Treatment Completed
+
+865                            Treatment Abandoned
+
+                               Treatment Discontinued
+
+                               Repair to Appliance
+
+867 Patient charge present on a referral A claim with Treatment on Referral Remove the patient charge or the Treatment
+
+     claim where Domiciliary Services or should be free to the patient unless on Referral indicator as necessary.
+
+     Sedation Services absent  Domiciliary Services or Sedations are
+
+                               present.
+
+868 1st line of patient's address missing Mandatory 1st line of patient's  Enter the patient's address.
+
+                               address missing
+
+869 Further Treatment Within 2 Months The Date of Acceptance on the        Remove the Further Treatment item or adjust
+
+     invalid                   rejected claim is more than two             the Date of Acceptance of the rejected claim or
+
+                               months after the Date of Completion the Date of Completion of the previous claim.
+
+                               of the previous course of treatment
+
+                               for which Further Treatment is being
+
+                               claimed.
+Error Description  Possible Causes                          Suggested Action
+Code
+
+                   The only applicable previous course      Remove the Further Treatment item, adjust the
+                   of treatment found was for a lower       accompanying Band or review the contents of
+                   band than that being claimed on the      the previous claim in respect of Band,
+                   rejected claim or was for Urgent         Incomplete Treatment or Further Treatment.
+                   Treatment or was for Incomplete
+                   Treatment or was itself a Further        Reference to NHS Dental Services is advisable.
+                   Treatment claim.
+
+                   Another very common cause for this
+                   is the inability to find the previous
+                   claim because (a) the patient has
+                   moved house in the meantime or (b)
+                   has visited another practice in the
+                   meantime. In both instances, in the
+                   absence of the unique NHS Number
+                   being used, Compass has assumed
+                   the patient to be a different person to
+                   that of the original course of
+                   treatment.
+Error Description    Possible Causes                                 Suggested Action
+Code
+
+870 Free Repair/Replacement Within 12 The Date of Acceptance on the  Remove the Free Repair/Replacement item or
+
+     Months invalid  rejected claim is more than 12                  adjust the Date of Acceptance of the rejected
+
+                     months after the Date of Completion claim or the Date of Completion of the previous
+
+                     of the previous course of treatment claim.
+
+                     for which Free Repair/Replacement is
+
+                     being claimed.
+
+870                  The only applicable previous course Remove the Free Repair/Replacement item,
+
+                     of treatment found was for a lower adjust the accompanying Band or review the
+
+                     band than that being claimed on the contents of the previous claim in respect of
+
+                     rejected claim.                                 Band.
+
+                     Another very common cause for this Reference to NHS Dental Services is advisable.
+
+                     is the inability to find the previous
+
+                     claim because (a) the patient has
+
+                     moved house in the meantime or (b)
+
+                     has visited another practice in the
+
+                     meantime. In both instances, in the
+
+                     absence of the unique NHS Number
+
+                     being used, Compass has assumed
+
+                     the patient to be a different person to
+
+                     that of the original course of
+
+                     treatment.
+Error Description                 Possible Causes                        Suggested Action
+Code
+
+872 No Band 1, 2 or 3 with 9163   Further Treatment Within 2 Months      If Further Treatment Within 2 Months is to be
+873 Patient charge with 9163      must be accompanied by a Band 1, 2     claimed, then add an accompanying treatment
+                                  or 3                                   band code 9150
+                                  Further Treatment Within 2 Months      If free Further Treatment Within 2 Months is to
+                                  has a non-zero patient charge present  be claimed, then the accompanying patient
+                                                                         charge must be zero
+
+874 No Band 2, 3 or 4 on 9153     Free Repair/Replacement Within 12      If Free Repair/Replacement Within 12 Months
+                                  Months must be accompanied by a        is to be claimed, then add an accompanying
+                                  Band 2, 3 or Urgent Band 4             treatment band 2 or 3 code 9150 or Band 4
+                                                                         Urgent Treatment.
+
+893 Assess and Debond - Overseas  Code 9016 used on a claim for an       Add remission or exemption status or review
+
+Patient can only be present on an adult patient who has no remission or the claim for Assess and Debond - Overseas
+
+exempt patient or one for whom full exemption status or who has Partial Patient
+
+remission of fees applies         Remission (HC3 Certificate) status
+
+                                  Assess and Debonds cannot be
+
+                                  claimed for fee paying patients
+Error Description                      Possible Causes                         Suggested Action
+Code
+
+894 An Assess and Debond claim cannot Code 9016 used where we have             Review the claim for Assess and Debond -
+
+follow any other type of orthodontic detected a previous FP17O claim for Overseas Patient
+
+claim for the same patient             that patient
+
+                                       Assess and Debond patients must
+                                       have no previous history of
+                                       orthodontic treatment under the NHS
+
+895 FP17O assessment where the         No assessment claim will be accepted    Review the history of the claim submission to
+          previous FP17O is for        if the immediately previous             obtain the correct sequence.
+          Assessment/Appliance Fitted  orthodontic claim for that patient is
+                                       an Assess/Appliance Fitted. Only if
+                                       there is an intervening conclusion
+                                       claim (indicating that a second course
+
+                                       of orthodontic treatment is starting)
+                                       will such a claim be accepted.
+
+896 FP17O                              FP17O                                   Review the history of the claim submission to
+
+completion/abandoned/discontinued completion/abandoned/discontinued obtain the correct sequence.
+
+claim where previous claim is of the claim where previous FP17O for the
+
+same nature                            same patient is also for ortho
+
+                                       completion/discontinued/abandoned.
+
+                                       The only exception to this allowed is
+
+                                       that we will accept a completion
+
+                                       claim after an abandoned or
+
+                                       discontinued claim.
+Error Description                            Possible Causes                         Suggested Action
+Code
+
+897   Inappropriate Free Exam exemption      Free Exam exemption on a claim          Remove the exemption, amend the claim to
+898                                          where patient's age at Date of          Band 1 or adjust the patient's age by changing
+899   Advanced Mandatory Services after      Acceptance is not appropriate or it is  Date of Birth or Date of Acceptance.
+      01/04/2014                             not on a Band 1.                        The code 9319 plus a referral band must
+@001  Invalid Patient's Email Address or                                             instead be entered.
+@008  Mobile Phone Number                    Referral for Advanced Mandatory
+@012                                         Services item 9316 on a claim dated     Amend as necessary or remove the item.
+      Site not authorised to transmit        after 01/04/14 (01/05/14 for Wales).
+      Live claim submitted but supplier not  To be valid any patient's email         Consult NHS Dental Services
+      certified                              address entered should contain an @     Consult NHS Dental Services
+      Invalid or missing contract or         sign and at least one dot in the        Review the use of the contract id or the
+      performer on an EDI claim              characters that follow.                 performer.
+                                             For a patient's mobile phone number
+                                             to be valid when entered it must
+                                             consist of 11 numeric characters with
+                                             no internal space or hyphen.
+
+                                             This will result in the rejection of a
+                                             whole file of claims.
+
+                                             This will result in the rejection of a
+                                             whole file of claims.
+                                             Invalid or missing contract or
+                                             performer on an EDI claim or
+                                             performer does not relate to the
+                                             contract entered
+Error Description                            Possible Causes                       Suggested Action
+Code
+
+@013  Invalid PIN                            Either an invalid PIN has been used Use the correct PIN
+
+@031  Patient's Sex missing on an EDI claim  for the clinician concerned
+@034
+@035  Missing Patient's Surname on an EDI    Clinician has not yet been allocated a Create the clinician in order to allocate a
+@037  claim
+      Missing Patient's Forename on an EDI   personal id                           personal id
+@038  claim
+@039  Welsh DAP New Patient Referral or      Clinician is not yet added to the
+@040  Welsh New Urgent Patient Referral
+      without any accompanying significant   contract concerned.                   Add the clinician to the contract
+      treatment, e.g. Band
+      Patient Did Not Attend flag 9187 only  Mandatory Patient's Gender missing Correct the claim
+      acceptable with Welsh New Urgent
+      Patient Referral code 9186             on an EDI claim
+      Patient's address missing on an EDI
+      claim                                  Missing Patient's Surname on an EDI Correct the claim
+      Patient Did Not Attend flag 9187
+      cannot occur with other significant    claim
+      treatment, e.g. Band
+                                             Missing Patient's Forename on an EDI Correct the claim
+
+                                             claim
+
+                                             Welsh DAP New Patient Referral or Add the missing significant treatment.
+
+                                             Welsh New Urgent Patient Referral
+
+                                             without any accompanying significant
+
+                                             treatment, e.g. Band
+
+                                             Patient Did Not Attend flag 9187 only Remove Patient Did Not Attend flag 9187.
+
+                                             acceptable with Welsh New Urgent
+
+                                             Patient Referral code 9186
+
+                                             Mandatory 1st line of Patient's       Correct the claim
+
+                                             address missing on an EDI claim
+
+                                             Patient Did Not Attend flag 9187 cannot Remove Patient Did Not Attend flag or remove
+
+                                             occur with other significant treatment, other significant treatment.
+
+                                             e.g. Band
+Error Description                           Possible Causes                        Suggested Action
+Code
+
+@052 Invalid Patient's Date of Birth on an  Caused by the absence of a Date of     Correct the Date of Birth or the treatment
+          EDI claim                         Birth or more probably by the          date(s) on the claim appropriately
+                                            patient's Date of Birth being after a
+@062  On an EDI claim Date of Acceptance    treatment date on the claim or if an   Correct the claim
+@072  is in the future                      incorrect century has been used on     Correct the claim
+                                            Date of Birth.
+      Invalid Date of Completion on an EDI  On an EDI claim Date of Acceptance is
+      claim                                 in the future
+
+                                            Invalid Date of Completion on an EDI
+                                            claim
+Error Description                           Possible Causes                        Suggested Action
+Code
+
+@084  Invalid Date of Acceptance on an EDI  Invalid Date of Acceptance on an EDI   Correct the claim
+@086  claim                                 claim                                  Correct the claim
+      On an EDI claim Date of Completion    The Date of Completion must be
+      prior to Date of Acceptance           equal to or greater than Date of       Complete the Dentist Declaration(s)
+                                            Acceptance.
+@120 Invalid Dentist's Declaration          To be accepted an EDI claim must       Select the correct exemption/remission
+                                            have one or more of the Dentist's      category.
+@124 Invalid EDI exemption code or not      Declarations applied, unless it is a
+          valid for the country concerned   Triage claim.
+                                            Invalid exemption code used on
+                                            transmission.
+
+                                            Remission/exemption category not       Amend the remission/exemption category,
+                                            valid according to claim date:         remove it or amend the Date of Acceptance
+
+                                               Certain types of remission or       Amend the remission/exemption category or
+                                            exemption are only appropriate from    remove it.
+                                            a certain Date of Acceptance or cease
+                                            to be valid after a certain date
+
+                                            Not appropriate to region:
+                                               Some remission and exemption
+
+                                            types are only applicable to England
+                                            and not to Wales or vice versa. Also
+                                            some exemptions and remissions are
+                                            unique to the Isle of Man.
+Error Description                            Possible Causes                          Suggested Action
+Code
+
+@125  Expectant or Nursing Mother but        Expectant or Nursing Mother but          Amend the patient to Female or remove the
+@126  patient is male                        patient is male                          Expectant/Nursing Mother exemption
+      On an EDI claim patient is not of the  Often caused by the incorrect use of     Review the use of the correct
+@162  required age for the exemption code    the Aged 18 in Full Time Education       exemption/remission category or adjust the
+@192  claimed                                exemption when the patient is not 18     Date of Birth or Date of Acceptance to correct
+@207                                         years of age. Can also apply to the      the patient's age.
+@212  Invalid quadrant construct following   age based exemptions for the Isle of
+      Orthodontic extractions, BPE or        Man.                                     Consult the software supplier.
+      Visible Plaque Scores
+      Invalid treatment quantity             Invalid values following Orthodontic     Invalid treatment quantity accompanying a CDS
+      accompanying a CDS or KPI              extractions, BPE or Visible Plaque       or KPI treatment on an EDI claim. Consult the
+      treatment on an EDI claim              scores                                   software supplier
+      Duplicate transmission of serial                                                Consult the software supplier
+      number nnnnnn - Please contact         Invalid treatment quantity
+      system supplier                        accompanying a CDS or KPI treatment      Use the appropriate Schedule Query Indicator.
+                                             on an EDI claim
+      EDI claim where original is already    Duplicate transmission of serial
+      present (based on Perf Det Id and      number nnnnnn.
+      Claim Reference Number)                This will result in the rejection of a
+                                             whole file of claims.
+
+                                             Possible missing Schedule Query
+                                             Indicator if the intention is to delete
+                                             or replace the original version of the
+                                             claim.
+Error Description                                 Possible Causes                          Suggested Action
+Code
+
+@254 Age exemption claimed on an EDI              Can sometimes occur when a new           Contact NHS Dental Services.
+          claim but patient is 18 or over (16 or  practice management system is
+          over on Isle of Man claim)              introduced which re-uses Claim           Otherwise do not re-transmit the claim.
+                                                  Reference Numbers previously used        Remove or amend the exemption or review the
+@256 No age exemption claimed on an EDI           (often a long while ago) for other       patient's age in respect of Date of Birth and
+          claim for a patient aged under 18       patients.                                treatment dates.
+          (under 16 in the Isle of Man)                                                    Remove or amend the exemption or review the
+                                                  Patient Aged Under 18 (Patient Aged      patient's age in respect of Date of Birth and
+@283 On an EDI claim Date of Completion           16 or Over in Isle of Man) exemption     treatment dates.
+          is in the future                        cannot be used on adult patients
+                                                  (except on Ortho conclusion claims)      Correct the claim
+                                                  On most claims (except Reg 11 claims
+                                                  and orthodontic conclusion claims) if
+                                                  the patient is aged under 18 the
+                                                  Patient Aged Under 18 exemption
+                                                  must be present (Patient Aged Under
+                                                  16 for Isle of Man).
+                                                  NB. On English FP17O assessment
+                                                  claims the patient's age has been
+                                                  calculated as at Date of Referral since
+                                                  01/04/19
+                                                  On an EDI claim Date of Completion is
+                                                  in the future
+Error Description                            Possible Causes                         Suggested Action
+Code
+
+@285  Treatment dates on an EDI claim are    On an FP17 the dates of acceptance      Check the dates of the contract or the
+      outside the period of the contract or  and completion are both outside of      performer's tenure on Compass and amend the
+@304  the performer's tenure                 the contract dates or the performer's   claim dates as appropriate. If the contract dates
+@306                                         tenure.                                 or tenure dates are incorrect then consult the
+@307  Performer on an EDI claim is not       On an FP17O Assess and Review or        local health body.
+      known for the contract entered         Assess and Refuse claim, the Date of    This error code often occurs in addition to
+      Invalid Band entered on an EDI claim   Assessment is outside of the contract   another error code if the important date for
+      Invalid or missing location id on an   dates or the performer's tenure.        the claim has been omitted or is invalid
+      EDI claim                              On an FP17O Assess/Appliance Fitted
+                                             claims the Date Appliance Fitted is     Check validity of performer in relation to the
+                                             outside of the contract dates or the    contract.
+                                             performer's tenure.                     Contact software supplier.
+                                             For any other FP17O claim the Date
+                                             of Completion is outside the contract   Correct the Location Id or ensure that the
+                                             dates or the performer's tenure.        Location is added to the contract.
+
+                                             Performer on an EDI claim is not
+                                             associated with the contract entered
+
+                                             Invalid Treatment Band entered on an
+                                             EDI claim
+
+                                             Missing Location Id or the Location Id
+                                             is not linked to the contract
+                                             concerned
+Error Description                           Possible Causes                               Suggested Action
+Code
+
+@308  Invalid Date of Referral on an EDI    Invalid or missing Date of Referral on        Enter correct date of referral, which is
+@309  claim                                 an EDI orthodontic claim                      mandatory on English orthodontic assessment
+@310                                                                                      claims
+      Invalid Date of Assessment on an EDI  A Date of Assessment is mandatory             Enter correct date of assessment.
+      claim                                 on every orthodontic assessment
+                                            claim                                         If an incorrect value has been detected, contact
+      Invalid Ortho Treatment values on an  The orthodontic conclusion code               your software supplier.
+      EDI completion FP17O                  9161 must be accompanied by one of
+                                            the following values.
+                                            1 - Treatment Abandoned
+                                            2 - Treatment Discontinued
+                                            3 - Treatment Completed
+                                            If a value is missing it will result in this
+                                            error code.
+Error Description                        Possible Causes                      Suggested Action
+Code
+                                         An F17, to be valid, must have one,  Enter whichever of the aforementioned items
+@312 No significant treatment on an EDI  and one only, of the following       applies.
+          claim                          treatment items present:
+                                         Band
+                                         Urgent Treatment (also known as
+                                         Band 4)
+                                         Advice Only (also known as Band 5)
+                                         Prescription Issued
+                                         Repairs to Dentures
+                                         Repairs to Bridges
+                                         Arrest of Bleeding
+                                         Removal of Sutures
+                                         Reg 11
+                                         Those treatments may be absent and
+                                         accepted as long as there is a
+                                         Domiciliary Services or Sedations
+                                         recorded
+                                         On an FP17O one, and one only, of
+                                         the following treatments must be
+                                         present:
+                                         Assess and Review
+                                         Assess and Refuse
+                                         Assess/Appliance Fitted
+                                         Treatment Completed
+Error Description  Possible Causes                        Suggested Action
+Code
+                   Treatment Abandoned
+@312               Treatment Discontinued
+                   Ortho Reg 11
+                   Repair to an Appliance
+                   On a Triage claim at least one of the
+                   following must be present:
+                   Advice Given
+                   Advised Analgesics
+                   Remote Prescription - Analgesics
+                   Remote Prescription - Antibiotics
+                   Follow Up Call Required
+                   Call Back if Symptoms Worsen
+                   Face to Face Appointment Arranged
+                   Within Practice - Patient Failed to
+                   Attend
+                   Referred to Local UDC Reason
+Error Description                          Possible Causes                       Suggested Action
+Code
+
+@317  No Aesthetic Component to            Any FP17O with an IOTN score of 3     Enter the Aesthetic value or amend the IOTN
+@318  accompany IOTN value of 3 on an EDI  must be accompanied by an Aesthetic   value.
+      claim                                Component value in the range 1 to 10
+@319  Conflicting assessment and/or        An FP17O claim should only include    Remove the items which do not apply to the
+@320  completion items on an EDI FP17O     one of the following treatments:      claim
+      claim                                Assess and Review
+                                           Assess and Refuse                     Enter the required Band or remove the Free
+      No Band on a Free                    Assess/Appliance Fitted               Repair/Replacement item as necessary.
+      Repair/Replacement EDI claim         Treatment Completed                   Enter the Band or remove the Further
+      No Band on a Further Treatment EDI   Treatment Abandoned                   Treatment item as necessary.
+      claim                                Treatment Discontinued
+                                           Ortho Reg 11
+                                           Repair to an Appliance
+
+                                           A claim for Free Repair/Replacement
+                                           must be accompanied by a Band 2 or
+                                           3 or an Urgent Treatment.
+                                           A claim for Further Treatment Within
+                                           2 Months must be accompanied by a
+                                           treatment Band.
+Error Description                             Possible Causes                       Suggested Action
+Code
+
+@321  Incomplete Treatment Band not           Incomplete Treatment Band claimed     Remove or amend the Incomplete Treatment
+      consistent with Band claimed on an      on an Urgent or Advice Only claim,    Band or amend the main Band
+@323  EDI claim                               the Incomplete Treatment Band is
+@324                                          greater than the accompanying Band    Enter the required Date Applaince Fitted
+      Invalid Date Appliance Fitted on an     or there is no accompanying Band.     Review the dates on the claim and amend as
+      EDI claim                               The Incomplete Treatment Band         necessary.
+      Date Appliance Fitted prior to Date of  governs any patient charge to be
+      Assessment on an EDI claim              levied on a course of treatment
+                                              where not all the planned treatment
+                                              has been carried out. However, the
+                                              Band for the planned treatment
+                                              governs the UDA awarded so must
+                                              also be present but must be of a
+                                              greater or equal value to any
+                                              Incomplete Treatment Band entered.
+                                              Incomplete Treatment Bands are not
+                                              appropriate to be claimed for urgent
+                                              courses of treatment
+
+                                              Date Appliance Fitted is mandatory
+                                              on an Assess/Appliance Fitted claim.
+
+                                              On an FP17O Assess/Appliance Fitted
+                                              claim the Date Appliance Fitted must
+                                              be after or equal to the Date of
+                                              Assessment.
+Error Description                             Possible Causes                           Suggested Action
+Code
+
+@329  KPI treatment codes on a claim for      KPI treatment codes on a claim for        Rule suspended
+@330  non-PDS Plus contract                   non-PDS Plus contract
+@331  SQ Ind claim where original cannot      SQ Ind deletion request where             Check that the claim reference number refers
+      be found                                original cannot be found using            to a previously submitted valid claim. If one
+@333                                          contract, performer and claim             was previously submitted, ensure that the
+      SQ Ind claim where original has         reference number                          contract id or the performer was the same on
+      already been deleted or is in error                                               that claim.
+                                              SQ Ind deletion request where             Check the previously submitted claim. If it
+      Schedule query not carried out.         original has already been deleted or is   failed validation the claim does not need to be
+      Original claim cannot be deleted as it  in error.                                 deleted from the database. If it has already
+      is for a different provider             SQ Ind deletions will only work on        been deleted then the SQ Ind deletion request
+                                              claims that are currently in a valid      does not need to be repeated.
+                                              "paid" state. It will not work on claims
+                                              that have failed validation or those      If the claims needs amendment then the
+                                              that have already been deleted.           provider associated with the original claim will
+                                              Schedule query not carried out.           need to be contacted.
+                                              Original claim has been located but
+                                              cannot be deleted as it is for a
+                                              different provider.
+                                              The Schedule Query process can only
+                                              be used to amend for claims
+                                              previously submitted under the same
+                                              provider.
+Error Description                              Possible Causes                         Suggested Action
+Code
+
+@334 A patient email address, mobile           A patient email address, mobile         Enter the patient's email address and/or mobile
+          phone or Patient Declined indicator  phone number or Patient Declined        phone number. If either is not known then the
+          must be present on this claim        indicator must be present on this       relevant Patient Declined Indicator must be
+                                               claim.                                  ticked.
+@335 Mandatory Commissioner Approved           All English orthodontic claims should
+          indicator missing for this adult     have a patient's mobile phone           If the patient is 18 or over at the Date of
+          orthodontic patient                  number and email address or the         Referral then arrange for commissioner
+                                               relevant Patient Declined Indicator.    approval and tick the Commissioner Approved
+@336 Mandatory IOTN or Aesthetic               All English orthodontic assessment      box.
+          Component code missing               claims where the patient is aged 18 or  Enter the IOTN score and, if the claim is for
+                                               over at the Date of Referral must       Assess/Appliance Fitted, enter the Aesthetic
+@337 Mandatory Date of Referral missing        have the Commissioner Approved          Component value as well.
+                                               indicator present
+                                               All English orthodontic assessment or   Enter the required date of referral.
+                                               conclusion claims must have an
+                                               accompanying IOTN score.
+                                               Also all English orthodontic
+                                               Assess/Appliance Fitted claims must
+                                               have an accompanying Aesthetic
+                                               Component whatever the value of
+                                               IOTN.
+                                               For all English orthodontic
+                                               assessment claims with a Date of
+Error Description                       Possible Causes                          Suggested Action
+Code
+
+@338  No NHS Number has been entered    Assessment after 01/04/19 a Date of      Enter the patients NHS Number. If not known,
+@339                                    Referral is mandatory.                   enter zero.
+@339  Mandatory Treatment Proposed                                               Add the Treatment Proposed Indicator
+@340  indicator missing                 All English orthodontic claims should
+                                        have an NHS Number present even if       Add the Completed/Abandoned/Discontinued
+@341  Mandatory Treatment               it has to be entered as zero.            Indicator also present
+      Completed/Abandoned/Discontinued  All English Assess/Appliance Fitted
+      indicator missing                 claims must also have an                 Add the DCP GDC Number or DCP Type code
+                                        accompanying Treatment Proposed          9178 as appropriate
+      GDC Number for DCP provided but   Indicator code 9415 with a value of 1
+      no DCP code 9178 (or vice versa)  All English orthodontic conclusion
+                                        claims must also have a
+                                        Completed/Abandoned/Discontinued
+                                        Indicator also present - code 9415
+                                        with a value of 2
+                                        If the GDC Number of a DCP is
+                                        supplied there must also be the DCP
+                                        Type indicator to show in what
+                                        capacity the DCP operated (Therapist,
+                                        Dental Nurse, Hygienist or Dental
+                                        Technician)
+                                        Similarly, if a DCP Type is entered and
+                                        there is no DCP GDC Number entered
+                                        this error will occur
+Error Description                          Possible Causes                        Suggested Action
+Code
+
+@343  Mandatory Item on Triage Claim       Triage claims should all contain:      Add the missing items
+@344  Missing                              Time of Contact                        Add the missing COVID Status
+      Mandatory COVID Status Triage        Patient Group
+@345  Count missing                        Primary Reason for Call                Review the Red Tooth Decay indicator or the
+                                           At least one of the following Patient  number of decayed teeth
+      Inconsistent values for number of    COVID Status Triage Counts must be     Review the Tooth Decay indicator or the
+      teeth in mouth or number of decayed  present on the claim:                  number of teeth in the mouth
+      teeth                                Patient Shielded
+                                           Patient at Increased Risk of Severe
+                                           Illness from COVID-19
+                                           Possible/confirmed COVID Patient or
+                                           those living in household
+                                           Patient is COVID-19 Symptom Free at
+                                           present
+                                           Other
+                                           Tooth Decay Indicator is Red but no
+                                           decayed teeth recorded
+
+                                           Tooth Decay Indicator is Red or
+                                           Amber but number of teeth in the
+                                           mouth is zero
+Error Description                              Possible Causes                          Suggested Action
+Code
+
+@346  Schedule Query cannot be processed       Once the processing cut off date for     If the claim adjustment is imperative contact
+@349  as it refers to a claim pertaining to a  June has passed no further               Dental Services who can still make a manual
+@350  past financial year                      amendments can be made using the         adjustment to the claim on Compass if
+@351                                           SQ Ind facility to claims pertaining to  necessary
+@352  Total Number of Teeth in Mouth less      the previous financial year
+@353  than Number of Decayed Teeth             Total Number of Teeth in Mouth code      Review the tooth counts for Total Number of
+      Total Number of Teeth in Mouth is        9331 shows less than Number of           Teeth in the Mouth and number of Decayed
+      non-zero but Periodontitis recorded      Decayed Teeth codes 9320 and 9323        Teeth and amend as appropriate.
+      as Edentulous                            Total Number of Teeth in Mouth code      Review the tooth counts for Total Number of
+      No 9320 on ACORN claim                   9331 is non-zero but Periodontitis       Teeth in the Mouth or the patient's edentulous
+                                               code 9329 recorded as Edentulous         state and amend as appropriate
+      No 9323 on ACORN claim                   Decayed Permanent Teeth absent on        Review patient's age and amend DOB or Date
+                                               an ACORN claim for a patient aged 6      of Acceptance if incorrect.
+      No 9326 on ACORN claim                   or over                                  If treatment dates are correct, add code 9320
+                                                                                        plus the number of Decayed Permanent Teeth,
+                                               Decayed Deciduous Teeth absent on        even if this is zero
+                                               an ACORN claim for a patient aged        Review patient's age and amend DOB or Date
+                                               under 12                                 of Acceptance if incorrect.
+                                                                                        If treatment dates are correct, add code 9323
+                                               Medical History absent on an ACORN       plus the number of Decayed Deciduous Teeth,
+                                               claim                                    even if this is zero
+                                                                                        If ACORN is applicable add Medical History
+                                                                                        code 9326 with the relevant score
+Error Description                  Possible Causes                       Suggested Action
+Code
+@354 No 9327 on ACORN claim        Social History absent on an ACORN     If ACORN is applicable add Social History code
+@355 No 9328 on ACORN claim        claim                                 9327 with the relevant score
+@356 No 9330 on ACORN claim        Dental History absent on an ACORN     If ACORN is applicable add Dental History code
+@357 No 9331 on ACORN claim        claim                                 9328 with the relevant score
+                                   Tooth Decay absent on an ACORN        If ACORN is applicable add Tooth Decay code
+@358 No 9329 on ACORN claim        claim                                 9330 with the relevant score
+                                   Total Number of Teeth in the Mouth    If ACORN is applicable add Total Number of
+@359 No 9332 on ACORN claim        absent on an ACORN claim              Teeth in the Mouth code 9331 with the
+@STR Structure Error Electronic                                          relevant score
+A11 Claim deleted                  Periodontitis absent on an ACORN      If ACORN is applicable add Periodontitis code
+                                   claim for non-edentulous patient      9329 with the relevant score
+J11 Claim Deleted at your request  aged 12 or more
+                                   Other Dental Need absent on an        If ACORN is applicable add Other Dental Need
+                                   ACORN claim                           code 9332 with the relevant score
+                                   A serious syntactical error has       Contact your software supplier.
+                                   occurred on the claim concerned
+                                   EDI claim deleted on line             This is not an error code but is a response code
+                                                                         to indicate that the claim has been deleted on-
+                                   Claim Deleted at your request. EDI    line in Compass
+                                   claim deleted by means of submission  This is not an error code but is a response code
+                                   of an SQ Ind 3 claim                  to indicate that the claim has been deleted as a
+                                                                         result of the submission of a Schedule Query
+                                                                         Deletion request
+

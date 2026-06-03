@@ -6,6 +6,7 @@ import { TopBar } from "@/components/TopBar";
 import { PlatformAnnouncementBanner } from "@/components/PlatformAnnouncementBanner";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
+import { KeyboardShortcutsDialog } from "@/components/KeyboardShortcutsDialog";
 
 interface LayoutProps {
   children: ReactNode;
@@ -95,6 +96,9 @@ export const Layout = ({ children, title, description, onBack }: LayoutProps) =>
       {/* Global command palette — bound to Cmd/Ctrl-K via useCommandPalette.
           Mounted at Layout level so every authed page gets it for free. */}
       <CommandPalette open={palette.open} onOpenChange={palette.setOpen} />
+      {/* Global "?" → keyboard-shortcuts reference. Mounted alongside the
+          palette so every authed page gets it. */}
+      <KeyboardShortcutsDialog />
     </SidebarProvider>
   );
 };

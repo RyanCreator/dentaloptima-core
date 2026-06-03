@@ -633,10 +633,13 @@ export default function Calendar() {
 
   return (
     <Layout title="Calendar">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <RecentPatientsStrip />
+      {/* Bell on its own right-aligned row so it stays top-right whether
+          or not the recently-viewed strip is present (the strip renders
+          null when empty). The strip keeps its own spacing below. */}
+      <div className="flex justify-end mb-2">
         <NotificationTray />
       </div>
+      <RecentPatientsStrip />
       <CalendarGridView
         currentDate={currentDate}
         viewMode={viewMode}

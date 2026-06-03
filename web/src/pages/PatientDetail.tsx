@@ -1087,9 +1087,9 @@ export default function PatientDetail() {
               <h3 className="font-semibold text-sm">Notes</h3>
 
               {notes.length > 0 && (
-                <div className="space-y-2 max-h-56 overflow-y-auto">
+                <div className="space-y-2 max-h-56 overflow-y-auto" data-testid="patient-notes-list">
                   {notes.map((note) => (
-                    <div key={note.id} className="bg-muted rounded-md p-3 space-y-1.5">
+                    <div key={note.id} className="bg-muted rounded-md p-3 space-y-1.5" data-testid="patient-note">
                       <p className="text-sm whitespace-pre-wrap">{note.body}</p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{note.author?.full_name ?? "—"}</span>
@@ -1106,8 +1106,9 @@ export default function PatientDetail() {
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                   rows={2}
+                  data-testid="patient-note-input"
                 />
-                <Button onClick={addNote} size="sm" disabled={!newNote.trim()}>
+                <Button onClick={addNote} size="sm" disabled={!newNote.trim()} data-testid="patient-note-submit">
                   Add Note
                 </Button>
               </div>

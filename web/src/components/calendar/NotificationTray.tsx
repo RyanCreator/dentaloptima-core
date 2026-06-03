@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
-import { Bell, X, Send, ArrowRight } from "lucide-react";
+import { Mail, X, Send, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -30,9 +30,9 @@ export function NotificationTray() {
           variant="outline"
           size="sm"
           className="relative shrink-0"
-          aria-label={`Notifications to send (${items.length})`}
+          aria-label={`Patient emails to send (${items.length})`}
         >
-          <Bell className="h-4 w-4" />
+          <Mail className="h-4 w-4" />
           {items.length > 0 && (
             <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center">
               {items.length}

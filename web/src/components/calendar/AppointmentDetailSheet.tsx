@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CompleteAppointmentDialog } from "@/components/calendar/CompleteAppointmentDialog";
 import { BillingSection } from "@/components/calendar/BillingSection";
+import { useAppointmentConsents } from "@/hooks/useAppointmentConsents";
+import { CheckCircle2, AlertTriangle as AlertTriangleIcon, FileSignature } from "lucide-react";
 import { NHSExemptionPanel, type NHSExemptionCategory } from "@/components/calendar/NHSExemptionPanel";
 import { NHSClaimSheet } from "@/components/calendar/NHSClaimSheet";
 import { findClaimForAppointment } from "@/lib/createNhsClaim";
@@ -360,6 +362,19 @@ export function AppointmentDetailSheet({
                 </div>
               )}
             </div>
+
+            {/* Pre-treatment consents — required-template list driven by
+                the appointment's services. Shows ✓ when signed, "Sign on
+                kiosk" CTA when not. Hidden when no templates are mapped
+                so private-only practices aren't nagged. */}
+            <ConsentsSection
+              appointmentId={appointment.id}
+              patientId={appointment.patient.id}
+              practiceId={appointment.practice_id}
+              serviceIds={(appointment.services ?? [])
+                .map((s) => s.service?.id)
+                .filter((id): id is string => !!id)}
+            />
 
             {/* NHS exemption — only renders when at least one service is_nhs.
                 Captured per-visit; flows into the FP17 claim at submission. */}
@@ -728,5 +743,103 @@ export function AppointmentDetailSheet({
         appointment={appointment}
       />
     </DetailSheet>
+  );
+}
+
+function ConsentsSection({
+  appointmentId,
+  patientId,
+  practiceId,
+  serviceIds,
+}: {
+  appointmentId: string;
+  patientId: string;
+  practiceId: string;
+  serviceIds: string[];
+}) {
+  const { statuses, loading, queueAndOpenKiosk } = useAppointmentConsents(
+    patientId,
+    serviceIds,
+    practiceId,
+    appointmentId,
+  );
+  const [starting, setStarting] = useState(false);
+
+  // Nothing to render when no templates are mapped to any of the services
+  // on this appointment — private-only practices with no consent library
+  // shouldn't see a stub here.
+  if (!loading && statuses.length === 0) return null;
+
+  const pending = statuses.filter((s) => !s.satisfied);
+  const allSatisfied = statuses.length > 0 && pending.length === 0;
+
+  async function handleSign() {
+    setStarting(true);
+    try {
+      const url = await queueAndOpenKiosk();
+      if (!url) {
+        toast.error("Couldn't prepare consents for signing");
+        return;
+      }
+      // Open the kiosk in a new tab/window so reception can hand the
+      // device over without losing this sheet's context. The kiosk
+      // route lives off the Layout chrome already.
+      window.open(url, "_blank", "noopener");
+      // No manual refresh — the hook subscribes to consent_record
+      // postgres_changes for this patient and refetches the moment the
+      // kiosk writes a signature (plus a visibilitychange fallback for
+      // when the operator tabs back).
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border bg-card p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-sm font-semibold">
+          <FileSignature className="h-4 w-4 text-muted-foreground" />
+          Consents
+          {allSatisfied ? (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200 rounded px-1.5 py-0.5">
+              <CheckCircle2 className="h-3 w-3" />
+              All signed
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200 rounded px-1.5 py-0.5">
+              <AlertTriangleIcon className="h-3 w-3" />
+              {pending.length} pending
+            </span>
+          )}
+        </div>
+        {pending.length > 0 && (
+          <Button size="sm" onClick={handleSign} disabled={starting} className="h-7 text-xs">
+            {starting ? "Preparing…" : "Sign on kiosk"}
+          </Button>
+        )}
+      </div>
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : (
+        <ul className="space-y-1">
+          {statuses.map((s) => (
+            <li key={s.template_id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="truncate">
+                {s.template_title}
+                <span className="ml-1 text-muted-foreground">{s.template_version}</span>
+              </span>
+              {s.satisfied ? (
+                <span className="text-emerald-700 dark:text-emerald-300 shrink-0 inline-flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Signed{s.granted_at ? ` ${format(new Date(s.granted_at), "d MMM")}` : ""}
+                </span>
+              ) : (
+                <span className="text-amber-700 dark:text-amber-300 shrink-0">Pending</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

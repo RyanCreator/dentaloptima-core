@@ -6,6 +6,7 @@ import {
   Wrench,
   KeyRound,
   Scale,
+  FileSignature,
 } from "lucide-react";
 
 // Shared source of truth for the Settings nav. Imported by:
@@ -66,6 +67,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         title: "Complaints Procedure",
         description: "Patient-facing complaints procedure (shown on your public site)",
         icon: Scale,
+      },
+      {
+        id: "consents",
+        title: "Consent Templates",
+        description: "Library of consent forms patients sign — link each to the services that require it",
+        icon: FileSignature,
       },
     ],
   },

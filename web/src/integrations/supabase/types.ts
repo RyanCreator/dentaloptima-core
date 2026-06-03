@@ -32,7 +32,11 @@ export type Database = {
           deleted_at: string | null
           ends_at: string
           id: string
+          nhs_exemption_category: Database["public"]["Enums"]["nhs_exemption_category"]
+          nhs_exemption_evidence_seen: boolean
           no_show_recorded_at: string | null
+          notification_pending: string | null
+          notification_prev_starts_at: string | null
           patient_id: string
           post_appointment_followup_sent_at: string | null
           practice_id: string
@@ -66,7 +70,11 @@ export type Database = {
           deleted_at?: string | null
           ends_at: string
           id?: string
+          nhs_exemption_category?: Database["public"]["Enums"]["nhs_exemption_category"]
+          nhs_exemption_evidence_seen?: boolean
           no_show_recorded_at?: string | null
+          notification_pending?: string | null
+          notification_prev_starts_at?: string | null
           patient_id: string
           post_appointment_followup_sent_at?: string | null
           practice_id: string
@@ -100,7 +108,11 @@ export type Database = {
           deleted_at?: string | null
           ends_at?: string
           id?: string
+          nhs_exemption_category?: Database["public"]["Enums"]["nhs_exemption_category"]
+          nhs_exemption_evidence_seen?: boolean
           no_show_recorded_at?: string | null
+          notification_pending?: string | null
+          notification_prev_starts_at?: string | null
           patient_id?: string
           post_appointment_followup_sent_at?: string | null
           practice_id?: string
@@ -294,6 +306,7 @@ export type Database = {
           nhs_band: Database["public"]["Enums"]["nhs_band"] | null
           nhs_exemption_category: Database["public"]["Enums"]["nhs_exemption_category"]
           patient_id: string
+          payment_method: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           practice_id: string
           quantity: number
@@ -317,6 +330,7 @@ export type Database = {
           nhs_band?: Database["public"]["Enums"]["nhs_band"] | null
           nhs_exemption_category?: Database["public"]["Enums"]["nhs_exemption_category"]
           patient_id: string
+          payment_method?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           practice_id: string
           quantity?: number
@@ -340,6 +354,7 @@ export type Database = {
           nhs_band?: Database["public"]["Enums"]["nhs_band"] | null
           nhs_exemption_category?: Database["public"]["Enums"]["nhs_exemption_category"]
           patient_id?: string
+          payment_method?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           practice_id?: string
           quantity?: number
@@ -497,6 +512,7 @@ export type Database = {
           preferred_starts_at: string | null
           reason: string | null
           rejection_reason: string | null
+          rejection_reason_code: string | null
           responded_at: string | null
           responded_by: string | null
           resulting_appointment_id: string | null
@@ -531,6 +547,7 @@ export type Database = {
           preferred_starts_at?: string | null
           reason?: string | null
           rejection_reason?: string | null
+          rejection_reason_code?: string | null
           responded_at?: string | null
           responded_by?: string | null
           resulting_appointment_id?: string | null
@@ -565,6 +582,7 @@ export type Database = {
           preferred_starts_at?: string | null
           reason?: string | null
           rejection_reason?: string | null
+          rejection_reason_code?: string | null
           responded_at?: string | null
           responded_by?: string | null
           resulting_appointment_id?: string | null
@@ -834,6 +852,7 @@ export type Database = {
       }
       consent_record: {
         Row: {
+          appointment_id: string | null
           consent_text: string
           consent_type: Database["public"]["Enums"]["consent_type"]
           consent_version: string
@@ -852,12 +871,15 @@ export type Database = {
           revoked_at: string | null
           revoked_by: string | null
           revoked_reason: string | null
+          template_id: string | null
+          template_version: string | null
           updated_at: string
           updated_by: string | null
           valid_until: string | null
           witnessed_by: string | null
         }
         Insert: {
+          appointment_id?: string | null
           consent_text: string
           consent_type: Database["public"]["Enums"]["consent_type"]
           consent_version: string
@@ -876,12 +898,15 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           revoked_reason?: string | null
+          template_id?: string | null
+          template_version?: string | null
           updated_at?: string
           updated_by?: string | null
           valid_until?: string | null
           witnessed_by?: string | null
         }
         Update: {
+          appointment_id?: string | null
           consent_text?: string
           consent_type?: Database["public"]["Enums"]["consent_type"]
           consent_version?: string
@@ -900,12 +925,21 @@ export type Database = {
           revoked_at?: string | null
           revoked_by?: string | null
           revoked_reason?: string | null
+          template_id?: string | null
+          template_version?: string | null
           updated_at?: string
           updated_by?: string | null
           valid_until?: string | null
           witnessed_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "consent_record_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointment"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "consent_record_created_by_fkey"
             columns: ["created_by"]
@@ -942,6 +976,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "consent_record_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "consent_template"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "consent_record_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
@@ -957,8 +998,145 @@ export type Database = {
           },
         ]
       }
+      consent_template: {
+        Row: {
+          body: string
+          category: string
+          code: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          practice_id: string
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+          version: string
+        }
+        Insert: {
+          body: string
+          category?: string
+          code: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          practice_id: string
+          supersedes_id?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: string
+        }
+        Update: {
+          body?: string
+          category?: string
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          practice_id?: string
+          supersedes_id?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_template_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "consent_template"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consent_template_service: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          practice_id: string
+          service_id: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          practice_id: string
+          service_id: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          practice_id?: string
+          service_id?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_template_service_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_service_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_service_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "service"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_template_service_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "consent_template"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document: {
         Row: {
+          appointment_id: string | null
           created_at: string
           created_by: string | null
           deleted_at: string | null
@@ -972,12 +1150,14 @@ export type Database = {
           storage_bucket: string
           storage_path: string
           title: string
+          treatment_plan_item_id: string | null
           updated_at: string
           updated_by: string | null
           uploaded_at: string
           uploaded_by: string | null
         }
         Insert: {
+          appointment_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -991,12 +1171,14 @@ export type Database = {
           storage_bucket?: string
           storage_path: string
           title: string
+          treatment_plan_item_id?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
         }
         Update: {
+          appointment_id?: string | null
           created_at?: string
           created_by?: string | null
           deleted_at?: string | null
@@ -1010,12 +1192,20 @@ export type Database = {
           storage_bucket?: string
           storage_path?: string
           title?: string
+          treatment_plan_item_id?: string | null
           updated_at?: string
           updated_by?: string | null
           uploaded_at?: string
           uploaded_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "document_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointment"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "document_created_by_fkey"
             columns: ["created_by"]
@@ -1035,6 +1225,13 @@ export type Database = {
             columns: ["practice_id"]
             isOneToOne: false
             referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_treatment_plan_item_id_fkey"
+            columns: ["treatment_plan_item_id"]
+            isOneToOne: false
+            referencedRelation: "treatment_plan_item"
             referencedColumns: ["id"]
           },
           {
@@ -1368,10 +1565,89 @@ export type Database = {
           },
         ]
       }
+      nhs_activity_code: {
+        Row: {
+          cds_band: string | null
+          code: string
+          country: Database["public"]["Enums"]["nhs_country"]
+          created_at: string
+          governs_uda: boolean
+          id: string
+          is_clinical_data_set: boolean
+          label: string
+          notes: string | null
+          updated_at: string
+          valid_from: string
+          valid_to: string | null
+          value: number | null
+        }
+        Insert: {
+          cds_band?: string | null
+          code: string
+          country: Database["public"]["Enums"]["nhs_country"]
+          created_at?: string
+          governs_uda?: boolean
+          id?: string
+          is_clinical_data_set?: boolean
+          label: string
+          notes?: string | null
+          updated_at?: string
+          valid_from: string
+          valid_to?: string | null
+          value?: number | null
+        }
+        Update: {
+          cds_band?: string | null
+          code?: string
+          country?: Database["public"]["Enums"]["nhs_country"]
+          created_at?: string
+          governs_uda?: boolean
+          id?: string
+          is_clinical_data_set?: boolean
+          label?: string
+          notes?: string | null
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string | null
+          value?: number | null
+        }
+        Relationships: []
+      }
+      nhs_band_charge: {
+        Row: {
+          amount_pence: number
+          band: string
+          country: Database["public"]["Enums"]["nhs_country"]
+          created_at: string
+          id: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          amount_pence: number
+          band: string
+          country: Database["public"]["Enums"]["nhs_country"]
+          created_at?: string
+          id?: string
+          valid_from: string
+          valid_to?: string | null
+        }
+        Update: {
+          amount_pence?: number
+          band?: string
+          country?: Database["public"]["Enums"]["nhs_country"]
+          created_at?: string
+          id?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: []
+      }
       nhs_claim: {
         Row: {
           accepted_at: string | null
           acknowledged_at: string | null
+          country: Database["public"]["Enums"]["nhs_country"]
           course_of_treatment_id: string | null
           created_at: string
           created_by: string | null
@@ -1387,7 +1663,9 @@ export type Database = {
           oral_health_status: string | null
           paid_at: string | null
           patient_charge_pence: number
+          patient_email: string | null
           patient_id: string
+          patient_mobile: string | null
           patient_signature_method: string | null
           patient_signature_received: boolean
           payment_amount_pence: number | null
@@ -1401,6 +1679,17 @@ export type Database = {
           rejection_code: string | null
           rejection_reason: string | null
           scheduled_for_payment_at: string | null
+          snapshot_address_line1: string | null
+          snapshot_address_line2: string | null
+          snapshot_address_line3: string | null
+          snapshot_date_of_birth: string | null
+          snapshot_forename: string | null
+          snapshot_nhs_number: string | null
+          snapshot_postcode: string | null
+          snapshot_previous_surname: string | null
+          snapshot_sex: string | null
+          snapshot_surname: string | null
+          snapshot_title: string | null
           source_appointment_id: string | null
           status: Database["public"]["Enums"]["nhs_claim_status"]
           submission_reference: string | null
@@ -1408,12 +1697,15 @@ export type Database = {
           treatment_band:
             | Database["public"]["Enums"]["fp17_treatment_band"]
             | null
+          uda_awarded: number | null
+          uoa_awarded: number | null
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           accepted_at?: string | null
           acknowledged_at?: string | null
+          country?: Database["public"]["Enums"]["nhs_country"]
           course_of_treatment_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1429,7 +1721,9 @@ export type Database = {
           oral_health_status?: string | null
           paid_at?: string | null
           patient_charge_pence?: number
+          patient_email?: string | null
           patient_id: string
+          patient_mobile?: string | null
           patient_signature_method?: string | null
           patient_signature_received?: boolean
           payment_amount_pence?: number | null
@@ -1443,6 +1737,17 @@ export type Database = {
           rejection_code?: string | null
           rejection_reason?: string | null
           scheduled_for_payment_at?: string | null
+          snapshot_address_line1?: string | null
+          snapshot_address_line2?: string | null
+          snapshot_address_line3?: string | null
+          snapshot_date_of_birth?: string | null
+          snapshot_forename?: string | null
+          snapshot_nhs_number?: string | null
+          snapshot_postcode?: string | null
+          snapshot_previous_surname?: string | null
+          snapshot_sex?: string | null
+          snapshot_surname?: string | null
+          snapshot_title?: string | null
           source_appointment_id?: string | null
           status?: Database["public"]["Enums"]["nhs_claim_status"]
           submission_reference?: string | null
@@ -1450,12 +1755,15 @@ export type Database = {
           treatment_band?:
             | Database["public"]["Enums"]["fp17_treatment_band"]
             | null
+          uda_awarded?: number | null
+          uoa_awarded?: number | null
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           accepted_at?: string | null
           acknowledged_at?: string | null
+          country?: Database["public"]["Enums"]["nhs_country"]
           course_of_treatment_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1471,7 +1779,9 @@ export type Database = {
           oral_health_status?: string | null
           paid_at?: string | null
           patient_charge_pence?: number
+          patient_email?: string | null
           patient_id?: string
+          patient_mobile?: string | null
           patient_signature_method?: string | null
           patient_signature_received?: boolean
           payment_amount_pence?: number | null
@@ -1485,6 +1795,17 @@ export type Database = {
           rejection_code?: string | null
           rejection_reason?: string | null
           scheduled_for_payment_at?: string | null
+          snapshot_address_line1?: string | null
+          snapshot_address_line2?: string | null
+          snapshot_address_line3?: string | null
+          snapshot_date_of_birth?: string | null
+          snapshot_forename?: string | null
+          snapshot_nhs_number?: string | null
+          snapshot_postcode?: string | null
+          snapshot_previous_surname?: string | null
+          snapshot_sex?: string | null
+          snapshot_surname?: string | null
+          snapshot_title?: string | null
           source_appointment_id?: string | null
           status?: Database["public"]["Enums"]["nhs_claim_status"]
           submission_reference?: string | null
@@ -1492,6 +1813,8 @@ export type Database = {
           treatment_band?:
             | Database["public"]["Enums"]["fp17_treatment_band"]
             | null
+          uda_awarded?: number | null
+          uoa_awarded?: number | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1533,6 +1856,80 @@ export type Database = {
           },
           {
             foreignKeyName: "nhs_claim_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nhs_claim_activity: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          dcp_gdc_number: string | null
+          id: string
+          nhs_claim_id: string
+          practice_id: string
+          quadrant: string | null
+          tooth_number: number | null
+          updated_at: string
+          updated_by: string | null
+          value: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          dcp_gdc_number?: string | null
+          id?: string
+          nhs_claim_id: string
+          practice_id: string
+          quadrant?: string | null
+          tooth_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          value?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          dcp_gdc_number?: string | null
+          id?: string
+          nhs_claim_id?: string
+          practice_id?: string
+          quadrant?: string | null
+          tooth_number?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nhs_claim_activity_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_claim_activity_nhs_claim_id_fkey"
+            columns: ["nhs_claim_id"]
+            isOneToOne: false
+            referencedRelation: "nhs_claim"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_claim_activity_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_claim_activity_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "practice_member"
@@ -1590,8 +1987,10 @@ export type Database = {
         Row: {
           appliance_fitted_date: string | null
           assessment_date: string | null
+          completion_reason: string | null
           created_at: string
           created_by: string | null
+          date_of_referral: string | null
           discontinuation_reason: string | null
           discontinued_at: string | null
           id: string
@@ -1602,10 +2001,13 @@ export type Database = {
             | Database["public"]["Enums"]["iotn_grade"]
             | null
           nhs_claim_id: string
+          par_score_end: number | null
+          par_score_start: number | null
           practice_id: string
           retention_phase_started: boolean
           retention_phase_started_at: string | null
           treatment_completion_date: string | null
+          treatment_proposed: boolean | null
           treatment_start_date: string | null
           updated_at: string
           updated_by: string | null
@@ -1613,8 +2015,10 @@ export type Database = {
         Insert: {
           appliance_fitted_date?: string | null
           assessment_date?: string | null
+          completion_reason?: string | null
           created_at?: string
           created_by?: string | null
+          date_of_referral?: string | null
           discontinuation_reason?: string | null
           discontinued_at?: string | null
           id?: string
@@ -1625,10 +2029,13 @@ export type Database = {
             | Database["public"]["Enums"]["iotn_grade"]
             | null
           nhs_claim_id: string
+          par_score_end?: number | null
+          par_score_start?: number | null
           practice_id: string
           retention_phase_started?: boolean
           retention_phase_started_at?: string | null
           treatment_completion_date?: string | null
+          treatment_proposed?: boolean | null
           treatment_start_date?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1636,8 +2043,10 @@ export type Database = {
         Update: {
           appliance_fitted_date?: string | null
           assessment_date?: string | null
+          completion_reason?: string | null
           created_at?: string
           created_by?: string | null
+          date_of_referral?: string | null
           discontinuation_reason?: string | null
           discontinued_at?: string | null
           id?: string
@@ -1648,10 +2057,13 @@ export type Database = {
             | Database["public"]["Enums"]["iotn_grade"]
             | null
           nhs_claim_id?: string
+          par_score_end?: number | null
+          par_score_start?: number | null
           practice_id?: string
           retention_phase_started?: boolean
           retention_phase_started_at?: string | null
           treatment_completion_date?: string | null
+          treatment_proposed?: boolean | null
           treatment_start_date?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1687,106 +2099,47 @@ export type Database = {
           },
         ]
       }
-      nhs_claim_treatment: {
+      nhs_claim_response_code: {
         Row: {
-          antibiotic_items: number
-          bridges_count: number
-          created_at: string
-          created_by: string | null
-          crowns_count: number
-          dentures_count: number
-          endodontic_count: number
-          examination: boolean
-          extractions_count: number
-          fillings_count: number
-          fissure_sealants: boolean
-          fluoride_varnish: boolean
-          free_repair_or_replacement: boolean
+          code: string
           id: string
+          message: string | null
           nhs_claim_id: string
-          periodontal_treatment: boolean
           practice_id: string
-          scale_and_polish: boolean
-          treated_tooth_numbers: number[] | null
-          updated_at: string
-          updated_by: string | null
-          x_rays_taken: number
+          received_at: string
+          severity: string
         }
         Insert: {
-          antibiotic_items?: number
-          bridges_count?: number
-          created_at?: string
-          created_by?: string | null
-          crowns_count?: number
-          dentures_count?: number
-          endodontic_count?: number
-          examination?: boolean
-          extractions_count?: number
-          fillings_count?: number
-          fissure_sealants?: boolean
-          fluoride_varnish?: boolean
-          free_repair_or_replacement?: boolean
+          code: string
           id?: string
+          message?: string | null
           nhs_claim_id: string
-          periodontal_treatment?: boolean
           practice_id: string
-          scale_and_polish?: boolean
-          treated_tooth_numbers?: number[] | null
-          updated_at?: string
-          updated_by?: string | null
-          x_rays_taken?: number
+          received_at?: string
+          severity?: string
         }
         Update: {
-          antibiotic_items?: number
-          bridges_count?: number
-          created_at?: string
-          created_by?: string | null
-          crowns_count?: number
-          dentures_count?: number
-          endodontic_count?: number
-          examination?: boolean
-          extractions_count?: number
-          fillings_count?: number
-          fissure_sealants?: boolean
-          fluoride_varnish?: boolean
-          free_repair_or_replacement?: boolean
+          code?: string
           id?: string
+          message?: string | null
           nhs_claim_id?: string
-          periodontal_treatment?: boolean
           practice_id?: string
-          scale_and_polish?: boolean
-          treated_tooth_numbers?: number[] | null
-          updated_at?: string
-          updated_by?: string | null
-          x_rays_taken?: number
+          received_at?: string
+          severity?: string
         }
         Relationships: [
           {
-            foreignKeyName: "nhs_claim_treatment_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "practice_member"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nhs_claim_treatment_nhs_claim_id_fkey"
+            foreignKeyName: "nhs_claim_response_code_nhs_claim_id_fkey"
             columns: ["nhs_claim_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "nhs_claim"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "nhs_claim_treatment_practice_id_fkey"
+            foreignKeyName: "nhs_claim_response_code_practice_id_fkey"
             columns: ["practice_id"]
             isOneToOne: false
             referencedRelation: "practice"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "nhs_claim_treatment_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "practice_member"
             referencedColumns: ["id"]
           },
         ]
@@ -1862,6 +2215,71 @@ export type Database = {
           {
             foreignKeyName: "nhs_performer_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nhs_performer_request: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          practice_id: string
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          staff_id: string
+          status: Database["public"]["Enums"]["nhs_performer_request_status"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          practice_id: string
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          staff_id: string
+          status?: Database["public"]["Enums"]["nhs_performer_request_status"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          practice_id?: string
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          staff_id?: string
+          status?: Database["public"]["Enums"]["nhs_performer_request_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nhs_performer_request_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_performer_request_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_performer_request_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nhs_performer_request_staff_id_fkey"
+            columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "practice_member"
             referencedColumns: ["id"]
@@ -2287,13 +2705,20 @@ export type Database = {
         Row: {
           address_line1: string | null
           address_line2: string | null
+          booking_app_enabled: boolean
           city: string | null
+          complaints_procedure: Json | null
           country: string
           cqc_location_id: string | null
           cqc_provider_id: string | null
+          cqc_rating: string | null
+          cqc_rating_date: string | null
           created_at: string
+          custom_hostname: string | null
           deleted_at: string | null
+          ico_registration_number: string | null
           id: string
+          marketing_site_enabled: boolean
           name: string
           nhs_contract_number: string | null
           nhs_location_id: string | null
@@ -2301,7 +2726,10 @@ export type Database = {
           postcode: string | null
           primary_email: string | null
           primary_phone: string | null
+          principal_dentist_gdc_number: string | null
+          principal_dentist_name: string | null
           slug: string
+          staff_seat_limit: number | null
           status: string
           timezone: string
           trial_ends_at: string | null
@@ -2311,13 +2739,20 @@ export type Database = {
         Insert: {
           address_line1?: string | null
           address_line2?: string | null
+          booking_app_enabled?: boolean
           city?: string | null
+          complaints_procedure?: Json | null
           country?: string
           cqc_location_id?: string | null
           cqc_provider_id?: string | null
+          cqc_rating?: string | null
+          cqc_rating_date?: string | null
           created_at?: string
+          custom_hostname?: string | null
           deleted_at?: string | null
+          ico_registration_number?: string | null
           id?: string
+          marketing_site_enabled?: boolean
           name: string
           nhs_contract_number?: string | null
           nhs_location_id?: string | null
@@ -2325,7 +2760,10 @@ export type Database = {
           postcode?: string | null
           primary_email?: string | null
           primary_phone?: string | null
+          principal_dentist_gdc_number?: string | null
+          principal_dentist_name?: string | null
           slug: string
+          staff_seat_limit?: number | null
           status?: string
           timezone?: string
           trial_ends_at?: string | null
@@ -2335,13 +2773,20 @@ export type Database = {
         Update: {
           address_line1?: string | null
           address_line2?: string | null
+          booking_app_enabled?: boolean
           city?: string | null
+          complaints_procedure?: Json | null
           country?: string
           cqc_location_id?: string | null
           cqc_provider_id?: string | null
+          cqc_rating?: string | null
+          cqc_rating_date?: string | null
           created_at?: string
+          custom_hostname?: string | null
           deleted_at?: string | null
+          ico_registration_number?: string | null
           id?: string
+          marketing_site_enabled?: boolean
           name?: string
           nhs_contract_number?: string | null
           nhs_location_id?: string | null
@@ -2349,7 +2794,10 @@ export type Database = {
           postcode?: string | null
           primary_email?: string | null
           primary_phone?: string | null
+          principal_dentist_gdc_number?: string | null
+          principal_dentist_name?: string | null
           slug?: string
+          staff_seat_limit?: number | null
           status?: string
           timezone?: string
           trial_ends_at?: string | null
@@ -2425,6 +2873,69 @@ export type Database = {
           },
         ]
       }
+      practice_document: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by_member_id: string | null
+          archived_at: string | null
+          assigned_at: string
+          assigned_by_admin_email: string | null
+          body_markdown: string
+          id: string
+          kind: string
+          practice_id: string
+          source_document_id: string
+          source_version_id: string | null
+          title: string
+          viewed_at: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by_member_id?: string | null
+          archived_at?: string | null
+          assigned_at?: string
+          assigned_by_admin_email?: string | null
+          body_markdown: string
+          id?: string
+          kind: string
+          practice_id: string
+          source_document_id: string
+          source_version_id?: string | null
+          title: string
+          viewed_at?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by_member_id?: string | null
+          archived_at?: string | null
+          assigned_at?: string
+          assigned_by_admin_email?: string | null
+          body_markdown?: string
+          id?: string
+          kind?: string
+          practice_id?: string
+          source_document_id?: string
+          source_version_id?: string | null
+          title?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_document_acknowledged_by_member_id_fkey"
+            columns: ["acknowledged_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_document_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       practice_hours: {
         Row: {
           close_time: string | null
@@ -2492,6 +3003,7 @@ export type Database = {
       practice_member: {
         Row: {
           available_for_booking: boolean
+          color_hex: string | null
           created_at: string
           deleted_at: string | null
           email: string
@@ -2508,6 +3020,7 @@ export type Database = {
         }
         Insert: {
           available_for_booking?: boolean
+          color_hex?: string | null
           created_at?: string
           deleted_at?: string | null
           email: string
@@ -2524,6 +3037,7 @@ export type Database = {
         }
         Update: {
           available_for_booking?: boolean
+          color_hex?: string | null
           created_at?: string
           deleted_at?: string | null
           email?: string
@@ -2544,6 +3058,178 @@ export type Database = {
             columns: ["practice_id"]
             isOneToOne: false
             referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_setting: {
+        Row: {
+          added_to_waitlist_body: string | null
+          added_to_waitlist_subject: string | null
+          appointment_cancelled_body: string | null
+          appointment_cancelled_subject: string | null
+          appointment_confirmed_body: string | null
+          appointment_confirmed_subject: string | null
+          appointment_rescheduled_body: string | null
+          appointment_rescheduled_subject: string | null
+          auto_send_invoice_on_completion: boolean
+          bank_holidays_region: string
+          created_at: string
+          created_by: string | null
+          default_appt_duration_minutes: number
+          enquiry_received_body: string | null
+          enquiry_received_subject: string | null
+          first_reminder_body: string | null
+          first_reminder_subject: string | null
+          from_email: string | null
+          from_name: string | null
+          google_review_url: string | null
+          kiosk_exit_pin: string | null
+          max_advance_booking_days: number
+          min_booking_notice_hours: number
+          notify_on_appointment_cancelled: boolean
+          notify_on_appointment_confirmed: boolean
+          notify_on_appointment_rescheduled: boolean
+          notify_on_enquiry_received: boolean
+          notify_on_recall_due: boolean
+          notify_on_request_rejected: boolean
+          notify_on_waitlist_added: boolean
+          post_appointment_body: string | null
+          post_appointment_hours_after: number | null
+          post_appointment_subject: string | null
+          practice_id: string
+          practice_website: string | null
+          recall_reminder_body: string | null
+          recall_reminder_lead_days: number
+          recall_reminder_subject: string | null
+          reminder_days_before: number | null
+          reminder_hours_before: number | null
+          request_rejected_body: string | null
+          request_rejected_subject: string | null
+          second_reminder_body: string | null
+          second_reminder_subject: string | null
+          show_bank_holidays: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          added_to_waitlist_body?: string | null
+          added_to_waitlist_subject?: string | null
+          appointment_cancelled_body?: string | null
+          appointment_cancelled_subject?: string | null
+          appointment_confirmed_body?: string | null
+          appointment_confirmed_subject?: string | null
+          appointment_rescheduled_body?: string | null
+          appointment_rescheduled_subject?: string | null
+          auto_send_invoice_on_completion?: boolean
+          bank_holidays_region?: string
+          created_at?: string
+          created_by?: string | null
+          default_appt_duration_minutes?: number
+          enquiry_received_body?: string | null
+          enquiry_received_subject?: string | null
+          first_reminder_body?: string | null
+          first_reminder_subject?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          google_review_url?: string | null
+          kiosk_exit_pin?: string | null
+          max_advance_booking_days?: number
+          min_booking_notice_hours?: number
+          notify_on_appointment_cancelled?: boolean
+          notify_on_appointment_confirmed?: boolean
+          notify_on_appointment_rescheduled?: boolean
+          notify_on_enquiry_received?: boolean
+          notify_on_recall_due?: boolean
+          notify_on_request_rejected?: boolean
+          notify_on_waitlist_added?: boolean
+          post_appointment_body?: string | null
+          post_appointment_hours_after?: number | null
+          post_appointment_subject?: string | null
+          practice_id: string
+          practice_website?: string | null
+          recall_reminder_body?: string | null
+          recall_reminder_lead_days?: number
+          recall_reminder_subject?: string | null
+          reminder_days_before?: number | null
+          reminder_hours_before?: number | null
+          request_rejected_body?: string | null
+          request_rejected_subject?: string | null
+          second_reminder_body?: string | null
+          second_reminder_subject?: string | null
+          show_bank_holidays?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          added_to_waitlist_body?: string | null
+          added_to_waitlist_subject?: string | null
+          appointment_cancelled_body?: string | null
+          appointment_cancelled_subject?: string | null
+          appointment_confirmed_body?: string | null
+          appointment_confirmed_subject?: string | null
+          appointment_rescheduled_body?: string | null
+          appointment_rescheduled_subject?: string | null
+          auto_send_invoice_on_completion?: boolean
+          bank_holidays_region?: string
+          created_at?: string
+          created_by?: string | null
+          default_appt_duration_minutes?: number
+          enquiry_received_body?: string | null
+          enquiry_received_subject?: string | null
+          first_reminder_body?: string | null
+          first_reminder_subject?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          google_review_url?: string | null
+          kiosk_exit_pin?: string | null
+          max_advance_booking_days?: number
+          min_booking_notice_hours?: number
+          notify_on_appointment_cancelled?: boolean
+          notify_on_appointment_confirmed?: boolean
+          notify_on_appointment_rescheduled?: boolean
+          notify_on_enquiry_received?: boolean
+          notify_on_recall_due?: boolean
+          notify_on_request_rejected?: boolean
+          notify_on_waitlist_added?: boolean
+          post_appointment_body?: string | null
+          post_appointment_hours_after?: number | null
+          post_appointment_subject?: string | null
+          practice_id?: string
+          practice_website?: string | null
+          recall_reminder_body?: string | null
+          recall_reminder_lead_days?: number
+          recall_reminder_subject?: string | null
+          reminder_days_before?: number | null
+          reminder_hours_before?: number | null
+          request_rejected_body?: string | null
+          request_rejected_subject?: string | null
+          second_reminder_body?: string | null
+          second_reminder_subject?: string | null
+          show_bank_holidays?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_setting_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_setting_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: true
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_setting_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
             referencedColumns: ["id"]
           },
         ]
@@ -3443,6 +4129,165 @@ export type Database = {
           },
         ]
       }
+      support_attachment: {
+        Row: {
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          id: string
+          message_id: string | null
+          mime_type: string | null
+          practice_id: string
+          thread_id: string
+          uploaded_at: string
+        }
+        Insert: {
+          file_name: string
+          file_path: string
+          file_size_bytes: number
+          id?: string
+          message_id?: string | null
+          mime_type?: string | null
+          practice_id: string
+          thread_id: string
+          uploaded_at?: string
+        }
+        Update: {
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number
+          id?: string
+          message_id?: string | null
+          mime_type?: string | null
+          practice_id?: string
+          thread_id?: string
+          uploaded_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_attachment_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "support_message"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_attachment_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_attachment_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_thread"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_message: {
+        Row: {
+          author_email: string
+          author_name: string | null
+          author_user_id: string | null
+          body: string
+          created_at: string
+          direction: Database["public"]["Enums"]["support_direction"]
+          id: string
+          practice_id: string
+          read_at: string | null
+          thread_id: string
+        }
+        Insert: {
+          author_email: string
+          author_name?: string | null
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          direction: Database["public"]["Enums"]["support_direction"]
+          id?: string
+          practice_id: string
+          read_at?: string | null
+          thread_id: string
+        }
+        Update: {
+          author_email?: string
+          author_name?: string | null
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          direction?: Database["public"]["Enums"]["support_direction"]
+          id?: string
+          practice_id?: string
+          read_at?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_message_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_message_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "support_thread"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_thread: {
+        Row: {
+          claimed_at: string | null
+          claimed_by_email: string | null
+          created_at: string
+          deleted_at: string | null
+          id: string
+          last_message_at: string
+          practice_id: string
+          status: Database["public"]["Enums"]["support_thread_status"]
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by_email?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          last_message_at?: string
+          practice_id: string
+          status?: Database["public"]["Enums"]["support_thread_status"]
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by_email?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          last_message_at?: string
+          practice_id?: string
+          status?: Database["public"]["Enums"]["support_thread_status"]
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_thread_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       treatment_plan: {
         Row: {
           accepted_at: string | null
@@ -3803,6 +4648,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anonymise_patient: { Args: { p_patient_id: string }; Returns: undefined }
+      is_operator: { Args: never; Returns: boolean }
+      is_patient_retention_eligible: {
+        Args: { p_patient_id: string }
+        Returns: boolean
+      }
       list_operators: {
         Args: never
         Returns: {
@@ -3813,6 +4664,66 @@ export type Database = {
           is_operator: boolean
           last_sign_in_at: string
         }[]
+      }
+      list_public_services: {
+        Args: { p_practice_id: string }
+        Returns: {
+          duration_minutes: number
+          id: string
+          is_nhs: boolean
+          name: string
+          nhs_band: string
+          price_pence: number
+        }[]
+      }
+      list_retention_eligible_patients: {
+        Args: never
+        Returns: {
+          dob: string
+          full_name: string
+          last_visited_at: string
+          patient_id: string
+          patient_number: number
+          registration_status: Database["public"]["Enums"]["patient_registration_status"]
+        }[]
+      }
+      lookup_practice_by_hostname: {
+        Args: { p_hostname: string }
+        Returns: {
+          booking_app_enabled: boolean
+          complaints_procedure: Json
+          country: string
+          cqc_provider_id: string
+          cqc_rating: string
+          cqc_rating_date: string
+          ico_registration_number: string
+          id: string
+          marketing_site_enabled: boolean
+          name: string
+          principal_dentist_gdc_number: string
+          principal_dentist_name: string
+          slug: string
+          staff_seat_limit: number
+          status: string
+          timezone: string
+        }[]
+      }
+      submit_public_booking_request: {
+        Args: {
+          p_alternative_times?: string
+          p_email: string
+          p_first_name: string
+          p_is_emergency?: boolean
+          p_is_new_patient?: boolean
+          p_last_name: string
+          p_notes?: string
+          p_phone: string
+          p_practice_id: string
+          p_preferred_starts_at?: string
+          p_service_id?: string
+          p_source_url?: string
+        }
+        Returns: string
       }
     }
     Enums: {
@@ -3971,6 +4882,7 @@ export type Database = {
         | "SCHEDULED_FOR_PAYMENT"
         | "PAID"
         | "CANCELLED"
+      nhs_country: "ENGLAND" | "WALES" | "ISLE_OF_MAN"
       nhs_exemption_category:
         | "NONE"
         | "UNDER_18"
@@ -3986,6 +4898,7 @@ export type Database = {
         | "HC2_FULL_HELP"
         | "HC3_PARTIAL_HELP"
         | "OTHER"
+      nhs_performer_request_status: "PENDING" | "COMPLETED" | "CANCELLED"
       note_parent_type:
         | "PATIENT"
         | "APPOINTMENT"
@@ -4093,6 +5006,13 @@ export type Database = {
         | "TRAINING"
         | "COMPASSIONATE"
         | "OTHER"
+      support_direction: "INBOUND" | "OUTBOUND"
+      support_thread_status:
+        | "OPEN"
+        | "AWAITING_DENTALOPTIMA"
+        | "AWAITING_TENANT"
+        | "RESOLVED"
+        | "CLOSED"
       treatment_plan_item_status:
         | "PROPOSED"
         | "SCHEDULED"
@@ -4401,6 +5321,7 @@ export const Constants = {
         "PAID",
         "CANCELLED",
       ],
+      nhs_country: ["ENGLAND", "WALES", "ISLE_OF_MAN"],
       nhs_exemption_category: [
         "NONE",
         "UNDER_18",
@@ -4417,6 +5338,7 @@ export const Constants = {
         "HC3_PARTIAL_HELP",
         "OTHER",
       ],
+      nhs_performer_request_status: ["PENDING", "COMPLETED", "CANCELLED"],
       note_parent_type: [
         "PATIENT",
         "APPOINTMENT",
@@ -4536,6 +5458,14 @@ export const Constants = {
         "TRAINING",
         "COMPASSIONATE",
         "OTHER",
+      ],
+      support_direction: ["INBOUND", "OUTBOUND"],
+      support_thread_status: [
+        "OPEN",
+        "AWAITING_DENTALOPTIMA",
+        "AWAITING_TENANT",
+        "RESOLVED",
+        "CLOSED",
       ],
       treatment_plan_item_status: [
         "PROPOSED",

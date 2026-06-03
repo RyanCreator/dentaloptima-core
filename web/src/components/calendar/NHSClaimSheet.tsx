@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
-import { CalendarIcon, FileText, Send, Save, Stethoscope, AlertTriangle } from "lucide-react";
+import {
+  CalendarIcon,
+  FileText,
+  Send,
+  Save,
+  Stethoscope,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Info,
+} from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -25,8 +34,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { logger } from "@/lib/logger";
 import { usePractice } from "@/contexts/PracticeContext";
+import { supabase } from "@/integrations/supabase/client";
 import { PageLoading } from "@/components/PageLoading";
 import {
   saveNhsClaim,
@@ -37,30 +46,41 @@ import {
   type ClaimTreatmentDetails,
   type NHSClaimStatus,
 } from "@/lib/createNhsClaim";
+import {
+  buildClaimActivities,
+  activitiesToFriendly,
+  genderToFp17Sex,
+} from "@/lib/nhs/claimActivities";
+import {
+  validateFp17Claim,
+  isClaimSubmittable,
+  type ClaimForValidation,
+  type ValidationFinding,
+} from "@/lib/nhs/validateClaim";
+import { useNhsReferenceData } from "@/hooks/useNhsReferenceData";
 import type { Appointment } from "@/hooks/useAppointments";
 
-// FP17 claim creation/edit. Drafts can be created from any completed
-// NHS appointment; the same sheet edits an existing claim. FP17O and
-// FP17W extensions aren't wired up yet — picking them keeps you in DRAFT
-// status and we surface a "coming soon" hint, so the dentist isn't
-// blocked from logging the basics.
+// FP17 claim creation/edit. Drafts can be created from any completed NHS
+// appointment; the same sheet edits an existing claim.
+//
+// Entry stays friendly (tick what you did); under the hood it compiles to the
+// NHSBSA 9000-code activity-line model (nhs_claim_activity) and runs the
+// pre-submission validator live, so the practice sees the exact issues Compass
+// would otherwise return — before the claim can be marked ready to submit.
 
 const FORM_TYPES: { value: FP17FormType; label: string; hint?: string }[] = [
   { value: "FP17", label: "FP17 (general dental services)" },
-  { value: "FP17O", label: "FP17O (orthodontic)", hint: "IOTN fields coming soon" },
-  { value: "FP17W", label: "FP17W (domiciliary)" },
+  { value: "FP17O", label: "FP17O (orthodontic)", hint: "ortho data set coming soon" },
+  { value: "FP17W", label: "FP17W (Wales)", hint: "England rules only for now" },
   { value: "FP17PR", label: "FP17PR (prior approval)" },
 ];
 
-const BANDS: { value: FP17TreatmentBand; label: string; hint?: string }[] = [
-  { value: "BAND_1", label: "Band 1 — examination, diagnosis, x-rays" },
-  { value: "BAND_1_WITH_X_RAY", label: "Band 1 with x-ray" },
-  { value: "BAND_2", label: "Band 2 — fillings, extractions, root canals" },
-  { value: "BAND_3", label: "Band 3 — crowns, bridges, dentures" },
+type CourseType = "1" | "2" | "3" | "URGENT";
+const COURSE_TYPES: { value: CourseType; label: string }[] = [
+  { value: "1", label: "Band 1 — exam, diagnosis, prevention" },
+  { value: "2", label: "Band 2 — fillings, extractions, endo" },
+  { value: "3", label: "Band 3 — crowns, bridges, dentures" },
   { value: "URGENT", label: "Urgent treatment" },
-  { value: "PRESCRIPTION_ONLY", label: "Prescription only" },
-  { value: "REPAIR_FREE", label: "Repair (free)" },
-  { value: "DENTURE_REPAIR", label: "Denture repair" },
 ];
 
 const SIGNATURE_METHODS = [
@@ -87,6 +107,43 @@ const EMPTY_TREATMENTS: ClaimTreatmentDetails = {
   treated_tooth_numbers: null,
 };
 
+// Maps the stored (deprecated) band enum back to the friendly course type.
+function bandToCourseType(band: string | null | undefined): CourseType {
+  switch (band) {
+    case "BAND_2":
+      return "2";
+    case "BAND_3":
+      return "3";
+    case "URGENT":
+      return "URGENT";
+    default:
+      return "1"; // BAND_1, BAND_1_WITH_X_RAY and legacy values
+  }
+}
+
+function courseToBand(course: CourseType): FP17TreatmentBand {
+  return course === "URGENT"
+    ? "URGENT"
+    : course === "2"
+    ? "BAND_2"
+    : course === "3"
+    ? "BAND_3"
+    : "BAND_1";
+}
+
+interface PatientDetails {
+  dob: string | null;
+  gender: string | null;
+  first_name: string;
+  last_name: string;
+  title: string | null;
+  email: string | null;
+  phone: string | null;
+  postcode: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+}
+
 interface NHSClaimSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -109,100 +166,94 @@ export function NHSClaimSheet({
   const tenant = usePractice();
   const practiceId = tenant.practice.id;
   const navigate = useNavigate();
+  const { data: referenceData } = useNhsReferenceData("ENGLAND");
 
   const [loading, setLoading] = useState(true);
   const [performer, setPerformer] = useState<ActivePerformer | null>(null);
+  const [patientDetails, setPatientDetails] = useState<PatientDetails | null>(null);
   const [existingClaimId, setExistingClaimId] = useState<string | null>(null);
   const [existingStatus, setExistingStatus] = useState<NHSClaimStatus | null>(null);
 
   const apptDateStr = format(new Date(appointment.starts_at), "yyyy-MM-dd");
-  const completedDateStr = appointment.status === "COMPLETED"
-    ? format(new Date(appointment.starts_at), "yyyy-MM-dd")
-    : null;
+  const completedDateStr =
+    appointment.status === "COMPLETED"
+      ? format(new Date(appointment.starts_at), "yyyy-MM-dd")
+      : null;
 
-  // Form state. Pre-fills from existing claim on edit; from defaults otherwise.
+  // Form state.
   const [formType, setFormType] = useState<FP17FormType>("FP17");
-  const [band, setBand] = useState<FP17TreatmentBand>("BAND_1");
-  const [acceptanceDate, setAcceptanceDate] = useState<Date | undefined>(
-    parseISO(apptDateStr),
-  );
+  const [courseType, setCourseType] = useState<CourseType>("1");
+  const [acceptanceDate, setAcceptanceDate] = useState<Date | undefined>(parseISO(apptDateStr));
   const [completionDate, setCompletionDate] = useState<Date | undefined>(
     completedDateStr ? parseISO(completedDateStr) : undefined,
   );
-  const [isUrgent, setIsUrgent] = useState(false);
   const [numberOfVisits, setNumberOfVisits] = useState(1);
   const [patientChargePounds, setPatientChargePounds] = useState("0");
   const [signatureReceived, setSignatureReceived] = useState(false);
   const [signatureMethod, setSignatureMethod] = useState<string>("DIGITAL");
   const [recallMonths, setRecallMonths] = useState<string>("");
+  const [bpeScore, setBpeScore] = useState<string>("");
+  const [untreatedDecayed, setUntreatedDecayed] = useState<string>("");
   const [treatments, setTreatments] = useState<ClaimTreatmentDetails>(EMPTY_TREATMENTS);
-  const [teethInput, setTeethInput] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isExempt = appointment.nhs_exemption_category !== "NONE";
 
-  // Reset form to defaults / existing claim whenever the sheet opens.
   const loadInitial = useCallback(async () => {
     setLoading(true);
-    const [perf, existing] = await Promise.all([
+    const [perf, existing, patientRes] = await Promise.all([
       findActivePerformerForStaff(appointment.staff.id),
       findClaimForAppointment(appointment.id),
+      supabase
+        .from("patient")
+        .select(
+          "dob, gender, first_name, last_name, title, email, phone, postcode, address_line1, address_line2",
+        )
+        .eq("id", appointment.patient.id)
+        .maybeSingle(),
     ]);
     setPerformer(perf);
+    setPatientDetails((patientRes.data as PatientDetails | null) ?? null);
 
     if (existing) {
       const c = existing.claim;
-      const t = existing.treatment;
+      // Reconstruct the friendly form from the canonical activity lines.
+      const friendly = activitiesToFriendly(existing.activities ?? []);
       setExistingClaimId(c.id);
       setExistingStatus(c.status as NHSClaimStatus);
       setFormType(c.form_type as FP17FormType);
-      setBand((c.treatment_band as FP17TreatmentBand) ?? "BAND_1");
+      // Prefer the band encoded in the activity lines; fall back to the column.
+      setCourseType(friendly.courseType ?? bandToCourseType(c.treatment_band));
       setAcceptanceDate(c.date_of_acceptance ? parseISO(c.date_of_acceptance) : undefined);
       setCompletionDate(c.date_of_completion ? parseISO(c.date_of_completion) : undefined);
-      setIsUrgent(!!c.is_urgent_treatment);
       setNumberOfVisits(c.number_of_visits ?? 1);
       setPatientChargePounds(((c.patient_charge_pence ?? 0) / 100).toFixed(2));
       setSignatureReceived(!!c.patient_signature_received);
       setSignatureMethod(c.patient_signature_method ?? "DIGITAL");
       setRecallMonths(c.recall_interval_months ? String(c.recall_interval_months) : "");
-      if (t) {
-        setTreatments({
-          examination: !!t.examination,
-          scale_and_polish: !!t.scale_and_polish,
-          fluoride_varnish: !!t.fluoride_varnish,
-          fissure_sealants: !!t.fissure_sealants,
-          fillings_count: t.fillings_count ?? 0,
-          extractions_count: t.extractions_count ?? 0,
-          endodontic_count: t.endodontic_count ?? 0,
-          crowns_count: t.crowns_count ?? 0,
-          bridges_count: t.bridges_count ?? 0,
-          dentures_count: t.dentures_count ?? 0,
-          x_rays_taken: t.x_rays_taken ?? 0,
-          periodontal_treatment: !!t.periodontal_treatment,
-          free_repair_or_replacement: !!t.free_repair_or_replacement,
-          antibiotic_items: t.antibiotic_items ?? 0,
-          treated_tooth_numbers: t.treated_tooth_numbers ?? null,
-        });
-        setTeethInput((t.treated_tooth_numbers ?? []).join(", "));
-      }
+      setBpeScore(friendly.bpeScore != null ? String(friendly.bpeScore) : "");
+      setUntreatedDecayed(
+        friendly.untreatedDecayedTeeth != null ? String(friendly.untreatedDecayedTeeth) : "",
+      );
+      setTreatments(friendly.treatments);
     } else {
       setExistingClaimId(null);
       setExistingStatus(null);
       setFormType("FP17");
-      setBand("BAND_1");
+      setCourseType("1");
       setAcceptanceDate(parseISO(apptDateStr));
       setCompletionDate(completedDateStr ? parseISO(completedDateStr) : undefined);
-      setIsUrgent(false);
       setNumberOfVisits(1);
       setPatientChargePounds("0");
       setSignatureReceived(false);
       setSignatureMethod("DIGITAL");
       setRecallMonths("");
+      setBpeScore("");
+      setUntreatedDecayed("");
       setTreatments(EMPTY_TREATMENTS);
-      setTeethInput("");
     }
     setLoading(false);
-  }, [appointment.id, appointment.staff.id, apptDateStr, completedDateStr]);
+  }, [appointment.id, appointment.staff.id, appointment.patient.id, apptDateStr, completedDateStr]);
 
   useEffect(() => {
     if (open) void loadInitial();
@@ -213,39 +264,74 @@ export function NHSClaimSheet({
     value: ClaimTreatmentDetails[K],
   ) => setTreatments((prev) => ({ ...prev, [key]: value }));
 
-  const parsedTeeth = useMemo(() => {
-    const trimmed = teethInput.trim();
-    if (!trimmed) return [];
-    const parts = trimmed.split(",").map((p) => p.trim()).filter(Boolean);
-    const out: number[] = [];
-    for (const p of parts) {
-      const n = Number(p);
-      if (!Number.isInteger(n) || n <= 0) return null;
-      out.push(n);
-    }
-    return out;
-  }, [teethInput]);
+  const bandNumber: 1 | 2 | 3 | null = courseType === "URGENT" ? null : (Number(courseType) as 1 | 2 | 3);
+  const isUrgent = courseType === "URGENT";
+
+  // Build the activity lines + validator input from current form state.
+  const activities = useMemo(
+    () =>
+      buildClaimActivities({
+        bandNumber,
+        isUrgent,
+        treatments,
+        recallMonths: recallMonths ? Number(recallMonths) : null,
+        bpeScore: bpeScore ? Number(bpeScore) : null,
+        untreatedDecayedTeeth: untreatedDecayed ? Number(untreatedDecayed) : null,
+      }),
+    [bandNumber, isUrgent, treatments, recallMonths, bpeScore, untreatedDecayed],
+  );
+
+  const findings: ValidationFinding[] = useMemo(() => {
+    if (!referenceData) return [];
+    const input: ClaimForValidation = {
+      formType,
+      country: "ENGLAND",
+      dateOfAcceptance: acceptanceDate ? format(acceptanceDate, "yyyy-MM-dd") : null,
+      dateOfCompletion: completionDate ? format(completionDate, "yyyy-MM-dd") : null,
+      patientDob: patientDetails?.dob ?? null,
+      patientSex: genderToFp17Sex(patientDetails?.gender),
+      patientSurname: patientDetails?.last_name ?? null,
+      patientForename: patientDetails?.first_name ?? null,
+      patientEmail: patientDetails?.email ?? null,
+      patientMobile: patientDetails?.phone ?? null,
+      exemptionCategory: appointment.nhs_exemption_category,
+      patientChargePence: Math.round((parseFloat(patientChargePounds) || 0) * 100),
+      recallIntervalMonths: recallMonths ? Number(recallMonths) : null,
+      activities,
+    };
+    return validateFp17Claim(input, referenceData);
+  }, [
+    referenceData,
+    formType,
+    acceptanceDate,
+    completionDate,
+    patientDetails,
+    appointment.nhs_exemption_category,
+    patientChargePounds,
+    recallMonths,
+    activities,
+  ]);
+
+  const errors = findings.filter((f) => f.severity === "ERROR");
+  const warnings = findings.filter((f) => f.severity === "WARNING");
+  const submittable = isClaimSubmittable(findings);
 
   const submit = async (status: NHSClaimStatus) => {
     if (!performer) {
       toast.error("This staff member has no active NHS performer registration");
       return;
     }
-    if (!appointment.patient.nhs_number) {
-      toast.error("Patient has no NHS number on record — add it before saving the claim");
-      return;
-    }
     if (!acceptanceDate) {
       toast.error("Date of acceptance is required");
-      return;
-    }
-    if (parsedTeeth === null) {
-      toast.error("Tooth numbers must be comma-separated whole numbers");
       return;
     }
     const pounds = parseFloat(patientChargePounds);
     if (Number.isNaN(pounds) || pounds < 0) {
       toast.error("Patient charge must be a positive number");
+      return;
+    }
+    if (status === "READY_TO_SUBMIT" && !submittable) {
+      toast.error("Resolve the validation errors before marking this claim ready");
       return;
     }
 
@@ -256,10 +342,11 @@ export function NHSClaimSheet({
       appointmentId: appointment.id,
       performerId: performer.id,
       formType,
-      treatmentBand: band,
+      treatmentBand: courseToBand(courseType),
+      country: "ENGLAND",
       dateOfAcceptance: format(acceptanceDate, "yyyy-MM-dd"),
       dateOfCompletion: completionDate ? format(completionDate, "yyyy-MM-dd") : null,
-      isUrgentTreatment: isUrgent || band === "URGENT",
+      isUrgentTreatment: isUrgent,
       numberOfVisits,
       patientChargePence: Math.round(pounds * 100),
       exemptionCategory: appointment.nhs_exemption_category,
@@ -267,7 +354,21 @@ export function NHSClaimSheet({
       patientSignatureReceived: signatureReceived,
       patientSignatureMethod: signatureReceived ? signatureMethod : null,
       recallIntervalMonths: recallMonths ? Number(recallMonths) : null,
-      treatments: { ...treatments, treated_tooth_numbers: parsedTeeth.length ? parsedTeeth : null },
+      activities,
+      snapshot: {
+        nhsNumber: appointment.patient.nhs_number,
+        title: patientDetails?.title ?? null,
+        forename: patientDetails?.first_name ?? null,
+        surname: patientDetails?.last_name ?? null,
+        sex: genderToFp17Sex(patientDetails?.gender),
+        dateOfBirth: patientDetails?.dob ?? null,
+        addressLine1: patientDetails?.address_line1 ?? null,
+        addressLine2: patientDetails?.address_line2 ?? null,
+        addressLine3: null,
+        postcode: patientDetails?.postcode ?? null,
+        email: patientDetails?.email ?? null,
+        mobile: patientDetails?.phone ?? null,
+      },
       status,
       existingClaimId: existingClaimId ?? undefined,
     });
@@ -277,10 +378,6 @@ export function NHSClaimSheet({
       toast.error(result.error || "Failed to save claim");
       return;
     }
-    // On first save we offer a quick path to /nhs-claims so the user can
-    // confirm the claim landed and progress its status. On edits we skip
-    // the action — they were already looking at the claim. The detail
-    // sheet auto-opens on the claims dashboard via the ?claim= param.
     const newClaimId = result.claimId;
     const isFirstSave = !existingClaimId;
     const successMessage =
@@ -360,16 +457,6 @@ export function NHSClaimSheet({
                   </span>
                 </div>
               )}
-
-              {!appointment.patient.nhs_number && (
-                <div className="flex items-start gap-2 rounded-md border border-amber-200/60 bg-amber-50 dark:bg-amber-950/20 p-2 text-[11px] text-amber-800 dark:text-amber-200">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>
-                    Patient has no NHS number on file. Add it on the patient
-                    record before submitting this claim to NHSBSA.
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Course of treatment */}
@@ -392,24 +479,24 @@ export function NHSClaimSheet({
                       ))}
                     </SelectContent>
                   </Select>
-                  {formType === "FP17O" && (
+                  {formType !== "FP17" && (
                     <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1">
-                      IOTN fields aren't wired up yet — orthodontic claims save in
-                      DRAFT but can't be submitted until that lands.
+                      Only FP17 (England) is fully validated today — other forms save
+                      in DRAFT.
                     </p>
                   )}
                 </Field>
-                <Field label="Treatment band">
+                <Field label="Course / band">
                   <Select
-                    value={band}
-                    onValueChange={(v) => setBand(v as FP17TreatmentBand)}
+                    value={courseType}
+                    onValueChange={(v) => setCourseType(v as CourseType)}
                     disabled={isReadOnly}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {BANDS.map((b) => (
+                      {COURSE_TYPES.map((b) => (
                         <SelectItem key={b.value} value={b.value}>
                           {b.label}
                         </SelectItem>
@@ -438,25 +525,15 @@ export function NHSClaimSheet({
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Number of visits">
-                  <Input
-                    type="number"
-                    min={1}
-                    value={numberOfVisits}
-                    onChange={(e) => setNumberOfVisits(Math.max(1, parseInt(e.target.value) || 1))}
-                    disabled={isReadOnly}
-                  />
-                </Field>
-                <label className="flex items-end gap-2 cursor-pointer">
-                  <Checkbox
-                    checked={isUrgent}
-                    onCheckedChange={(v) => setIsUrgent(!!v)}
-                    disabled={isReadOnly}
-                  />
-                  <span className="text-sm pb-1">Urgent treatment</span>
-                </label>
-              </div>
+              <Field label="Number of visits">
+                <Input
+                  type="number"
+                  min={1}
+                  value={numberOfVisits}
+                  onChange={(e) => setNumberOfVisits(Math.max(1, parseInt(e.target.value) || 1))}
+                  disabled={isReadOnly}
+                />
+              </Field>
             </FormSection>
 
             {/* Charges + signature */}
@@ -470,15 +547,15 @@ export function NHSClaimSheet({
                     value={patientChargePounds}
                     onChange={(e) => setPatientChargePounds(e.target.value)}
                     disabled={isReadOnly}
-                    placeholder={isExempt ? "0.00 (exempt)" : "e.g. 25.80"}
+                    placeholder={isExempt ? "0.00 (exempt)" : "e.g. 27.90"}
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {isExempt
                       ? "Patient is recorded as exempt — typically £0.00."
-                      : "Use the current NHSBSA band charge for the patient's region."}
+                      : "The validator checks this against the current band charge."}
                   </p>
                 </Field>
-                <Field label="Recall interval (months)">
+                <Field label="NICE recall (months)">
                   <Input
                     type="number"
                     min={1}
@@ -549,19 +626,41 @@ export function NHSClaimSheet({
                 <CountField label="X-rays" value={treatments.x_rays_taken} onChange={(v) => updateTreatment("x_rays_taken", v)} disabled={isReadOnly} />
                 <CountField label="Antibiotics" value={treatments.antibiotic_items} onChange={(v) => updateTreatment("antibiotic_items", v)} disabled={isReadOnly} />
               </div>
-
-              <Field label="Treated tooth numbers (FDI)" className="mt-2">
-                <Input
-                  value={teethInput}
-                  onChange={(e) => setTeethInput(e.target.value)}
-                  placeholder="e.g. 11, 12, 21"
-                  disabled={isReadOnly}
-                />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Adult: 11–48. Deciduous: 51–85. Comma-separated.
-                </p>
-              </Field>
             </FormSection>
+
+            {/* England NHS data set — mandatory items for adult banded claims */}
+            <FormSection title="NHS data set (England)">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Highest BPE sextant score">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={4}
+                    value={bpeScore}
+                    onChange={(e) => setBpeScore(e.target.value.replace(/[^0-9]/g, ""))}
+                    disabled={isReadOnly}
+                    placeholder="0–4"
+                  />
+                </Field>
+                <Field label="Untreated decayed teeth">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={untreatedDecayed}
+                    onChange={(e) => setUntreatedDecayed(e.target.value.replace(/[^0-9]/g, ""))}
+                    disabled={isReadOnly}
+                    placeholder="e.g. 0"
+                  />
+                </Field>
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                BPE (9378) and untreated decayed teeth (9379) are mandatory on adult
+                Band 1/2/3 claims in England.
+              </p>
+            </FormSection>
+
+            {/* Live validation panel */}
+            <ValidationPanel errors={errors} warnings={warnings} loaded={!!referenceData} />
 
             {/* Action buttons */}
             <div className="flex flex-col gap-2 pt-2 border-t">
@@ -594,12 +693,14 @@ export function NHSClaimSheet({
                     saving ||
                     isReadOnly ||
                     !performer ||
-                    !appointment.patient.nhs_number ||
-                    !signatureReceived
+                    !signatureReceived ||
+                    !submittable
                   }
                   className="flex-1"
                   title={
-                    !signatureReceived
+                    !submittable
+                      ? "Resolve the validation errors first"
+                      : !signatureReceived
                       ? "Patient signature required before marking ready"
                       : ""
                   }
@@ -613,6 +714,65 @@ export function NHSClaimSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
+function ValidationPanel({
+  errors,
+  warnings,
+  loaded,
+}: {
+  errors: ValidationFinding[];
+  warnings: ValidationFinding[];
+  loaded: boolean;
+}) {
+  if (!loaded) return null;
+
+  if (errors.length === 0 && warnings.length === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-green-200/70 bg-green-50 dark:bg-green-950/20 p-2.5 text-xs text-green-800 dark:text-green-200">
+        <CheckCircle2 className="h-4 w-4 shrink-0" />
+        <span>No issues found — this claim passes the FP17 checks.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {errors.length > 0 && (
+        <div className="rounded-md border border-red-200/70 bg-red-50 dark:bg-red-950/20 p-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-red-800 dark:text-red-200 mb-1.5">
+            <XCircle className="h-4 w-4" />
+            {errors.length} {errors.length === 1 ? "error" : "errors"} — must fix before submitting
+          </div>
+          <ul className="space-y-1">
+            {errors.map((f, i) => (
+              <li key={i} className="text-[11px] text-red-700 dark:text-red-300 flex gap-1.5">
+                <span className="font-mono shrink-0 opacity-70">{f.code}</span>
+                <span>{f.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {warnings.length > 0 && (
+        <div className="rounded-md border border-amber-200/70 bg-amber-50 dark:bg-amber-950/20 p-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1.5">
+            <Info className="h-4 w-4" />
+            {warnings.length} {warnings.length === 1 ? "warning" : "warnings"} — review
+          </div>
+          <ul className="space-y-1">
+            {warnings.map((f, i) => (
+              <li key={i} className="text-[11px] text-amber-700 dark:text-amber-300 flex gap-1.5">
+                <span className="font-mono shrink-0 opacity-70">{f.code}</span>
+                <span>{f.message}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 

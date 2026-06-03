@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { SupportBell } from "@/components/SupportBell";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { HelpButton } from "@/components/help/HelpButton";
 
 interface TopBarProps {
@@ -33,7 +33,7 @@ export const TopBar = ({ title, description, onBack }: TopBarProps) => {
         )}
       </div>
       <HelpButton />
-      <SupportBell />
+      <NotificationsBell />
     </header>
   );
 };

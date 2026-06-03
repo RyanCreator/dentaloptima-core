@@ -1,0 +1,566 @@
+Dental activity processing comments
+
+This guide contains a list of comments received on your `SCHEDL' or `DAILYS' file, or on a dentists Schedule.
+Comments are provided to give additional details around your data submission, these are for information only.
+If the information does not provide the details you're looking for you can contact us.
+Our Customer Contact Centre is open 8am to 6pm Monday to Friday.
+
+V6.0_1 April 2026
+Comment           Description                              Narrative                                      Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+001      Reg 11                      Claim is for a Regulation 11 (Regulation 9 in  Output on all successfully validated Reg 11 FP17s
+                                     Isle of Man) free replacement appliance on
+                                     a non- orthodontic claim
+
+010      Advice Only no longer       Advice Only no longer required                 Advice Only no longer required
+
+         required
+
+011      No treatment to justify     No treatment item is present on the claim      A Band 1 claim without any Band 1 item
+         band claimed                which warrants the Band that has been put      present A Band 2 claim without any Band 2
+                                     on the claim                                   item present A Band 3 claim without any
+
+                                                                                    Band 3 claim present
+
+012      Treatment entered           Treatment item(s) are present on this claim    An unbanded claim with Band 1, 2 or 3 items
+                                     which relate to a higher band than that
+         higher than band            claimed                                        present A Band 1 claim with Band 2 or 3 items
+
+                                                                                    present
+                                                                                    A Band 2 or Urgent claim with a Band 3 item present
+
+013      Reg 11 claim without        A Reg 11 claim does not include any item A Reg 11 claim should include a denture or obturator (zero toothed
+
+         appliance                   which refers to a replaceable appliance        upper denture)
+
+014      Free Repair w/o             Claim made for Free Repair/Replacement         Free Repair/Replacement must include a tooth restoration of some
+                                     Within 12 Months but there is no treatment     kind (filling, crown, inlay)
+         repair/replaceable          item on the claim referring to a repairable
+                                     or replaceable item.
+         item
+
+015      Treatment performed on Treatment carried out whilst the                    The whole of the course of treatment was within the designated period
+                                                                                    of the performer's maternity leave
+         maternity leave             practitioner was on a period of maternity
+
+                                     leave
+
+016      No Patient Presented With The code Patient Presented With showing          Welsh claims only that are missing code 9372 for Patient Presented
+                                     the reason the patient attended is missing     With reason.
+         reason
+                                     from the claim
+
+017      Mandatory Highest BPE       Mandatory Highest BPE Sextant Score code       Code 9379 must be present on every banded adult claim for England
+         Sextant Score code 9378 is  9378 is missing                                dated since 01/04/22
+         missing
+Comment            Description                               Narrative                                           Additional information
+  Code    (this information appears       (this appears in the Activity section on
+         on a SCHEDL or DAILYS         Compass if Errors and Changes is selected    Code 9378 must be present on every banded adult claim for England
+018                                                                                 dated since 01/04/22
+            file or on the Dentist's                        for a claim)
+                    schedule)
+                                      Mandatory number of Untreated Decayed
+         Mandatory number of          Teeth code 9379 is missing
+         Untreated Decayed
+         Teeth code 9379 is
+         missing
+
+019      Mandatory Recall Interval Mandatory Recall Interval is missing             Code 9172 must be present on every banded adult claim for England
+         is missing                                                                 dated since 01/04/22
+Comment           Description                              Narrative                            Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+020      Endodontic code 9305 no Endodontic code 9305 no longer applicable No longer produced since 16/11/22
+         longer applicable           on claims dated from 01/10/22
+
+022      Treatment performed on Treatment carried out whilst the                   The whole of the course of treatment was within the designated period
+
+         Special Leave               practitioner was on a period of special leave of special leave for the performer
+
+024      New Patient                 New Patient. Eligible for New Patient         The claim has been recognised as a new patient to the contract,
+                                     Premium if applicable to contract             performer and provider. If a New Patient Premium is applicable it will
+                                                                                   awarded to the claim in addition to the UDA.
+
+025      Treatment performed on Treatment carried out whilst the                   The whole of the course of treatment was within the designated period
+
+         Paternity Leave             practitioner was on a period of paternity     of the performer's paternity leave
+
+                                     leave
+
+026      Treatment performed on Treatment carried out whilst the                   The whole of the course of treatment was within the designated period
+                                                                                   of the performer's adoptive leave
+         Adoptive Leave              practitioner was on a period of adoptive
+
+                                     leave
+
+027      Treatment performed on Treatment carried out whilst the                   The whole of the course of treatment was within the designated period
+
+         Long Term Sick leave        practitioner was on a period of long term of long term sick leave for the performer
+
+                                     sick leave
+
+029      New Patient Premium NA New Patient Premium NA due to late                 A New Patient Premium would have been awarded for the claim but
+
+                                     submission                                    has been disallowed, along with the normal UDA, due to late
+
+                                                                                   submission.
+
+030      Referral N/A                Treatment Under Referral has been             There must be a Band 2 or 3 on all Treatment on Referral claims
+                                     disallowed as there is no treatment band
+044      After Portal Update         on the claim                                  Claim has been updated on-line by NHS Dental Services following a
+                                                                                   Schedule Query or a correction to a Failed Validation claim
+                                     Claim has been updated on-line by NHS
+                                     Dental Services following a Schedule Query
+                                     or a correction to a Failed Validation claim
+Comment           Description                               Narrative                                           Additional information
+  Code   (this information appears       (this appears in the Activity section on
+         on a SCHEDL or DAILYS        Compass if Errors and Changes is selected    Patient referred for Advanced Mandatory Services. Patient Charge
+                                                                                   based upon the Band of treatment to be performed under AMS and
+           file or on the Dentist's                        for a claim)            UDA according to the actual Band of treatment carried out
+                   schedule)
+                                     Patient referred for Advanced Mandatory       NB. The two months is literally defined as 62 days and can be
+048      Referral for AMS            Services. Patient Charge based upon the       periodically set to a different level (eg during the pandemic). It can
+                                     Band of treatment to be performed under       also differ between England, Wales and the Isle of Man
+049      Activity Units N/A          AMS and
+                                     UDA according to the actual Band of
+                                     treatment carried out
+
+                                     UDA has been disallowed due to the claim
+                                     being received more than 2 months after
+                                     date of completion
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+050      Invalid or missing NHS      Invalid or missing NHS Number on Welsh DAP The NHS number is missing on a Welsh DAP New Patient or Welsh New
+
+         Number on Welsh DAP New Patient or Welsh New Urgent Patient Urgent Patient Referral claim or is an invalid format if entered.
+
+         New Patient or Welsh New Referral claim
+
+         Urgent Patient Referral
+
+         claim
+
+059      Remission                   Remission claim from the Isle of Man         Includes Income Support, Job Seekers Allowance, War Disablement
+                                                                                  Pensioner, Registered Blind, Low Income, Person of State Retirement
+                                                                                  Age, Employed Person's Allowance
+
+061      Welsh New Urgent Patient    Welsh New Urgent Patient Referral            Welsh New Urgent Patient Referral
+         Referral
+
+062      Welsh DAP New Patient Welsh DAP New Patient                              Welsh DAP New Patient
+
+065      COVID or Triage related COVID or Triage related codes no longer          COVID or Triage related codes no longer necessary
+         codes no longer necessary necessary
+
+066      KPI codes in the 9500       KPI codes in the 9500 range no longer        KPI codes in the 9500 range no longer required
+
+         range no longer required required
+
+080      Deletion Record             Contra Entry created by the deletion or      Occasioned by a deletion carried out on-line in Compass. This will have
+                                     substitution of a valid claim                the exact negative values in terms of UDA/UOA, patient charge and
+                                                                                  remission of the claim being deleted
+
+081      HC2 Certificate             HC2 Certificate remission                    HC2 Certificate remission
+
+082      HC3 Certificate             HC3 Certificate partial remission            HC3 Certificate partial remission
+
+083      Income Support              Income Support remission                     Income Support remission
+086      Job Seeker's Allowance      Income based Job Seeker's Allowance           Income based Job Seeker's Allowance remission
+
+                                     remission
+
+102      Assess and Debond           Assess and Debond                             For refugees and asylum seekers where appliance has been fitted
+                                                                                   abroad
+Comment           Description                               Narrative
+  Code   (this information appears       (this appears in the Activity section on                               Additional information
+         on a SCHEDL or DAILYS        Compass if Errors and Changes is selected
+
+           file or on the Dentist's                        for a claim)
+                   schedule)
+
+104      Employment Support          Income Related Employment Support             Income Related Employment Support Allowance remission
+
+                                     Allowance remission
+
+105      Deleted At Your Request Claim has been deleted by the submission          Occasioned by a deletion carried out by the submission of an SQ Ind 3
+                                            of an SQ Ind 3 deletion request        claim. This will have the exact negative values in terms of UDA/UOA,
+                                                                                   patient charge and remission of the claim being deleted
+
+106      Late Claim Override         Late claim checks have been waived on this An override has been placed on this claim by the BSA or health
+
+                                     claim                                         authority to prevent the late claim checks being carried out
+
+107      Patient Charge Override     The patient's charge for this claim has been  An override has been placed on this claim by the BSA or health
+                                     manually calculated and entered               authority to ensure that a zero patient charge is applied to the claim
+                                                                                   or that an alternative non-standard patient charge is applied to the
+
+                                                                                   claim
+Comment           Description                              Narrative                       Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+108      History Check Override      Validation checks against historical claim   An override has been placed on this claim by the BSA or health
+                                     data have been overridden on this claim      authority to prevent the normal checks against the patient's claim
+                                                                                  history from being carried out
+
+109      Patient Match Override      Processing to match this claim's patient id  An override has been placed on this claim by the BSA or health
+                                     against existing ones has been overridden    authority to prevent the claim from matching to a similarly named
+
+                                                                                  patient
+
+111      Very old claim allowed      Very old claim allowed                       An override has been placed on this claim by the BSA or Commissioner
+                                                                                  to prevent the very old claim checks being carried out.
+
+112      Universal Credit            Universal Credit remission                   Universal Credit remission
+
+121      Care Pathway 1              Care Pathway 1                               Care Pathway 1 claimed
+
+122      Care Pathway 2              Care Pathway 2                               Care Pathway 2 claimed
+
+123      Care Pathway 3              Care Pathway 3                               Care Pathway 3 claimed
+
+159      Late submitted claim        Claim received more than 2 months after Often accompanied by the "Activity Units N/A" comment on FP17s but
+
+                                     Date of Completion                           can occur (without penalty) on FP17O completion claims
+
+171      Tax Credits                 NHS Tax Credit remission                     NHS Tax Credit remission
+
+172      Pension Credit              Pension Credit Guarantee remission           Pension Credit Guarantee remission
+
+177      Missing Ortho Data          No orthodontics data on a claim from an      The contract is a designated orthodontic contract but an FP17 has been
+                                     orthodontic specialist contract              received
+178      Prisoner                    Prisoner exemption                            Prisoner exemption
+
+179      Charge Exempt Ignored Charge exempt item ignored due to banded Charge exempt item dropped from claim
+                                     treatment being claimed
+
+180      Address/Pcode missing       Patient's postcode is missing from claim or   Patient's postcode is missing from claim or is in an invalid format
+                                     is in an invalid format                                                    Additional information
+Comment           Description
+  Code   (this information appears                          Narrative
+         on a SCHEDL or DAILYS           (this appears in the Activity section on
+                                      Compass if Errors and Changes is selected
+           file or on the Dentist's
+                   schedule)                               for a claim)
+
+185      Ortho Treat Abandoned Orthodontic Treatment Abandoned                     FP17O with Code 9161 1 for Ortho Treatment Abandoned successfully
+                                                                                   processed
+
+186      Ortho Discontinued          Orthodontic Treatment Discontinued            FP17O with Code 9161 2 for Ortho Treatment Discontinued successfully
+                                                                                   processed
+Comment           Description                              Narrative                                     Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+187      Ortho Treat Completed Orthodontic Treatment Completed                    FP17O with Code 9161 3 for Ortho Treatment Completed successfully
+                                                                                  processed
+
+188      Further Treatment           Further Treatment Within 2 Months of         Further Treatment Within 2 Months (aka "Continuation") claim
+                                     completion of previous course of             successfully accepted and processed
+                                     treatment
+
+189      Free Repair/Replacement     Free Repair/Replacement Within 12 Months Free Repair/Replacement Treatment Within 12 Months (aka
+
+                                     of completion of previous course of          "Guaranteed") claim successfully accepted and processed
+
+                                     treatment
+
+190      Incomplete Treatment        Incomplete Treatment Band claimed - any      Incomplete Treatment Band claimed - patient charge levied according
+                                     patient charge levied will accord with this  to this and not to original Band claimed
+
+                                     and not to original Band claimed
+
+191      Referral                    Treatment on Referral                        Treatment on Referral
+
+192      Arrest of Bleeding          Arrest of Bleeding charge exempt claimed Arrest of Bleeding code 9155 charge exempt claimed
+
+193      Removal of Sutures          Removal of Sutures charge exempt claimed Removal of Sutures code 9156 charge exempt claimed
+
+194      Repairs to Dentures         Repairs to Dentures charge exempt claimed Repairs to Dentures charge code 9154 exempt claimed
+
+195      Repairs to Bridges          Repairs to Bridges charge exempt claimed Repairs to Bridges charge exempt code 9157 claimed
+
+196      Issue of Prescription       Prescription Only charge exempt claimed Prescription Only code 9158 charge exempt claimed
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+197      Repair to Appliance         Repair to Orthodontic Appliance Fitted by    Repair to Orthodontic Appliance Fitted by Another Dentist code 9159
+                                     Another Dentist charge exempt claimed        charge exempt claimed
+Comment           Description                              Narrative                                 Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+198      Ortho Assess and Review Orthodontic Assessment and Review claimed Code 9012 ortho assessment and review successfully processed
+
+199      Ortho Assess and Refuse Orthodontic Assessment and Refuse claimed Code 9013 ortho assessment and refuse treatment successfully
+
+                                                                                  processed
+
+201      Extra Treatment on Reg 11 Additional non-denture/appliance               On a Reg 11 FP17 claim there is banded treatment present that does
+                                     treatment allowed on a Reg 11                not pertain to a denture or obturator
+
+202      Assess/Appliance Fitted Orthodontic Assessment and Appliance             Code 9014 ortho assessment/appliance fitted successfully processed
+                                     Fitted claimed
+
+204      Ortho Reg 11                Reg 11 (Reg 9 for Isle of Man) claimed on an Output on all successfully validated Reg 11 FP17Os
+                                     FP17O
+
+207      Remission/Exemption N/A Remission or exemption not allowed or            The remission/exemption on the claim has been ignored, usually
+
+                                     ignored where it is not appropriate          because the claim is for charge exempt treatment, Reg 11 or triage
+
+                                     Claim is for a previous financial year but was The claim belongs to the previous financial year and has been
+
+215      Missed Year End Report not included on a schedule until after the processed after the designated cut off for the June schedule. This
+
+                                     following June's End of Year Report was      therefore means that the claim will not be included in the normal
+
+                                     produced                                     year end reports.
+
+                                     Ortho                                        Ortho Completion/Abandoned/Discontinued claim where previous
+                                                                                  FP17O for the same patient was for Assess and Review or Assess and
+219      Ortho Trt Start Absent      Completion/Abandoned/Discontinued
+
+                                     claim where previous FP17O for the same      Refuse treatment
+                                     patient was not for an
+
+                                     Assessment/Appliance Fitted
+
+223      Domiciliary Services        Domiciliary Services claimed                 Domiciliary Services claimed
+
+224      Sedation Services           Sedation Services claimed                    Sedation Services claimed
+Comment           Description                              Narrative                     Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+225      Date of Completion N/A Superfluous Date of Completion ignored on Superfluous Date of Completion ignored on an Orthodontic assessment
+                                     an Orthodontic assessment claim
+                                                                                  claim
+Comment           Description                              Narrative                                 Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+                                     Claim has been deleted and replaced by the Occasioned by a deletion carried out by an SQ Ind 1 deletion and
+
+227      Replaced as Requested submission of an SQ Ind 1 replacement               substitution request. This will have the exact negative values in terms
+
+                                     claim request.                                of UDA/UOA, patient charge and remission of the claim being deleted
+
+230      Schedule Query              Electronic claim with a Schedule Query Ind    Appears on the replacement claim that has had an SQ Ind 1 deletion
+                                     present (SQ activity not necessarily carried  and substitution request present
+                                     out successfully)
+
+233      Date Appl Fitted N/A        Superfluous Date Appliance Fitted ignored on Superfluous Date Appliance Fitted ignored on an Orthodontic
+
+                                     an Orthodontic completion claim               completion claim
+
+234      Inappropriate Trmt Qty Treatment quantity accompanying a CDS              The amount accompanying the treatment code had an excessive value
+
+                                     item was excessive, incorrect or not          not really appropriate to the treatment being claimed eg. An 18 tooth
+
+                                     relevant                                      denture
+
+235      Treat/Band Inconsistent The CDS treatment claimed is inappropriate The band associated with a treatment code on the claim pertains to a
+                                     to the Band claimed                           higher band than that being claimed
+
+237      Pat Charge Taken            Patient charge entered and levied on a        Patient charge entered and levied on a claim for free
+                                     claim for free repair/replacements within     repair/replacements within 12 months
+242      KPI Data N/A                12 months
+                                                                                   The KPI data on the claim has been ignored.
+                                     Key Performance Indicators on claim
+                                     where contract is not PDS+
+
+243      Excess Recall Interval      Recall Interval of greater than 24 months     Recall Interval of greater than 24 months claimed
+
+                                     claimed
+
+244      No CDS Trmt Entered         No CDS treatment included on a Banded         Where no CDS treatment at all has been entered on an FP17O claim
+
+                                     claim
+
+245      No Ethnic Origin            No Ethnic Origin entered on an English or     No Ethnic Origin entered on an English or Welsh claim
+                                     Welsh claim
+Comment           Description                               Narrative                                           Additional information
+  Code   (this information appears       (this appears in the Activity section on
+         on a SCHEDL or DAILYS        Compass if Errors and Changes is selected    FP17O assessment or completion claim where no Index Of Orthodontic
+                                                                                   Treatment Need has been entered
+           file or on the Dentist's                        for a claim)
+                   schedule)
+                                     FP17O assessment or completion claim
+246      NO IOTN Entered             where no Index Of Orthodontic Treatment
+                                     Need has been entered
+
+252      SQ On Different Performer Schedule Query carried out where original Schedule Query carried out where original was under a different
+                                     was under a different performer for the same performer for the same contract
+
+                                     contract
+Comment           Description                              Narrative               Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+253      On Different Contract       Schedule Query carried out where original     Schedule Query carried out where original claim was under a
+                                     claim was under a different contract for the  different contract for the same provider
+                                     same provider
+
+254      Pat Chg Rec nn.nn           Patient Charge Collected on claim not equal   Output whenever the calculated patient charge doesn't equal that
+                                     to that calculated                            entered on the claim (unless the charge shown on the claim is zero).
+                                                                                   However, in the Isle of Man this comment is shown even if the charge
+                                                                                   entered on the claim is zero
+
+255      No ODS present              No orthodontic data set present on an         Where no ODS treatment at all has been entered on an FP17O claim
+                                     FP17O claim
+
+256      As updated by practice Claim updated on line by practice                  Non-EDI claim update on-line in Compass by the practice
+
+257      SQ Ind ignored              SQ Ind 1 but original claim already removed   If an SQ Ind 1 claim deletion and substitution claim is processed where
+                                     or invalid                                    the original claim has already been deleted or where the original claim
+                                                                                   is in error (and therefore doesn't need an SQ Ind 1 to replace it) this
+                                                                                   comment will result
+
+258      Created by BSA              Claim created on-line by Capita/BSA           In special circumstances the BSA can create claims on line within
+                                                                                   Compass
+
+259      SQ Original not traced      SQ Ind 1 but original claim cannot be found An SQ Ind 1 deletion and substitution claim has been processed but
+                                                                                   the original claim cannot be traced
+
+260      Invalid NHS No Removed Invalid NHS No Removed                             The NHS No entered is in an invalid format and has been removed from
+                                                                                   the claim
+
+261      Welsh CDS items ignored Welsh CDS items ignored due to an invalid         Welsh CDS items dropped from claim.
+                                            Contract ID
+
+262      CDS items for different     CDS items for different region ignored        Clinical data set items pertaining only to England received and
+                                                                                   dropped from a Welsh claim. Alternatively clinical data set items
+         region ignored                                                            pertaining only to Wales received and dropped from an English claim
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+263      Duplicated Treatment Code Duplicated Treatment Code Dropped              Where the same code appears more than once on a claim, the second
+         Dropped                                                                  and subsequent instances are dropped
+
+         Zero PAR Scores not         Zero PAR Scores not required and have been   Par scores of zero entered on code 9313 and/or 9314. These have been
+
+264      required and have been dropped                                           dropped from the claim.
+
+         dropped
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+265      Notified NHS Number Not Notified NHS Number Not Used                     An NHS Number has been transmitted to your practice on the
+                                                                                  monthly schedule file following a previous submission for this patient.
+         Used                                                                     It is noted that the NHS Number has not been used on a subsequent
+                                                                                  transmission.
+266      Patient Details Updated Patient Details Updated
+                                                                                  A patient, identified by a valid NHS Number, previously was known by a
+267      Alternative Name Found Alternative Name Found                            different forename or surname from the one on this claim. Our records
+                                                                                  for this patient have therefore been updated accordingly
+
+                                                                                  In tracing the NHS Number for this patient it has been noted that they
+                                                                                  are known by a different surname or forename. We have not updated
+                                                                                  our patient record.
+
+268      ACORN codes not             ACORN codes not necessary for non-ACORN ACORN codes not necessary for non-ACORN claims
+
+         necessary for non-ACORN claims
+         claims
+
+                                     There is no ACORN check present on the
+
+269      No ACORN check found claim and no record of an earlier ACORN No longer produced since 01/04/21
+
+                                     check has been found within the previous
+
+                                     12 months
+
+271      ACORN                       ACORN Assessment overdue                     A banded claim has been received where there is no previous record of
+                                     Full ACORN dataset required                  an ACORN assessment being carried out
+         Assessment
+                                                                                  The claim has no ACORN Assessment Carried Out but there are some,
+         overdue                                                                  or even a full set of, ACORN codes present on the claim
+
+272      Full ACORN dataset
+
+         required
+
+273      Missing ACORN               Missing ACORN Assessment Carried Out flag Some ACORN codes are present on the claim but ehre is no ACORN
+
+         Assessment Carried Out                                                   Assessment Carried Out
+
+         flag
+
+274      ACORN                       ACORN                                        ACORN Assessment carried out successfully processed
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+275      Overdue ACORN carried Overdue ACORN carried out                          ACORN Assessment where it has been over 12 months since last ACORN
+
+         out
+
+276      Triage                      Triage
+Comment           Description                              Narrative              Additional information
+  Code   (this information appears      (this appears in the Activity section on
+         on a SCHEDL or DAILYS       Compass if Errors and Changes is selected
+
+           file or on the Dentist's                       for a claim)
+                   schedule)
+
+278      Prescription Only Ignored Prescription Only Ignored                      Ignored and dropped from a banded claim
+                                                                                  Ignored and dropped from a banded claim
+279      Repairs to Denture Ignored Repairs to Denture Ignored                    Ignored and dropped from a banded claim
+                                                                                  Ignored and dropped from a banded claim
+280      Bridge Repairs Ignored Bridge Repairs Ignored                            Ignored and dropped from a banded claim
+                                                                                  The NHS Number include on this claim does not match that which has
+281      Arrest of Bleeding Ignored Arrest of Bleeding Ignored                    been successfully traced for this patient.
+
+282      Removal of Sutures Ignored Removal of Sutures Ignored
+
+283      Incorrect NHS Number Incorrect NHS Number
+

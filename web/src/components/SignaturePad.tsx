@@ -16,6 +16,10 @@ export interface SignaturePadHandle {
   clear: () => void;
   /** Serialise the strokes as a PNG blob. Returns null on empty. */
   toBlob: () => Promise<Blob | null>;
+  /** Cumulative pixel distance the pointer has travelled while drawing.
+   *  Real signatures land in the 500–2000+ range; a dot is ~0–10. The
+   *  kiosk uses this to reject single-point "signatures". */
+  getInkLengthPx: () => number;
 }
 
 interface SignaturePadProps {
@@ -27,6 +31,10 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawingRef = useRef(false);
     const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+    // Cumulative pixel distance — accumulated on every pointer-move so a
+    // scribble has a high number and a single tap has ~0. Kiosk reads
+    // this via getInkLengthPx to gate "is this an actual signature".
+    const inkLengthRef = useRef(0);
     const [hasStroke, setHasStroke] = useState(false);
 
     // Resize the canvas to match its CSS size at the current devicePixelRatio.
@@ -68,6 +76,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
         if (!ctx) return;
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, rect.width, rect.height);
+        inkLengthRef.current = 0;
         setHasStroke(false);
       },
       toBlob: () =>
@@ -76,6 +85,7 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
           if (!canvas || !hasStroke) { resolve(null); return; }
           canvas.toBlob((blob) => resolve(blob), "image/png");
         }),
+      getInkLengthPx: () => inkLengthRef.current,
     }));
 
     const localPoint = (e: PointerEvent | React.PointerEvent): { x: number; y: number } => {
@@ -102,6 +112,9 @@ export const SignaturePad = forwardRef<SignaturePadHandle, SignaturePadProps>(
       ctx.moveTo(last.x, last.y);
       ctx.lineTo(p.x, p.y);
       ctx.stroke();
+      // Accumulate path length so the parent can gate "this is a real
+      // signature" — a tap registers ~0px, a scribble lands well over 100.
+      inkLengthRef.current += Math.hypot(p.x - last.x, p.y - last.y);
       lastPointRef.current = p;
       if (!hasStroke) setHasStroke(true);
     };

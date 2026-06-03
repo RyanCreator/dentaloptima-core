@@ -16,6 +16,7 @@ import { logger } from "@/lib/logger";
 import { toast } from "sonner";
 import { PageLoading } from "@/components/PageLoading";
 import { formatPrice } from "@/types/entities";
+import { useNhsReferenceData } from "@/hooks/useNhsReferenceData";
 import { FileText, Send, Check, X, RotateCcw } from "lucide-react";
 
 // Read-mostly viewer for an NHS claim, opened from the claims dashboard.
@@ -58,25 +59,12 @@ interface ClaimDetail {
     provider_number: string;
     staff: { full_name: string | null } | null;
   } | null;
-  treatments: TreatmentDetail | null;
+  activities: ClaimActivityRow[];
 }
 
-interface TreatmentDetail {
-  examination: boolean;
-  scale_and_polish: boolean;
-  fluoride_varnish: boolean;
-  fissure_sealants: boolean;
-  fillings_count: number;
-  extractions_count: number;
-  endodontic_count: number;
-  crowns_count: number;
-  bridges_count: number;
-  dentures_count: number;
-  x_rays_taken: number;
-  periodontal_treatment: boolean;
-  free_repair_or_replacement: boolean;
-  antibiotic_items: number;
-  treated_tooth_numbers: number[] | null;
+interface ClaimActivityRow {
+  code: string;
+  value: number | null;
 }
 
 interface NHSClaimDetailSheetProps {
@@ -92,6 +80,7 @@ export function NHSClaimDetailSheet({
 }: NHSClaimDetailSheetProps) {
   const [loading, setLoading] = useState(false);
   const [claim, setClaim] = useState<ClaimDetail | null>(null);
+  const { data: referenceData } = useNhsReferenceData("ENGLAND");
   const [busy, setBusy] = useState(false);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionCode, setRejectionCode] = useState("");
@@ -102,7 +91,7 @@ export function NHSClaimDetailSheet({
   const load = useCallback(async () => {
     if (!claimId) return;
     setLoading(true);
-    const [claimRes, treatRes] = await Promise.all([
+    const [claimRes, actRes] = await Promise.all([
       supabase
         .from("nhs_claim")
         .select(
@@ -120,10 +109,9 @@ export function NHSClaimDetailSheet({
         .eq("id", claimId)
         .maybeSingle(),
       supabase
-        .from("nhs_claim_treatment")
-        .select("*")
-        .eq("nhs_claim_id", claimId)
-        .maybeSingle(),
+        .from("nhs_claim_activity")
+        .select("code, value")
+        .eq("nhs_claim_id", claimId),
     ]);
 
     if (claimRes.error || !claimRes.data) {
@@ -132,8 +120,8 @@ export function NHSClaimDetailSheet({
       setClaim(null);
     } else {
       setClaim({
-        ...(claimRes.data as unknown as Omit<ClaimDetail, "treatments">),
-        treatments: (treatRes.data as TreatmentDetail | null) ?? null,
+        ...(claimRes.data as unknown as Omit<ClaimDetail, "activities">),
+        activities: (actRes.data as ClaimActivityRow[] | null) ?? [],
       });
     }
     setLoading(false);
@@ -303,31 +291,34 @@ export function NHSClaimDetailSheet({
               />
             </div>
 
-            {/* Treatments summary */}
-            {claim.treatments && (
-              <div className="rounded-lg border bg-card p-3 space-y-2">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Treatments
-                </h4>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  {treatmentSummaryEntries(claim.treatments).map(([label, value]) => (
-                    <div key={label} className="flex justify-between">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-medium">{value}</span>
-                    </div>
-                  ))}
-                </div>
-                {claim.treatments.treated_tooth_numbers &&
-                  claim.treatments.treated_tooth_numbers.length > 0 && (
-                    <div className="text-xs">
-                      <span className="text-muted-foreground">Teeth:</span>{" "}
-                      <span className="font-mono">
-                        {claim.treatments.treated_tooth_numbers.join(", ")}
-                      </span>
-                    </div>
-                  )}
-              </div>
-            )}
+            {/* Activity (9000-code) lines */}
+            <div className="rounded-lg border bg-card p-3 space-y-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Activity codes
+              </h4>
+              {claim.activities.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No activity recorded.</p>
+              ) : (
+                <ul className="space-y-1 text-xs">
+                  {claim.activities.map((a, i) => {
+                    const ref = referenceData?.codes.find(
+                      (c) => c.code === a.code && (c.value === a.value || c.value === null),
+                    );
+                    return (
+                      <li key={i} className="flex justify-between gap-2">
+                        <span className="flex-1 min-w-0">
+                          <span className="font-mono text-muted-foreground mr-1.5">{a.code}</span>
+                          {ref?.label ?? "—"}
+                        </span>
+                        {a.value != null && (
+                          <span className="font-medium shrink-0">{a.value}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
 
             {/* Lifecycle timestamps */}
             <div className="rounded-lg border bg-card p-3 space-y-1 text-xs text-muted-foreground">
@@ -498,21 +489,3 @@ function Timestamp({ label, iso }: { label: string; iso: string | null }) {
   );
 }
 
-function treatmentSummaryEntries(t: TreatmentDetail): [string, string][] {
-  const entries: [string, string][] = [];
-  if (t.examination) entries.push(["Examination", "Yes"]);
-  if (t.scale_and_polish) entries.push(["Scale & polish", "Yes"]);
-  if (t.fluoride_varnish) entries.push(["Fluoride varnish", "Yes"]);
-  if (t.fissure_sealants) entries.push(["Fissure sealants", "Yes"]);
-  if (t.periodontal_treatment) entries.push(["Periodontal", "Yes"]);
-  if (t.free_repair_or_replacement) entries.push(["Free repair", "Yes"]);
-  if (t.fillings_count) entries.push(["Fillings", String(t.fillings_count)]);
-  if (t.extractions_count) entries.push(["Extractions", String(t.extractions_count)]);
-  if (t.endodontic_count) entries.push(["Endodontic", String(t.endodontic_count)]);
-  if (t.crowns_count) entries.push(["Crowns", String(t.crowns_count)]);
-  if (t.bridges_count) entries.push(["Bridges", String(t.bridges_count)]);
-  if (t.dentures_count) entries.push(["Dentures", String(t.dentures_count)]);
-  if (t.x_rays_taken) entries.push(["X-rays", String(t.x_rays_taken)]);
-  if (t.antibiotic_items) entries.push(["Antibiotics", String(t.antibiotic_items)]);
-  return entries.length > 0 ? entries : [["No treatments recorded", "—"]];
-}
