@@ -94,4 +94,92 @@ let patientId;
   }
 }
 
-console.log(JSON.stringify({ ok: true, practiceId, userId, patientId, email, hostname }, null, 2));
+// 5) Owner member id + make them bookable (for the booking flow).
+let staffId;
+{
+  const { data } = await sb.from("practice_member").select("id").eq("user_id", userId).maybeSingle();
+  staffId = data?.id;
+  if (staffId) await sb.from("practice_member").update({ available_for_booking: true }).eq("id", staffId);
+}
+
+// 6) A bookable service + link the owner to it (availability engine needs both).
+let serviceId;
+{
+  const { data } = await sb.from("service").select("id").eq("practice_id", practiceId).eq("name", "E2E Checkup").maybeSingle();
+  if (data) serviceId = data.id;
+  else {
+    const ins = await sb.from("service").insert({
+      practice_id: practiceId, name: "E2E Checkup", duration_minutes: 30, is_active: true, price_pence: 0,
+    }).select("id").single();
+    if (ins.error) die("service insert failed", ins.error);
+    serviceId = ins.data.id;
+  }
+  if (staffId) {
+    const { data: link } = await sb.from("staff_service").select("id")
+      .eq("practice_id", practiceId).eq("staff_id", staffId).eq("service_id", serviceId).maybeSingle();
+    if (!link) await sb.from("staff_service").insert({ practice_id: practiceId, staff_id: staffId, service_id: serviceId });
+  }
+}
+
+// 7) A sample enquiry (booking_request) for the enquiries specs.
+let enquiryId;
+{
+  const { data } = await sb.from("booking_request").select("id")
+    .eq("practice_id", practiceId).eq("first_name", "E2E").eq("last_name", "Enquiry").maybeSingle();
+  if (data) enquiryId = data.id;
+  else {
+    const ins = await sb.from("booking_request").insert({
+      practice_id: practiceId, first_name: "E2E", last_name: "Enquiry",
+      email: "e2e.enquiry@dentaloptima.test", phone: "07700900999",
+    }).select("id").single();
+    if (ins.error) die("booking_request insert failed", ins.error);
+    enquiryId = ins.data.id;
+  }
+}
+
+// 8) A recall due in the future for the recalls specs.
+let recallId;
+{
+  const { data } = await sb.from("recall").select("id").eq("practice_id", practiceId).eq("patient_id", patientId).maybeSingle();
+  if (data) recallId = data.id;
+  else {
+    const ins = await sb.from("recall").insert({
+      practice_id: practiceId, patient_id: patientId, due_date: "2026-12-01",
+    }).select("id").single();
+    if (ins.error) die("recall insert failed", ins.error);
+    recallId = ins.data.id;
+  }
+}
+
+// 9) Practice opening hours Mon–Fri 09:00–17:00 (the availability engine needs
+//    practice hours, not just staff availability, to offer booking slots).
+{
+  const { data } = await sb.from("practice_hours").select("id").eq("practice_id", practiceId).limit(1);
+  if (!data || data.length === 0) {
+    const days = ["MON", "TUE", "WED", "THU", "FRI"];
+    const ins = await sb.from("practice_hours").insert(
+      days.map((weekday) => ({ practice_id: practiceId, weekday, open_time: "09:00", close_time: "17:00" })),
+    );
+    if (ins.error) die("practice_hours insert failed", ins.error);
+  }
+}
+
+// 10) Owner's weekly availability Mon–Fri 09:00–17:00 (the booking engine reads
+//     staff_availability per staff member, not the default shown on the page).
+if (staffId) {
+  const { data } = await sb.from("staff_availability").select("id").eq("staff_id", staffId).limit(1);
+  if (!data || data.length === 0) {
+    const days = ["MON", "TUE", "WED", "THU", "FRI"];
+    const ins = await sb.from("staff_availability").insert(
+      days.map((weekday) => ({
+        practice_id: practiceId, staff_id: staffId, weekday, start_time: "09:00", end_time: "17:00",
+      })),
+    );
+    if (ins.error) die("staff_availability insert failed", ins.error);
+  }
+}
+
+console.log(JSON.stringify(
+  { ok: true, practiceId, userId, staffId, patientId, serviceId, enquiryId, recallId, email, hostname },
+  null, 2,
+));
