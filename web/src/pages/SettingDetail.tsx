@@ -441,6 +441,7 @@ function ClinicSettings({
           <Input
             value={form.primary_phone}
             onChange={(e) => update("primary_phone", e.target.value)}
+            data-testid="settings-primary-phone"
           />
         </Field>
         <Field label="Primary email">
