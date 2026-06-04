@@ -18,6 +18,7 @@ import { PageLoading } from "@/components/PageLoading";
 import { formatPrice } from "@/types/entities";
 import { useNhsReferenceData } from "@/hooks/useNhsReferenceData";
 import { FileText, Send, Check, X, RotateCcw } from "lucide-react";
+import { CompassSubmissionHelper } from "@/components/nhs/CompassSubmissionHelper";
 
 // Read-mostly viewer for an NHS claim, opened from the claims dashboard.
 // Surfaces enough context for the user to understand a claim's state and
@@ -82,6 +83,7 @@ export function NHSClaimDetailSheet({
   const [claim, setClaim] = useState<ClaimDetail | null>(null);
   const { data: referenceData } = useNhsReferenceData("ENGLAND");
   const [busy, setBusy] = useState(false);
+  const [showCompass, setShowCompass] = useState(false);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionCode, setRejectionCode] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
@@ -158,8 +160,6 @@ export function NHSClaimDetailSheet({
     onChanged?.();
   };
 
-  const markSubmitted = () =>
-    transitionStatus("SUBMITTED", { submitted_at: new Date().toISOString() });
   const markAccepted = () =>
     transitionStatus("ACCEPTED", { accepted_at: new Date().toISOString() });
   const markRejected = () => {
@@ -201,6 +201,7 @@ export function NHSClaimDetailSheet({
     });
 
   return (
+    <>
     <Sheet open={!!claimId} onOpenChange={onOpenChange}>
       <SheetContent className="overflow-y-auto w-full sm:max-w-lg">
         <SheetHeader>
@@ -344,9 +345,9 @@ export function NHSClaimDetailSheet({
             {/* Status transition actions */}
             <div className="space-y-2">
               {claim.status === "READY_TO_SUBMIT" && (
-                <Button onClick={markSubmitted} disabled={busy} className="w-full">
+                <Button onClick={() => setShowCompass(true)} disabled={busy} className="w-full">
                   <Send className="h-4 w-4 mr-2" />
-                  Mark submitted to NHSBSA
+                  Submit to Compass
                 </Button>
               )}
 
@@ -467,6 +468,16 @@ export function NHSClaimDetailSheet({
         )}
       </SheetContent>
     </Sheet>
+    <CompassSubmissionHelper
+      claimId={showCompass ? claimId : null}
+      open={showCompass}
+      onOpenChange={setShowCompass}
+      onSubmitted={() => {
+        void load();
+        onChanged?.();
+      }}
+    />
+    </>
   );
 }
 
