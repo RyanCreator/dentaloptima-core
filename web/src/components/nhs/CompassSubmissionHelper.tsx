@@ -97,6 +97,19 @@ export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitt
     [claim, activities, codeLabel],
   );
 
+  const copyAll = async () => {
+    const text = sections
+      .flatMap((s) => [`# ${s.title}`, ...s.fields.map((f) => `${f.label}: ${f.value}`), ""])
+      .join("\n")
+      .trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("All fields copied");
+    } catch {
+      toast.error("Couldn't copy");
+    }
+  };
+
   const markSubmitted = async () => {
     if (!claim || !attested) return;
     setSaving(true);
@@ -140,15 +153,21 @@ export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitt
           </div>
         ) : (
           <div className="mt-5 space-y-5">
-            <a
-              href="https://www.nhsbsa.nhs.uk/compass"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-1.5 text-xs rounded-md border bg-card p-2 hover:bg-muted/40 transition-colors"
-            >
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open Compass in a new tab
-            </a>
+            <div className="flex gap-2">
+              <a
+                href="https://www.nhsbsa.nhs.uk/compass"
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs rounded-md border bg-card p-2 hover:bg-muted/40 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open Compass
+              </a>
+              <Button variant="outline" size="sm" onClick={copyAll} className="text-xs">
+                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                Copy all fields
+              </Button>
+            </div>
 
             {sections.map((section) => (
               <div key={section.title} className="space-y-1.5">

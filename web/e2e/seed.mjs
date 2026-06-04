@@ -179,7 +179,47 @@ if (staffId) {
   }
 }
 
+// 11) A performer + a READY_TO_SUBMIT FP17 claim with snapshot + activity lines,
+//     so the Compass submission-helper spec has a fixture to drive.
+let claimId;
+if (staffId) {
+  let performerId;
+  {
+    const { data } = await sb.from("nhs_performer").select("id")
+      .eq("practice_id", practiceId).eq("staff_id", staffId).eq("is_active", true).maybeSingle();
+    if (data) performerId = data.id;
+    else {
+      const ins = await sb.from("nhs_performer").insert({
+        practice_id: practiceId, staff_id: staffId, performer_number: "999999", provider_number: "99999",
+      }).select("id").single();
+      if (ins.error) die("nhs_performer insert failed", ins.error);
+      performerId = ins.data.id;
+    }
+  }
+  const { data: existing } = await sb.from("nhs_claim").select("id")
+    .eq("practice_id", practiceId).eq("course_of_treatment_id", "E2E-FIXTURE").is("deleted_at", null).maybeSingle();
+  if (existing) claimId = existing.id;
+  else {
+    const ins = await sb.from("nhs_claim").insert({
+      practice_id: practiceId, patient_id: patientId, performer_id: performerId,
+      course_of_treatment_id: "E2E-FIXTURE", form_type: "FP17", treatment_band: "BAND_1", country: "ENGLAND",
+      date_of_acceptance: "2026-05-13", date_of_completion: "2026-05-13", status: "READY_TO_SUBMIT",
+      ready_to_submit_at: "2026-05-13T10:00:00Z", patient_charge_pence: 0, exemption_category: "UNDER_18",
+      patient_signature_received: true, recall_interval_months: 12,
+      snapshot_forename: "E2E", snapshot_surname: "Patient", snapshot_sex: "F",
+      snapshot_date_of_birth: "1990-01-01", snapshot_nhs_number: "9999999999",
+    }).select("id").single();
+    if (ins.error) die("nhs_claim insert failed", ins.error);
+    claimId = ins.data.id;
+    const acts = [["9150", 1], ["9317", null], ["9172", 12], ["9378", 2], ["9379", 0]];
+    const a = await sb.from("nhs_claim_activity").insert(
+      acts.map(([code, value]) => ({ practice_id: practiceId, nhs_claim_id: claimId, code, value })),
+    );
+    if (a.error) die("nhs_claim_activity insert failed", a.error);
+  }
+}
+
 console.log(JSON.stringify(
-  { ok: true, practiceId, userId, staffId, patientId, serviceId, enquiryId, recallId, email, hostname },
+  { ok: true, practiceId, userId, staffId, patientId, serviceId, enquiryId, recallId, claimId, email, hostname },
   null, 2,
 ));
