@@ -34,11 +34,13 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmitted?: () => void;
+  /** Optional "2 of 5" label shown when driven from the ready-to-submit queue. */
+  progress?: string;
 }
 
 type ClaimRow = CompassClaimInput & { id: string; status: string };
 
-export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitted }: Props) {
+export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitted, progress }: Props) {
   const { data: referenceData } = useNhsReferenceData("ENGLAND");
   const [loading, setLoading] = useState(false);
   const [claim, setClaim] = useState<ClaimRow | null>(null);
@@ -127,8 +129,8 @@ export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitt
       return;
     }
     toast.success("Claim recorded as submitted");
+    // Caller decides what happens next (close, or advance the queue).
     onSubmitted?.();
-    onOpenChange(false);
   };
 
   // Soft hint only — never blocks. Compass references vary; we just nudge.
@@ -141,6 +143,11 @@ export function CompassSubmissionHelper({ claimId, open, onOpenChange, onSubmitt
           <SheetTitle className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4" />
             Submit to Compass
+            {progress && (
+              <span className="ml-auto text-xs font-normal bg-muted px-2 py-0.5 rounded">
+                {progress}
+              </span>
+            )}
           </SheetTitle>
           <SheetDescription>
             Copy each field into the Compass online FP17 form, then confirm below.

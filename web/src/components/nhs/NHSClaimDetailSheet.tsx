@@ -473,6 +473,7 @@ export function NHSClaimDetailSheet({
       open={showCompass}
       onOpenChange={setShowCompass}
       onSubmitted={() => {
+        setShowCompass(false);
         void load();
         onChanged?.();
       }}

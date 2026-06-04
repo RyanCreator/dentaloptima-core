@@ -23,6 +23,7 @@ import {
 import { PageLoading } from "@/components/PageLoading";
 import { formatPrice } from "@/types/entities";
 import { NHSClaimDetailSheet } from "@/components/nhs/NHSClaimDetailSheet";
+import { CompassSubmissionQueue } from "@/components/nhs/CompassSubmissionQueue";
 
 // FP17 claims dashboard. Keeps the surface lean: a status-filter tab row,
 // search + date range, a flat list, and a "submit all ready" action. Each
@@ -99,7 +100,8 @@ export default function NHSClaims() {
   const [dateRange, setDateRange] = useState<DateRange>("30days");
   const [search, setSearch] = useState("");
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [queueIds, setQueueIds] = useState<string[]>([]);
   const selection = useSelection();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -197,6 +199,16 @@ export default function NHSClaims() {
   }, [claims, statusFilter, search]);
 
   const readyCount = counts["READY_TO_SUBMIT"] ?? 0;
+  // All ready claims, newest first (matches list order) — drives the queue.
+  const readyClaimIds = useMemo(
+    () => claims.filter((c) => c.status === "READY_TO_SUBMIT").map((c) => c.id),
+    [claims],
+  );
+  const openQueue = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setQueueIds(ids);
+    setQueueOpen(true);
+  };
 
   // Bulk handlers operating on the user's selection (subset of `filtered`).
   // We pre-filter by source status before issuing the update so a
@@ -211,19 +223,13 @@ export default function NHSClaims() {
     ["SUBMITTED", "ACKNOWLEDGED", "ACCEPTED", "SCHEDULED_FOR_PAYMENT"].includes(c.status),
   );
 
-  const bulkSubmitSelected = async () => {
+  // Submission always goes through the Compass helper (key into Compass, then
+  // attest) — so "Submit selected" opens the guided queue for the chosen ready
+  // claims rather than blindly flipping their status.
+  const submitSelected = () => {
     if (submittableSelected.length === 0) return;
-    setBulkBusy(true);
-    const ids = submittableSelected.map((c) => c.id);
-    const { error } = await supabase
-      .from("nhs_claim")
-      .update({ status: "SUBMITTED", submitted_at: new Date().toISOString() })
-      .in("id", ids);
-    setBulkBusy(false);
-    if (error) { toast.error(`Bulk submit failed: ${error.message}`); return; }
-    toast.success(`Marked ${ids.length} claim${ids.length === 1 ? "" : "s"} as submitted`);
+    openQueue(submittableSelected.map((c) => c.id));
     selection.clear();
-    await load();
   };
 
   const bulkMarkPaid = async () => {
@@ -239,33 +245,6 @@ export default function NHSClaims() {
     toast.success(`Marked ${ids.length} claim${ids.length === 1 ? "" : "s"} as paid`);
     selection.clear();
     await load();
-  };
-
-  const submitReady = async () => {
-    if (readyCount === 0) return;
-    if (
-      !confirm(
-        `Submit ${readyCount} claim${readyCount === 1 ? "" : "s"} marked as Ready? This stamps them as Submitted in our system. NHSBSA delivery is set up separately.`,
-      )
-    ) {
-      return;
-    }
-    setSubmitting(true);
-    const now = new Date().toISOString();
-    const { error } = await supabase
-      .from("nhs_claim")
-      .update({ status: "SUBMITTED", submitted_at: now })
-      .eq("status", "READY_TO_SUBMIT")
-      .is("deleted_at", null);
-    setSubmitting(false);
-    if (error) {
-      toast.error(`Failed to submit: ${error.message}`);
-    } else {
-      toast.success(
-        `Marked ${readyCount} claim${readyCount === 1 ? "" : "s"} as submitted`,
-      );
-      await load();
-    }
   };
 
   if (authLoading) {
@@ -330,16 +309,12 @@ export default function NHSClaims() {
             </SelectContent>
           </Select>
           <Button
-            onClick={submitReady}
-            disabled={submitting || readyCount === 0}
+            onClick={() => openQueue(readyClaimIds)}
+            disabled={readyCount === 0}
             className="w-full sm:w-auto"
           >
             <Send className="h-4 w-4 mr-2" />
-            {submitting
-              ? "Submitting..."
-              : readyCount > 0
-              ? `Submit ${readyCount} ready`
-              : "No ready claims"}
+            {readyCount > 0 ? `Submit ${readyCount} in Compass` : "No ready claims"}
           </Button>
         </div>
 
@@ -406,6 +381,13 @@ export default function NHSClaims() {
         onChanged={load}
       />
 
+      <CompassSubmissionQueue
+        claimIds={queueIds}
+        open={queueOpen}
+        onOpenChange={setQueueOpen}
+        onDone={load}
+      />
+
       <BulkActionBar
         count={selection.count}
         noun={selection.count === 1 ? "claim" : "claims"}
@@ -418,7 +400,7 @@ export default function NHSClaims() {
                 label: `Submit ${submittableSelected.length}`,
                 icon: Send,
                 variant: "default" as const,
-                onClick: bulkSubmitSelected,
+                onClick: submitSelected,
               }]
             : []),
           ...(payableSelected.length > 0

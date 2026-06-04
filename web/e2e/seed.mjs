@@ -11,6 +11,19 @@
 //
 // Run: npm run test:e2e:seed   (see package.json)
 import { createClient } from "@supabase/supabase-js";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Load web/.env.e2e.local the same way playwright.config.ts does, so this seed
+// can be run standalone (npm run test:e2e:seed) without exporting env first.
+const envFile = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".env.e2e.local");
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+  }
+}
 
 const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
@@ -196,13 +209,14 @@ if (staffId) {
       performerId = ins.data.id;
     }
   }
-  const { data: existing } = await sb.from("nhs_claim").select("id")
-    .eq("practice_id", practiceId).eq("course_of_treatment_id", "E2E-FIXTURE").is("deleted_at", null).maybeSingle();
-  if (existing) claimId = existing.id;
-  else {
+  // Two READY claims so the submission-queue spec can verify advancing.
+  for (const cot of ["E2E-FIXTURE", "E2E-FIXTURE-2"]) {
+    const { data: existing } = await sb.from("nhs_claim").select("id")
+      .eq("practice_id", practiceId).eq("course_of_treatment_id", cot).is("deleted_at", null).maybeSingle();
+    if (existing) { if (cot === "E2E-FIXTURE") claimId = existing.id; continue; }
     const ins = await sb.from("nhs_claim").insert({
       practice_id: practiceId, patient_id: patientId, performer_id: performerId,
-      course_of_treatment_id: "E2E-FIXTURE", form_type: "FP17", treatment_band: "BAND_1", country: "ENGLAND",
+      course_of_treatment_id: cot, form_type: "FP17", treatment_band: "BAND_1", country: "ENGLAND",
       date_of_acceptance: "2026-05-13", date_of_completion: "2026-05-13", status: "READY_TO_SUBMIT",
       ready_to_submit_at: "2026-05-13T10:00:00Z", patient_charge_pence: 0, exemption_category: "UNDER_18",
       patient_signature_received: true, recall_interval_months: 12,
@@ -210,10 +224,10 @@ if (staffId) {
       snapshot_date_of_birth: "1990-01-01", snapshot_nhs_number: "9999999999",
     }).select("id").single();
     if (ins.error) die("nhs_claim insert failed", ins.error);
-    claimId = ins.data.id;
+    if (cot === "E2E-FIXTURE") claimId = ins.data.id;
     const acts = [["9150", 1], ["9317", null], ["9172", 12], ["9378", 2], ["9379", 0]];
     const a = await sb.from("nhs_claim_activity").insert(
-      acts.map(([code, value]) => ({ practice_id: practiceId, nhs_claim_id: claimId, code, value })),
+      acts.map(([code, value]) => ({ practice_id: practiceId, nhs_claim_id: ins.data.id, code, value })),
     );
     if (a.error) die("nhs_claim_activity insert failed", a.error);
   }
