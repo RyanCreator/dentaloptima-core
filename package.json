@@ -8,11 +8,13 @@
     "dev:admin": "cd admin && npm run dev",
     "dev:web": "cd web && npm run dev",
     "dev:marketing": "cd marketing && npm run dev",
+    "dev:demo": "cd demo && npm run dev",
     "build:admin": "cd admin && npm run build",
     "build:web": "cd web && npm run build",
     "build:marketing": "cd marketing && npm run build",
+    "build:demo": "cd demo && npm run build",
     "build": "npm run build:admin && npm run build:web && npm run build:marketing",
-    "install:all": "cd admin && npm install && cd ../web && npm install && cd ../marketing && npm install"
+    "install:all": "cd admin && npm install && cd ../web && npm install && cd ../marketing && npm install && cd ../demo && npm install"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

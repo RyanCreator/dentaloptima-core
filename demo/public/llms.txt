@@ -1,0 +1,29 @@
+# Orion Dental Practice
+
+> Orion Dental Practice offers calm, modern dental care in Halifax. NHS and private. Book online 24/7. Same-day emergency slots.
+
+## About
+
+Orion Dental Practice is a dental practice based in Halifax. This website is
+the public-facing site for booking appointments, learning about treatments,
+and getting in touch. The practice management software and patient records
+are run on Dentaloptima (https://dentaloptima.co.uk).
+
+## Key pages
+
+- [Home](https://app.demo.dentaloptima.co.uk/) — overview + hero
+- [Services](https://app.demo.dentaloptima.co.uk/services) — full list of treatments
+- [About](https://app.demo.dentaloptima.co.uk/about) — team + story
+- [Contact](https://app.demo.dentaloptima.co.uk/contact) — phone, email, hours, address
+- [Book](https://app.demo.dentaloptima.co.uk/book) — online appointment request form
+- [Dental glossary](https://app.demo.dentaloptima.co.uk/glossary) — plain-English explanations of common dental terms
+
+## Services
+
+- [Check-up & Clean](https://app.demo.dentaloptima.co.uk/services/check-up-and-clean)
+
+## Business info
+
+- Name: Orion Dental Practice
+- Website: https://app.demo.dentaloptima.co.uk
+- Category: Dental practice

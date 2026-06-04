@@ -1,0 +1,29 @@
+# Orion Dental Practice
+# https://app.demo.dentaloptima.co.uk
+
+User-agent: *
+Allow: /
+Crawl-delay: 1
+
+# Search engines
+User-agent: Googlebot
+Allow: /
+User-agent: Bingbot
+Allow: /
+
+# LLM / AI crawlers — explicit allow so this practice is discoverable via
+# AI search tools. Remove any you'd rather opt out of.
+User-agent: GPTBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Claude-Web
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://app.demo.dentaloptima.co.uk/sitemap.xml

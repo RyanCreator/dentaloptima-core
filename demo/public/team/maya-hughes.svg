@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#B45309"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#pg)"/>
+  <circle cx="400" cy="380" r="140" fill="#ffffff" fill-opacity="0.12"/>
+  <ellipse cx="400" cy="820" rx="280" ry="200" fill="#ffffff" fill-opacity="0.12"/>
+  <text x="400" y="420" text-anchor="middle" font-family="'Fraunces', Georgia, serif" font-size="120" fill="#ffffff" fill-opacity="0.85" font-weight="600">MH</text>
+</svg>

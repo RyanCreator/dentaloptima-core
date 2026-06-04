@@ -31,6 +31,12 @@ Thumbs.db
 *.tsbuildinfo
 coverage/
 
+# demo/ is an experimental design sandbox — don't track its built output
+# (unlike marketing/dist, which is intentionally committed for deploys).
+demo/dist/
+# Local screenshot previews from design verification.
+.preview/
+
 # Playwright E2E artefacts (web/)
 web/e2e/.auth/
 web/test-results/
