@@ -177,162 +177,164 @@ export default function MeetingDetail() {
   }
 
   return (
-    <Layout title={meeting.title}>
-      <div className="mx-auto max-w-3xl space-y-5">
-        <button
-          onClick={() => navigate("/governance?tab=meetings")}
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> Meetings
-        </button>
-
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span>{TYPE_LABEL[meeting.meeting_type] ?? meeting.meeting_type}</span>
-              <span className="flex items-center gap-1">
-                <CalendarIcon className="h-3.5 w-3.5" />
-                {format(parseISO(meeting.occurred_at), "d MMM yyyy, HH:mm")}
-              </span>
-              {meeting.duration_seconds > 0 && (
+    <Layout title={meeting.title} onBack={() => navigate("/governance?tab=meetings")}>
+      <div className="space-y-4">
+        {/* Header card */}
+        <div className="rounded-lg border bg-card p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                <span>{TYPE_LABEL[meeting.meeting_type] ?? meeting.meeting_type}</span>
                 <span className="flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5" />
-                  {Math.max(1, Math.round(meeting.duration_seconds / 60))} min
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  {format(parseISO(meeting.occurred_at), "d MMM yyyy, HH:mm")}
                 </span>
+                {meeting.duration_seconds > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    {Math.max(1, Math.round(meeting.duration_seconds / 60))} min
+                  </span>
+                )}
+                {isFinal && (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
+                    Final
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {isFinal ? (
+                <Button variant="outline" size="sm" onClick={() => setStatus("DRAFT")}>
+                  <LockOpen className="mr-1.5 h-4 w-4" /> Reopen
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={() => setStatus("FINAL")}>
+                  <Lock className="mr-1.5 h-4 w-4" /> Finalise
+                </Button>
               )}
-              {isFinal && (
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
-                  Final
-                </span>
-              )}
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this meeting?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The minuted record and its action items will be removed. This can't be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={removeMeeting}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isFinal ? (
-              <Button variant="outline" size="sm" onClick={() => setStatus("DRAFT")}>
-                <LockOpen className="mr-1.5 h-4 w-4" /> Reopen
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" onClick={() => setStatus("FINAL")}>
-                <Lock className="mr-1.5 h-4 w-4" /> Finalise
-              </Button>
-            )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this meeting?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    The minuted record and its action items will be removed. This can't be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={removeMeeting}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
         </div>
 
-        {/* Attendees */}
-        <div className="space-y-1.5">
-          <Label htmlFor="attendees">Attendees</Label>
-          <Input
-            id="attendees"
-            value={attendeesText}
-            onChange={(e) => setAttendeesText(e.target.value)}
-            placeholder="Comma-separated names, e.g. Dr Chen, Maya, James"
-            disabled={isFinal}
-          />
-        </div>
-
-        {/* Transcript */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="transcript">Transcript / minutes</Label>
-            {!isFinal && (
-              <Button size="sm" variant="outline" onClick={saveDetails} disabled={saving}>
-                <Save className="mr-1.5 h-4 w-4" /> Save
-              </Button>
-            )}
-          </div>
-          <Textarea
-            id="transcript"
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            className="min-h-[260px] font-mono text-sm leading-relaxed"
-            disabled={isFinal}
-            placeholder="No transcript captured."
-          />
-        </div>
-
-        {/* Action items */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <ListTodo className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Action items</h2>
-            <span className="text-xs text-muted-foreground">
-              ({actions.filter((a) => a.status === "OPEN").length} open)
-            </span>
+        <div className="grid gap-4 lg:grid-cols-3">
+          {/* Transcript — main column */}
+          <div className="lg:col-span-2">
+            <div className="space-y-2 rounded-lg border bg-card p-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="transcript">Transcript / minutes</Label>
+                {!isFinal && (
+                  <Button size="sm" variant="outline" onClick={saveDetails} disabled={saving}>
+                    <Save className="mr-1.5 h-4 w-4" /> Save
+                  </Button>
+                )}
+              </div>
+              <Textarea
+                id="transcript"
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                className="min-h-[60vh] font-mono text-sm leading-relaxed"
+                disabled={isFinal}
+                placeholder="No transcript captured."
+              />
+            </div>
           </div>
 
-          {actions.length > 0 && (
-            <div className="divide-y rounded-lg border">
-              {actions.map((a) => (
-                <div key={a.id} className="flex items-start gap-3 p-3">
-                  <Checkbox
-                    checked={a.status === "DONE"}
-                    onCheckedChange={() => toggleAction(a)}
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm ${a.status === "DONE" ? "text-muted-foreground line-through" : ""}`}>
-                      {a.description}
-                    </p>
-                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-                      {a.owner_name && <span>{a.owner_name}</span>}
-                      {a.due_date && <span>Due {format(parseISO(a.due_date), "d MMM yyyy")}</span>}
+          {/* Sidebar — attendees + action items */}
+          <div className="space-y-4 lg:col-span-1">
+            <div className="space-y-1.5 rounded-lg border bg-card p-4">
+              <Label htmlFor="attendees">Attendees</Label>
+              <Input
+                id="attendees"
+                value={attendeesText}
+                onChange={(e) => setAttendeesText(e.target.value)}
+                placeholder="Comma-separated names"
+                disabled={isFinal}
+              />
+            </div>
+
+            <div className="space-y-3 rounded-lg border bg-card p-4">
+              <div className="flex items-center gap-2">
+                <ListTodo className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold">Action items</h2>
+                <span className="text-xs text-muted-foreground">
+                  ({actions.filter((a) => a.status === "OPEN").length} open)
+                </span>
+              </div>
+
+              {actions.length > 0 && (
+                <div className="divide-y rounded-lg border">
+                  {actions.map((a) => (
+                    <div key={a.id} className="flex items-start gap-3 p-3">
+                      <Checkbox
+                        checked={a.status === "DONE"}
+                        onCheckedChange={() => toggleAction(a)}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm ${a.status === "DONE" ? "text-muted-foreground line-through" : ""}`}>
+                          {a.description}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                          {a.owner_name && <span>{a.owner_name}</span>}
+                          {a.due_date && <span>Due {format(parseISO(a.due_date), "d MMM yyyy")}</span>}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteAction(a)}
+                        aria-label="Remove action"
+                        className="text-muted-foreground/60 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!isFinal && (
+                <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">New action</Label>
+                    <Input value={newAction} onChange={(e) => setNewAction(e.target.value)} placeholder="What needs doing?" />
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-xs">Owner</Label>
+                      <Input value={newOwner} onChange={(e) => setNewOwner(e.target.value)} placeholder="Name" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Due</Label>
+                      <Input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} />
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteAction(a)}
-                    aria-label="Remove action"
-                    className="text-muted-foreground/60 hover:text-red-600"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <Button onClick={addAction} disabled={!newAction.trim()} className="w-full" aria-label="Add action">
+                    <Plus className="mr-1.5 h-4 w-4" /> Add action
+                  </Button>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-
-          {!isFinal && (
-            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-end">
-              <div className="flex-1 space-y-1">
-                <Label className="text-xs">New action</Label>
-                <Input value={newAction} onChange={(e) => setNewAction(e.target.value)} placeholder="What needs doing?" />
-              </div>
-              <div className="space-y-1 sm:w-36">
-                <Label className="text-xs">Owner</Label>
-                <Input value={newOwner} onChange={(e) => setNewOwner(e.target.value)} placeholder="Name" />
-              </div>
-              <div className="space-y-1 sm:w-40">
-                <Label className="text-xs">Due</Label>
-                <Input type="date" value={newDue} onChange={(e) => setNewDue(e.target.value)} />
-              </div>
-              <Button onClick={addAction} disabled={!newAction.trim()} aria-label="Add action">
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </Layout>
