@@ -35,10 +35,10 @@ RewriteRule ^ index.html [L]
   Header set X-Content-Type-Options "nosniff"
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
-  # Practice-management app — staff may need microphone (future voice
-  # notes) and camera (ID/document capture); leave both off for now and
-  # loosen explicitly when those features land.
-  Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  # Practice-management app — Meeting Mode records meetings via the browser's
+  # microphone, so the mic must be allowed for our own origin (self). Camera +
+  # geolocation stay off until those features land.
+  Header set Permissions-Policy "geolocation=(), microphone=(self), camera=()"
   # X-Robots-Tag covers non-HTML files (PDFs, images, JSON) that the
   # <meta robots> tag can't reach. Matches the index.html meta tag
   # and robots.txt — three layers, one truth: no indexing, ever.
