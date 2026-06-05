@@ -10,19 +10,21 @@ import {
   ScrollText,
   LayoutDashboard,
   Archive,
+  Mic,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { IncidentsTab } from "@/components/governance/IncidentsTab";
 import { ComplaintsTab } from "@/components/governance/ComplaintsTab";
 import { PoliciesTab } from "@/components/governance/PoliciesTab";
 import { SafeguardingTab } from "@/components/governance/SafeguardingTab";
+import { MeetingsTab } from "@/components/governance/MeetingsTab";
 import { AuditTab } from "@/components/governance/AuditTab";
 import { RetentionTab } from "@/components/governance/RetentionTab";
 import { GovernanceOverview } from "@/components/governance/GovernanceOverview";
 import { useGovernanceAttention } from "@/hooks/useGovernanceAttention";
 import { GlossaryTerm } from "@/components/GlossaryTerm";
 
-type TabKey = "overview" | "incidents" | "complaints" | "safeguarding" | "policies" | "retention" | "audit";
+type TabKey = "overview" | "incidents" | "complaints" | "safeguarding" | "policies" | "meetings" | "retention" | "audit";
 
 interface TabDef {
   key: TabKey;
@@ -37,6 +39,7 @@ const TABS: TabDef[] = [
   { key: "complaints",   label: "Complaints",   icon: MessageSquareWarning },
   { key: "safeguarding", label: "Safeguarding", icon: Shield },
   { key: "policies",     label: "Policies",     icon: FileBadge },
+  { key: "meetings",     label: "Meetings",     icon: Mic },
   { key: "retention",    label: "Retention",    icon: Archive,    adminOnly: true },
   { key: "audit",        label: "Audit log",    icon: ScrollText, adminOnly: true },
 ];
@@ -72,6 +75,7 @@ export default function Governance() {
       case "complaints":   return <ComplaintsTab onChange={attention.refresh} />;
       case "safeguarding": return <SafeguardingTab onChange={attention.refresh} />;
       case "policies":     return <PoliciesTab onChange={attention.refresh} />;
+      case "meetings":     return <MeetingsTab />;
       case "retention":    return <RetentionTab />;
       case "audit":        return <AuditTab />;
     }

@@ -1565,6 +1565,166 @@ export type Database = {
           },
         ]
       }
+      meeting: {
+        Row: {
+          attendees: Json
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          duration_seconds: number
+          id: string
+          meeting_type: string
+          occurred_at: string
+          practice_id: string
+          status: string
+          title: string
+          transcript: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          attendees?: Json
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          duration_seconds?: number
+          id?: string
+          meeting_type?: string
+          occurred_at?: string
+          practice_id: string
+          status?: string
+          title: string
+          transcript?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          attendees?: Json
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          duration_seconds?: number
+          id?: string
+          meeting_type?: string
+          occurred_at?: string
+          practice_id?: string
+          status?: string
+          title?: string
+          transcript?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_action: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string
+          due_date: string | null
+          id: string
+          meeting_id: string
+          owner_member_id: string | null
+          owner_name: string | null
+          practice_id: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description: string
+          due_date?: string | null
+          id?: string
+          meeting_id: string
+          owner_member_id?: string | null
+          owner_name?: string | null
+          practice_id: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string
+          due_date?: string | null
+          id?: string
+          meeting_id?: string
+          owner_member_id?: string | null
+          owner_name?: string | null
+          practice_id?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_action_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meeting"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_owner_member_id_fkey"
+            columns: ["owner_member_id"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_practice_id_fkey"
+            columns: ["practice_id"]
+            isOneToOne: false
+            referencedRelation: "practice"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nhs_activity_code: {
         Row: {
           cds_band: string | null

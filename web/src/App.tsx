@@ -28,6 +28,7 @@ import IncidentDetail from "./pages/governance/IncidentDetail";
 import ComplaintDetail from "./pages/governance/ComplaintDetail";
 import PolicyDetail from "./pages/governance/PolicyDetail";
 import SafeguardingDetail from "./pages/governance/SafeguardingDetail";
+import MeetingDetail from "./pages/governance/MeetingDetail";
 import ClaimSlot from "./pages/ClaimSlot";
 import Portal, { PortalAuthEntry } from "./pages/Portal";
 import TreatmentPlanAccept from "./pages/TreatmentPlanAccept";
@@ -96,6 +97,7 @@ const App = () => (
               <Route path="/governance/complaints/:id" element={<RequireAuth><ComplaintDetail /></RequireAuth>} />
               <Route path="/governance/policies/:id" element={<RequireAuth><PolicyDetail /></RequireAuth>} />
               <Route path="/governance/safeguarding/:id" element={<RequireAuth><SafeguardingDetail /></RequireAuth>} />
+              <Route path="/governance/meetings/:id" element={<RequireAuth><MeetingDetail /></RequireAuth>} />
               <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
               {/* Service create/edit live as their own routes so the form has
                   full-page room. Must be declared BEFORE /settings/:id so
