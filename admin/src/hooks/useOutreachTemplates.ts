@@ -161,35 +161,75 @@ export async function restoreTemplate(id: string) {
 }
 
 // Render a template body or subject by substituting {variables} from a
-// contact-shaped object. Unknown variables are left as-is so the user
-// notices the typo instead of getting silently empty output.
+// contact-shaped object. This MUST stay in lockstep with the send worker
+// (tenant-registry `send-outreach-email`) so the preview matches what actually
+// gets sent. `custom` exposes any per-contact custom fields as {their_key}.
 export interface ContactShape {
-  email: string;
+  email?: string | null;
   first_name?: string | null;
   last_name?: string | null;
   practice_name?: string | null;
   phone?: string | null;
+  principal_dentist?: string | null;
+  postcode?: string | null;
+  website?: string | null;
+  custom?: Record<string, unknown> | null;
+}
+
+// Standard field getters. Return null/empty when missing so callers can detect
+// a gap. {name} falls back to the principal dentist for practice-centric
+// contacts that have no personal first/last name.
+const FIELD_GETTERS: Record<string, (c: ContactShape) => string | null | undefined> = {
+  email: (c) => c.email,
+  first_name: (c) => c.first_name,
+  last_name: (c) => c.last_name,
+  name: (c) => [c.first_name, c.last_name].filter(Boolean).join(" ") || c.principal_dentist,
+  practice_name: (c) => c.practice_name,
+  phone: (c) => c.phone,
+  principal_dentist: (c) => c.principal_dentist,
+  postcode: (c) => c.postcode,
+  website: (c) => c.website,
+};
+
+// Resolve a single {token}: a standard field, then a custom field, else
+// undefined (unknown token / typo).
+function resolveToken(c: ContactShape, key: string): string | null | undefined {
+  if (key in FIELD_GETTERS) return FIELD_GETTERS[key](c);
+  const cv = c.custom?.[key];
+  if (cv != null && String(cv).trim() !== "") return String(cv);
+  if (c.custom && key in c.custom) return null; // present but empty
+  return undefined; // unknown
 }
 
 export function renderTemplate(text: string, contact: ContactShape): string {
   return text.replace(/\{(\w+)\}/g, (match, key: string) => {
-    switch (key) {
-      case "email": return contact.email;
-      case "first_name": return contact.first_name ?? "";
-      case "last_name": return contact.last_name ?? "";
-      case "name": return [contact.first_name, contact.last_name].filter(Boolean).join(" ");
-      case "practice_name": return contact.practice_name ?? "";
-      case "phone": return contact.phone ?? "";
-      default: return match;
-    }
+    const val = resolveToken(contact, key);
+    // Mirror the worker: unfilled tokens stay literal in the preview so the
+    // operator can see the gap (the worker then skips that send entirely).
+    return val != null && String(val).trim() !== "" ? String(val) : match;
   });
 }
 
+// The set of {tokens} in a template that can't be filled for this contact —
+// either empty values or unknown tokens. The send worker SKIPS any recipient
+// with a non-empty result, so they never receive a half-filled email.
+export function missingTokens(text: string, contact: ContactShape): string[] {
+  const missing = new Set<string>();
+  for (const m of text.matchAll(/\{(\w+)\}/g)) {
+    const val = resolveToken(contact, m[1]);
+    if (val == null || String(val).trim() === "") missing.add(m[1]);
+  }
+  return [...missing];
+}
+
 export const TEMPLATE_VARIABLES = [
+  { token: "{name}", desc: "Contact name (first+last, or principal dentist)" },
   { token: "{first_name}", desc: "Recipient's first name" },
   { token: "{last_name}", desc: "Recipient's last name" },
-  { token: "{name}", desc: "First + last together" },
+  { token: "{principal_dentist}", desc: "Principal dentist's name" },
   { token: "{practice_name}", desc: "Practice / company name" },
+  { token: "{postcode}", desc: "Practice postcode" },
+  { token: "{website}", desc: "Practice website" },
   { token: "{phone}", desc: "Phone number" },
   { token: "{email}", desc: "Email address" },
 ];

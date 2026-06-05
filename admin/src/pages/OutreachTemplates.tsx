@@ -29,6 +29,7 @@ import {
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   archiveTemplate,
+  missingTokens,
   renderTemplate,
   restoreTemplate,
   TEMPLATE_VARIABLES,
@@ -49,6 +50,9 @@ const SAMPLE_CONTACT = {
   first_name: "John",
   last_name: "Smith",
   practice_name: "Smith Dental Practice",
+  principal_dentist: "Dr John Smith",
+  postcode: "M1 1AA",
+  website: "www.smithdental.co.uk",
   phone: "01234 567890",
 };
 
@@ -338,6 +342,11 @@ function TemplateEditorBody({
       : previewContacts.find((c) => c.id === previewContactId) ?? SAMPLE_CONTACT;
   const renderedSubject = renderTemplate(subject, previewContact);
   const renderedBody = renderTemplate(bodyText, previewContact);
+  // Tokens this contact can't fill — the send worker SKIPS such recipients so
+  // they never receive a half-filled email. Surfaced here as a heads-up.
+  const previewMissing = [
+    ...new Set([...missingTokens(subject, previewContact), ...missingTokens(bodyText, previewContact)]),
+  ];
 
   const isValid = name.trim() && subject.trim() && bodyText.trim();
 
@@ -534,6 +543,13 @@ function TemplateEditorBody({
 
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Live preview</p>
+            {previewMissing.length > 0 && (
+              <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                ⚠ This contact would be <strong>skipped</strong> — no data for{" "}
+                {previewMissing.map((t) => `{${t}}`).join(", ")}. We never send an email with an
+                unfilled placeholder.
+              </p>
+            )}
             <div className="rounded-lg border bg-background p-4 text-sm">
               <p className="font-semibold mb-2 break-words">
                 {renderedSubject || <span className="text-muted-foreground italic">(empty subject)</span>}
