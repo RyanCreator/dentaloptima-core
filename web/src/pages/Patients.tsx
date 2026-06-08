@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
@@ -69,7 +69,15 @@ export default function Patients() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   // Debounce search term using custom hook
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const debouncedSearchTerm = useDebounce(searchTerm, 350);
+
+  // Tracks whether we've completed at least one load. Used to decide between
+  // the full-page skeleton (first load only) and the subtle in-place overlay
+  // (every search/filter after that). A ref, not state, so flipping it never
+  // triggers a re-render. This is what stops the search input from
+  // unmounting — and dropping the user's focus — whenever a query returns
+  // zero results mid-type.
+  const hasLoadedOnce = useRef(false);
 
   // Reset pagination when filters change - NO MORE CLEARING THE LIST!
   useEffect(() => {
@@ -85,11 +93,13 @@ export default function Patients() {
     const pageToLoad = resetList ? 0 : currentPage;
 
     if (resetList) {
-      // First load - show full loading
-      if (patients.length === 0) {
+      // Full-page skeleton ONLY on the very first load. Once the list has
+      // rendered once, every later search/filter uses the subtle in-place
+      // overlay — that keeps the search input mounted so it never loses
+      // focus, even when a query returns zero results.
+      if (!hasLoadedOnce.current) {
         setLoading(true);
       } else {
-        // Searching - show subtle indicator, keep existing results
         setSearching(true);
       }
     } else {
@@ -124,11 +134,13 @@ export default function Patients() {
           query = query.in("id", uniquePatientIds);
         } else {
           // No active patients found, return empty
+          hasLoadedOnce.current = true;
           setPatients([]);
           setHasMore(false);
           setTotalCount(0);
           setLoading(false);
           setLoadingMore(false);
+          setSearching(false);
           return;
         }
       }
@@ -182,11 +194,12 @@ export default function Patients() {
       logger.error("Unexpected error loading patients", err);
       setError("An unexpected error occurred");
     } finally {
+      hasLoadedOnce.current = true;
       setLoading(false);
       setLoadingMore(false);
       setSearching(false);
     }
-  }, [currentPage, activityFilter, alphabetFilter, debouncedSearchTerm, patients.length]);
+  }, [currentPage, activityFilter, alphabetFilter, debouncedSearchTerm]);
 
   const handleLoadMore = () => {
     if (!loadingMore && hasMore) {
