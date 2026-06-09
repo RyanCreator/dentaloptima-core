@@ -390,7 +390,10 @@ export function useOutreachContactCounts() {
 
 export interface BulkImportResult {
   inserted: number;
-  duplicates: number;
+  // Existing (practice_name, postcode) matches whose details we refreshed from
+  // the CSV (notes / dentist / website / etc.). Replaces the old "skip
+  // duplicates" behaviour.
+  updated: number;
   invalid: number;
   error?: string;
 }
@@ -449,45 +452,36 @@ export async function bulkImportContacts(
   }
 
   if (normalised.length === 0) {
-    return { inserted: 0, duplicates: 0, invalid };
+    return { inserted: 0, updated: 0, invalid };
   }
 
-  // Pre-query existing (practice_name, postcode) pairs so we can skip
-  // them. Done in batches because we ask for the active set in one shot
-  // — practical for the ~500-row imports the UI sends; if we scale to
-  // 10k+ we'd switch to a server-side RPC.
-  //
-  // We fetch *all* active rows by name in batches and filter by the
-  // postcode client-side. PostgREST's `.in("practice_name", [...])` builds
-  // a URL, so we batch the IN list to stay under URL caps.
-  const allKeys = new Set<string>();
+  // Pre-query existing (practice_name, postcode) rows so we can UPDATE the
+  // matches and INSERT the rest. We fetch the id too so updates can target the
+  // row. The 0044 partial unique index guarantees at most one active row per
+  // key. Batched IN lists keep the URL under caps; practical for the ~500-row
+  // imports the UI sends (server-side RPC if we ever scale to 10k+).
+  const existingByKey = new Map<string, string>();
   const names = Array.from(new Set(normalised.map((r) => r.practice_name!).filter(Boolean)));
   for (let i = 0; i < names.length; i += 200) {
     const batch = names.slice(i, i + 200);
     const { data, error } = await supabase
       .from("outreach_contact")
-      .select("practice_name, postcode")
+      .select("id, practice_name, postcode")
       .is("archived_at", null)
       .in("practice_name", batch);
     if (error) {
-      return { inserted: 0, duplicates: 0, invalid, error: error.message };
+      return { inserted: 0, updated: 0, invalid, error: error.message };
     }
-    for (const row of (data as { practice_name: string | null; postcode: string | null }[]) ?? []) {
+    for (const row of (data as { id: string; practice_name: string | null; postcode: string | null }[]) ?? []) {
       const k = practiceKey(row.practice_name, row.postcode);
-      if (k) allKeys.add(k);
+      if (k) existingByKey.set(k, row.id);
     }
   }
 
-  const toInsert = normalised.filter((r) => !allKeys.has(practiceKey(r.practice_name, r.postcode)));
-  const skippedAsDuplicates = normalised.length - toInsert.length;
+  const toInsert = normalised.filter((r) => !existingByKey.has(practiceKey(r.practice_name, r.postcode)));
+  const toUpdate = normalised.filter((r) => existingByKey.has(practiceKey(r.practice_name, r.postcode)));
 
-  if (toInsert.length === 0) {
-    return { inserted: 0, duplicates: skippedAsDuplicates, invalid };
-  }
-
-  // Plain insert (not upsert). The DB partial unique index is the safety
-  // net for a race; on conflict we get an error which we surface — much
-  // rarer than the duplicate-prevention pre-check above.
+  // --- Insert brand-new contacts ---
   let inserted = 0;
   for (let i = 0; i < toInsert.length; i += 500) {
     const batch = toInsert.slice(i, i + 500);
@@ -496,17 +490,47 @@ export async function bulkImportContacts(
       .insert(batch)
       .select("id");
     if (error) {
-      return {
-        inserted,
-        duplicates: skippedAsDuplicates,
-        invalid,
-        error: error.message,
-      };
+      return { inserted, updated: 0, invalid, error: error.message };
     }
     inserted += data?.length ?? 0;
   }
 
-  return { inserted, duplicates: skippedAsDuplicates, invalid };
+  // --- Update existing matches ---
+  // Only fields the CSV actually provided are written — a blank cell must never
+  // wipe existing data. Identity (practice_name/postcode) and the original
+  // `source` are left untouched. Rows with nothing new to set are no-ops.
+  const UPDATABLE_FIELDS: (keyof OutreachContactInput)[] = [
+    "website", "email", "principal_dentist", "notes", "tag", "first_name", "last_name", "phone",
+  ];
+  const updates = toUpdate
+    .map((r) => {
+      const id = existingByKey.get(practiceKey(r.practice_name, r.postcode))!;
+      const patch: Record<string, string> = {};
+      for (const f of UPDATABLE_FIELDS) {
+        const v = r[f];
+        if (typeof v === "string" && v.trim() !== "") patch[f] = v;
+      }
+      return { id, patch };
+    })
+    .filter((u) => Object.keys(u.patch).length > 0);
+
+  let updated = 0;
+  for (let i = 0; i < updates.length; i += 25) {
+    const chunk = updates.slice(i, i + 25);
+    const results = await Promise.all(
+      chunk.map((u) =>
+        supabase.from("outreach_contact").update(u.patch).eq("id", u.id).select("id"),
+      ),
+    );
+    for (const res of results) {
+      if (res.error) {
+        return { inserted, updated, invalid, error: res.error.message };
+      }
+      updated += res.data?.length ?? 0;
+    }
+  }
+
+  return { inserted, updated, invalid };
 }
 
 export async function updateContactStatus(id: string, status: OutreachContactStatus) {

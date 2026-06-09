@@ -1202,7 +1202,7 @@ function UploadSheet({
         toast.error(`Import error: ${result.error}`);
       } else {
         toast.success(
-          `Imported ${result.inserted} new · ${result.duplicates} already existed · ${result.invalid} invalid`
+          `Imported ${result.inserted} new · ${result.updated} updated · ${result.invalid} invalid`
         );
         reset();
         onImported();
@@ -1229,10 +1229,11 @@ function UploadSheet({
           <SheetTitle>Upload contacts CSV</SheetTitle>
           <SheetDescription>
             First row should be column headers. <strong>Practice name</strong>
-            and <strong>postcode</strong> are required (we use them to dedupe
+            and <strong>postcode</strong> are required (we use them to match
             against existing contacts). Other fields auto-map by header name —
-            you can override below. Existing rows matching practice+postcode
-            are skipped.
+            you can override below. Rows matching an existing practice+postcode
+            update that contact; only the fields your CSV fills are changed
+            (blank cells never erase existing data).
           </SheetDescription>
         </SheetHeader>
 
@@ -1326,7 +1327,7 @@ function UploadSheet({
                   </p>
                 )}
                 <p className="text-muted-foreground">
-                  Contacts matching an existing (practice name + postcode) are skipped — your existing records are kept as-is.
+                  Contacts matching an existing (practice name + postcode) update that record — only the fields your CSV provides change; blank cells never overwrite existing data.
                 </p>
               </div>
 
