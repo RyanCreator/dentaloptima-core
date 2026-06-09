@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { Search, Loader2, Plus, AlertTriangle, Heart, Upload, Users, Trash2, Lock } from "lucide-react";
 import { EmptyState } from "@/components/EmptyState";
 import { useSelection } from "@/hooks/useSelection";
