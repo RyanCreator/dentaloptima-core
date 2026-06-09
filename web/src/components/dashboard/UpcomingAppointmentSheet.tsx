@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Badge, getAppointmentBadgeVariant } from "@/components/Badge";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -71,7 +72,13 @@ export interface UpcomingAppointmentSummary {
   patient: { full_name: string; phone: string | null } | null;
   staff: { full_name: string | null } | null;
   services: Array<{
-    service: { id: string; name: string; price_pence: number | null; is_nhs: boolean } | null;
+    service: {
+      id: string;
+      name: string;
+      price_pence: number | null;
+      is_nhs: boolean;
+      nhs_band: string | null;
+    } | null;
   }>;
 }
 
@@ -139,7 +146,7 @@ export function UpcomingAppointmentSheet({
       if (newStatus === "CANCELLED") patch.cancelled_at = nowIso;
       const { error } = await supabase
         .from("appointment")
-        .update(patch)
+        .update(patch as unknown as TablesUpdate<"appointment">)
         .eq("id", appointment.id);
       if (error) throw error;
       toast.success(successMessage);
@@ -215,7 +222,7 @@ export function UpcomingAppointmentSheet({
         payment_method: billMethod,
         is_nhs: recordAsNhs,
         nhs_band: recordAsNhs ? firstService!.nhs_band : null,
-      });
+      } as unknown as TablesInsert<"billing_item">);
       if (error) throw error;
       toast.success(paid ? `Charged £${amountPounds.toFixed(2)}` : "Recorded — payment pending");
       onStatusChanged?.();

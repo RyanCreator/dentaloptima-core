@@ -148,14 +148,13 @@ export default function NewAppointmentForm({
   }, [practiceId]);
 
   // Staff who can perform the currently-selected service. If no service
-  // is picked yet, all staff are shown. If the service is marked
-  // `all_staff_can_perform`, all staff are shown too. Otherwise only
-  // staff with a staff_service link to the selected service.
+  // is picked yet, all staff are shown. Otherwise only staff with a
+  // staff_service link to the selected service (eligibility is driven
+  // entirely by staff_service rows in the core schema).
   const filteredStaff = useMemo(() => {
     if (!selectedService) return staff;
     const svc = services.find((s) => s.id === selectedService);
     if (!svc) return staff;
-    if (svc.all_staff_can_perform) return staff;
     const qualifiedIds = new Set(
       staffServiceLinks
         .filter((l) => l.service_id === selectedService)
@@ -235,9 +234,8 @@ export default function NewAppointmentForm({
 
     const assignedServiceIds = staffServices?.map((ss) => ss.service_id) || [];
 
-    const filtered = services.filter(
-      (service) =>
-        service.all_staff_can_perform || assignedServiceIds.includes(service.id)
+    const filtered = services.filter((service) =>
+      assignedServiceIds.includes(service.id)
     );
 
     setFilteredServices(filtered);

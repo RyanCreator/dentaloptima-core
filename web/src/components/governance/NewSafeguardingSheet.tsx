@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { X, Search, AlertTriangle, Lock } from "lucide-react";
@@ -99,7 +100,7 @@ export function NewSafeguardingSheet({ open, onOpenChange, onCreated }: NewSafeg
           immediate_risk_assessment: riskAssessment.trim() || null,
           patient_id:  patient?.id ?? null,
           status:      "IDENTIFIED",
-        });
+        } as TablesInsert<"safeguarding_concern">);
       if (error) throw error;
       toast.success("Concern raised");
       toast.message(

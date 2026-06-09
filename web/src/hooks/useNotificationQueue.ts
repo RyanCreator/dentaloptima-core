@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useNotifications } from "@/hooks/useNotifications";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -202,7 +203,7 @@ export async function markNotificationPending(
 
   const { error } = await supabase
     .from("appointment")
-    .update(patch)
+    .update(patch as unknown as TablesUpdate<"appointment">)
     .eq("id", appointmentId);
   if (error) {
     logger.error("Couldn't mark notification pending", error);

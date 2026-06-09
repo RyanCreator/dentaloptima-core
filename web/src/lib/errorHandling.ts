@@ -197,7 +197,7 @@ export function handleError(
   if (logLevel === "error") {
     logger.error(logMessage, error);
   } else if (logLevel === "warn") {
-    logger.warn(logMessage, error);
+    logger.warn(logMessage, { error });
   } else {
     logger.info(logMessage);
   }

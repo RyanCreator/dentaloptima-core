@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -122,7 +123,7 @@ export default function RecallsPage() {
     for (const [status, ids] of byStatus) {
       const { error } = await supabase
         .from("recall")
-        .update({ status, completed_at: null })
+        .update({ status: status as Enums<"recall_status">, completed_at: null })
         .in("id", ids);
       if (error) {
         toast.error("Couldn't undo");

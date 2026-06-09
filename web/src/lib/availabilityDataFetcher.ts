@@ -65,7 +65,7 @@ export async function fetchStaffAvailabilityData(
     const dayStart = startOfDay(date);
     const dayEnd = endOfDay(date);
 
-    const promises: Promise<any>[] = [
+    const promises: PromiseLike<any>[] = [
       supabase
         .from("staff_availability")
         .select("weekday, start_time, end_time, effective_from, effective_to")

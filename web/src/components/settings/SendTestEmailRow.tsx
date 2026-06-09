@@ -41,7 +41,7 @@ export function SendTestEmailRow({
       return;
     }
     const result = await send({ to: trimmed, templateKey });
-    if (result.success) {
+    if (result.success === true) {
       toast.success(`Test email sent to ${result.to}`);
     } else {
       toast.error(result.error);

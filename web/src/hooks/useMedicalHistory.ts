@@ -53,7 +53,11 @@ export function useMedicalHistory(patientId: string | undefined) {
     if (error) {
       logger.error("Error loading medical history", error);
     } else {
-      setEntries((data as MedicalHistoryEntry[]) ?? []);
+      // The `staff:created_by(full_name)` embed isn't modelled in the
+      // generated types (created_by has no declared FK relationship), so
+      // TS infers `staff` as a SelectQueryError. The embed resolves fine at
+      // runtime — go through `unknown` to land on the hand-written row type.
+      setEntries((data as unknown as MedicalHistoryEntry[]) ?? []);
     }
     setLoading(false);
   }, [patientId]);

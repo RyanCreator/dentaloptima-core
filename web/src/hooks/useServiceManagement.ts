@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePractice } from "@/contexts/PracticeContext";
 import { toast } from "sonner";
 import type { Service } from "@/types/entities";
+import type { TablesInsert, Enums } from "@/integrations/supabase/types";
 
 // Adapted to dentaloptima-core's `service` table (singular). Legacy concepts
 // dropped in the core schema:
@@ -126,7 +127,7 @@ export function useServiceManagement() {
         is_nhs: service.is_nhs ?? false,
         nhs_band: service.is_nhs ? service.nhs_band ?? null : null,
         recall_months: service.recall_months ?? null,
-      })
+      } as TablesInsert<"service">)
       .select()
       .single();
 
@@ -179,9 +180,9 @@ export function useServiceManagement() {
         is_active: service.is_active,
         is_publicly_bookable: service.is_publicly_bookable,
         price_pence: service.price_pence ?? null,
-        treatment_type: service.treatment_type ?? "OTHER",
+        treatment_type: (service.treatment_type ?? "OTHER") as Enums<"service_treatment_type">,
         is_nhs: service.is_nhs ?? false,
-        nhs_band: service.is_nhs ? service.nhs_band ?? null : null,
+        nhs_band: (service.is_nhs ? service.nhs_band ?? null : null) as Enums<"nhs_band"> | null,
         recall_months: service.recall_months ?? null,
       })
       .eq("id", service.id);

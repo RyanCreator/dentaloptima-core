@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -223,7 +224,7 @@ export default function ComplaintDetail() {
     }
     const { error } = await supabase
       .from("complaint")
-      .update(patch)
+      .update(patch as unknown as TablesUpdate<"complaint">)
       .eq("id", complaint.id);
     setSaving(false);
     if (error) { toast.error("Couldn't update status"); logger.error("complaint status update failed", error); return; }

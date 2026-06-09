@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { Save, Eye, FileText, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -104,7 +105,7 @@ export function ComplaintsProcedureSettings() {
       : data;
     const { error } = await supabase
       .from("practice")
-      .update({ complaints_procedure: payload })
+      .update({ complaints_procedure: payload } as unknown as TablesUpdate<"practice">)
       .eq("id", practiceId);
     setSaving(false);
     if (error) {

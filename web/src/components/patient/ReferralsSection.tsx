@@ -18,6 +18,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { usePractice } from "@/contexts/PracticeContext";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
@@ -193,7 +194,10 @@ export function ReferralsSection({ patientId }: ReferralsSectionProps) {
     }
     if (status === "COMPLETED") updates.completed_at = new Date().toISOString();
 
-    const { error } = await supabase.from("referral").update(updates).eq("id", id);
+    const { error } = await supabase
+      .from("referral")
+      .update(updates as unknown as TablesUpdate<"referral">)
+      .eq("id", id);
     if (error) toast.error("Failed to update referral");
     else {
       await load();

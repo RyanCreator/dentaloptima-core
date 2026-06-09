@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { usePractice } from "@/contexts/PracticeContext";
 import { logger } from "@/lib/logger";
 import {
@@ -147,7 +148,9 @@ export function ImportPatientsSheet({ open, onOpenChange, onImported }: ImportPa
             practice_id: practiceId,
             ...d,
           }));
-        const { error } = await supabase.from("patient").insert(rows);
+        const { error } = await supabase
+          .from("patient")
+          .insert(rows as unknown as TablesInsert<"patient">[]);
         if (error) {
           logger.error("Patient bulk insert chunk failed", error);
           failed += chunk.length;

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
@@ -335,7 +336,7 @@ function NewAlertSheet({ open, onOpenChange, patientId, practiceId, existing, on
             title: title.trim(),
             detail: detail.trim() || null,
             expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
-          })
+          } as TablesUpdate<"medical_alert">)
           .eq("id", existing.id);
         if (error) throw error;
         toast.success("Alert updated");
@@ -351,7 +352,7 @@ function NewAlertSheet({ open, onOpenChange, patientId, practiceId, existing, on
             detail: detail.trim() || null,
             expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
             is_active: true,
-          });
+          } as TablesInsert<"medical_alert">);
         if (error) throw error;
         toast.success("Alert added");
       }

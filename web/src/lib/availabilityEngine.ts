@@ -857,19 +857,19 @@ export const findSlotsWithFilters = async (
     staff_id: r.staff_id,
     starts_at: dateStartIso(r.starts_on),
     ends_at: dateEndIso(r.ends_on),
-  }));
+  })) as unknown as typeof timeOffRes.data;
   practiceHoursRes.data = (practiceHoursRes.data ?? [])
     .filter((r: any) => r.open_time && r.close_time)
     .map((r: any) => ({
       weekday: weekdayInt(r.weekday),
       start_time: r.open_time,
       end_time: r.close_time,
-    }));
+    })) as unknown as typeof practiceHoursRes.data;
   practiceClosuresRes.data = (practiceClosuresRes.data ?? []).map((r: any) => ({
     starts_at: dateStartIso(r.starts_on),
     ends_at: dateEndIso(r.ends_on),
     reason: r.reason ?? null,
-  }));
+  })) as unknown as typeof practiceClosuresRes.data;
 
   // Group data by staff_id
   const schedulesByStaff: Record<string, any[]> = {};
@@ -918,8 +918,8 @@ export const findSlotsWithFilters = async (
       timeOff: timeOffByStaff[staffMember.id] || [],
       blockedTime: blockedTimeByStaff[staffMember.id] || [],
       appointments: appointmentsByStaff[staffMember.id] || [],
-      practiceHours: practiceHoursRes.data || [],
-      practiceClosures: practiceClosuresRes.data || [],
+      practiceHours: (practiceHoursRes.data || []) as unknown as PracticeHours[],
+      practiceClosures: (practiceClosuresRes.data || []) as unknown as PracticeClosure[],
     };
 
     // Get slots for this staff member (get more than needed for filtering)

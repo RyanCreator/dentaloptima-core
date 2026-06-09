@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { X, Search } from "lucide-react";
@@ -146,7 +147,7 @@ export function NewComplaintSheet({ open, onOpenChange, onCreated }: NewComplain
           detail:       detail.trim(),
           staff_named:  staffNamed.length > 0 ? staffNamed : null,
           status:       "NEW",
-        });
+        } as TablesInsert<"complaint">);
       if (error) throw error;
       toast.success("Complaint logged");
       toast.message("Acknowledge within 3 working days — CQC requirement.");

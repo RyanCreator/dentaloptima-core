@@ -38,7 +38,10 @@ export interface Service {
   duration_minutes: number;
   buffer_before_minutes: number;
   buffer_after_minutes: number;
-  active: boolean;
+  // Not consumed by the availability engine (it only reads id/name/duration/
+  // buffers). Optional so both the entities Service (which uses `is_active`)
+  // and the DB `service` row can be passed straight in without adapting.
+  active?: boolean;
 }
 
 export interface AvailableSlot {

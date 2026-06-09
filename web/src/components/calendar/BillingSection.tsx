@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { Plus, CreditCard } from "lucide-react";
 import { toast } from "sonner";
@@ -130,7 +131,7 @@ export function BillingSection({
       payment_method: form.payment_method,
       is_nhs: recordAsNhs,
       nhs_band: recordAsNhs ? nhsBand : null,
-    });
+    } as TablesInsert<"billing_item">);
 
     if (error) {
       toast.error("Failed to add billing item");

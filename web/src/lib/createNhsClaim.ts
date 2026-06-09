@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import type { ClaimActivityInput } from "@/lib/nhs/validateClaim";
 
@@ -145,7 +146,7 @@ export async function saveNhsClaim(
   if (input.existingClaimId) {
     const { error } = await supabase
       .from("nhs_claim")
-      .update(claimPayload)
+      .update(claimPayload as unknown as TablesUpdate<"nhs_claim">)
       .eq("id", input.existingClaimId);
     if (error) {
       logger.error("Failed to update FP17 claim", error);
@@ -155,7 +156,7 @@ export async function saveNhsClaim(
   } else {
     const { data, error } = await supabase
       .from("nhs_claim")
-      .insert(claimPayload)
+      .insert(claimPayload as unknown as TablesInsert<"nhs_claim">)
       .select("id")
       .single();
     if (error || !data) {
@@ -177,15 +178,17 @@ export async function saveNhsClaim(
     return { success: false, error: delErr.message };
   }
   if (input.activities.length > 0) {
-    const activityRows = input.activities.map((a) => ({
-      practice_id: input.practiceId,
-      nhs_claim_id: claimId,
-      code: a.code,
-      value: a.value ?? null,
-      tooth_number: a.toothNumber ?? null,
-      quadrant: a.quadrant ?? null,
-      dcp_gdc_number: a.dcpGdcNumber ?? null,
-    }));
+    const activityRows: TablesInsert<"nhs_claim_activity">[] = input.activities.map(
+      (a) => ({
+        practice_id: input.practiceId,
+        nhs_claim_id: claimId!,
+        code: a.code,
+        value: a.value ?? null,
+        tooth_number: a.toothNumber ?? null,
+        quadrant: (a as ClaimActivityInput & { quadrant?: string | null }).quadrant ?? null,
+        dcp_gdc_number: a.dcpGdcNumber ?? null,
+      }),
+    );
     const { error: actErr } = await supabase
       .from("nhs_claim_activity")
       .insert(activityRows);

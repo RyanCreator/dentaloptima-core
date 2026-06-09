@@ -19,12 +19,16 @@ import { useStaff } from "@/hooks/useStaff";
 import { useServices } from "@/hooks/useServices";
 import { useNotifications } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { NotesSection } from "@/components/enquiry/NotesSection";
 import { BookingDialog } from "@/components/enquiry/BookingDialog";
 import { SmartAvailabilityFinder } from "@/components/enquiry/SmartAvailabilityFinder";
-import { ensurePatientForBookingRequest } from "@/lib/ensurePatientForBookingRequest";
+import {
+  ensurePatientForBookingRequest,
+  type EnsurePatientResult,
+} from "@/lib/ensurePatientForBookingRequest";
 import { formatPrice } from "@/types/entities";
 import {
   Phone,
@@ -286,7 +290,7 @@ export default function EnquiryDetail() {
         })
         .eq("id", id);
       if (error) {
-        logger.warn("Failed to mark enquiry as viewed", error);
+        logger.warn("Failed to mark enquiry as viewed", { error });
       }
       loadRequest();
     }
@@ -300,7 +304,7 @@ export default function EnquiryDetail() {
     const { data } = await supabase
       .from("booking_request")
       .select("id")
-      .in("status", UNRESOLVED_STATUSES as unknown as string[])
+      .in("status", UNRESOLVED_STATUSES as unknown as Enums<"booking_request_status">[])
       .neq("id", id!)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -377,7 +381,10 @@ export default function EnquiryDetail() {
         },
       });
       if (!ensured.ok) {
-        toast.error(ensured.error);
+        // strictNullChecks is off in this project, so TS won't narrow the
+        // discriminated union on the `ok` boolean — extract the failure
+        // member explicitly to read `.error`.
+        toast.error((ensured as Extract<EnsurePatientResult, { ok: false }>).error);
         setSubmitting(false);
         return;
       }

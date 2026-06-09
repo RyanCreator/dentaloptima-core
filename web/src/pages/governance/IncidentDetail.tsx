@@ -4,6 +4,7 @@ import { format, parseISO } from "date-fns";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,7 +189,7 @@ export default function IncidentDetail() {
     }
     const { error } = await supabase
       .from("incident_report")
-      .update(patch)
+      .update(patch as unknown as TablesUpdate<"incident_report">)
       .eq("id", incident.id);
     setSaving(false);
     if (error) {

@@ -16,7 +16,10 @@ import { logger } from "@/lib/logger";
 import { usePractice } from "@/contexts/PracticeContext";
 // Aliased to avoid the shadow with the local createAppointment handler.
 import { createAppointment as createAppointmentRecord } from "@/lib/createAppointment";
-import { ensurePatientForBookingRequest } from "@/lib/ensurePatientForBookingRequest";
+import {
+  ensurePatientForBookingRequest,
+  type EnsurePatientResult,
+} from "@/lib/ensurePatientForBookingRequest";
 
 interface BookingDialogProps {
   open: boolean;
@@ -105,7 +108,10 @@ export function BookingDialog({
         fallback: patientFallback,
       });
       if (!ensured.ok) {
-        toast.error(ensured.error);
+        // strictNullChecks is off in this project, so TS won't narrow the
+        // discriminated union on the `ok` boolean — extract the failure
+        // member explicitly to read `.error`.
+        toast.error((ensured as Extract<EnsurePatientResult, { ok: false }>).error);
         setLoading(false);
         return;
       }

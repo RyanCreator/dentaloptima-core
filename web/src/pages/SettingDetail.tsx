@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { useRequireAuth, useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,7 +186,7 @@ export default function SettingDetail() {
       return;
     }
 
-    setPractice(practiceRes.data);
+    setPractice(practiceRes.data as PracticeRow);
     setSetting(settingRes.data as PracticeSettingRow);
     setLoadingData(false);
     hasLoadedRef.current = true;
@@ -1167,7 +1168,7 @@ function TemplatesSettings({
       .update({
         [editing.subjectKey]: subjectToSave,
         [editing.bodyKey]: bodyToSave,
-      })
+      } as unknown as TablesUpdate<"practice_setting">)
       .eq("practice_id", setting.practice_id);
     setSaving(false);
 

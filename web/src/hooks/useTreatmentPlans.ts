@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
 
@@ -160,7 +161,7 @@ export function useTreatmentPlans(patientId: string | undefined) {
 
     const { error } = await supabase
       .from("treatment_plan")
-      .update(updates)
+      .update(updates as unknown as TablesUpdate<"treatment_plan">)
       .eq("id", planId);
 
     if (error) {
@@ -218,7 +219,7 @@ export function useTreatmentPlans(patientId: string | undefined) {
 
     const { error } = await supabase
       .from("treatment_plan_item")
-      .update(updates)
+      .update(updates as unknown as TablesUpdate<"treatment_plan_item">)
       .eq("id", itemId);
 
     if (error) {

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { usePractice } from "@/contexts/PracticeContext";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 // Schema in dentaloptima-core (migration 0008): blocked_time has
 // `block_type` (enum) + `title` (free text). The legacy `reason` column
@@ -108,7 +109,7 @@ export function useBlockedTime(staffId?: string) {
           title: params.title ?? params.reason ?? "Blocked time",
           notes: params.notes ?? null,
           created_by: createdByMemberId,
-        })
+        } as TablesInsert<"blocked_time">)
         .select()
         .single();
 
@@ -144,7 +145,7 @@ export function useBlockedTime(staffId?: string) {
     mutationFn: async ({ id, ...params }: Partial<BlockedTimeEntry> & { id: string }) => {
       const { data, error } = await supabase
         .from("blocked_time")
-        .update(params)
+        .update(params as TablesUpdate<"blocked_time">)
         .eq("id", id)
         .select()
         .single();

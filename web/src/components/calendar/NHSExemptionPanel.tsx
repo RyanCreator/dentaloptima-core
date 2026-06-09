@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { logger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
@@ -144,7 +145,7 @@ export function NHSExemptionPanel({
 
     const { error } = await supabase
       .from("appointment")
-      .update(payload)
+      .update(payload as unknown as TablesUpdate<"appointment">)
       .eq("id", appointmentId);
     setSaving(false);
 

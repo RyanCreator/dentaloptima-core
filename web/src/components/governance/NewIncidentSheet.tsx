@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { X, Search, Shield } from "lucide-react";
@@ -180,7 +181,7 @@ export function NewIncidentSheet({ open, onOpenChange, onCreated }: NewIncidentS
           witnesses:    witnesses.trim() || null,
           immediate_action_taken: immediateAction.trim() || null,
           status:       "REPORTED",
-        })
+        } as TablesInsert<"incident_report">)
         .select("id")
         .single();
       if (error) throw error;

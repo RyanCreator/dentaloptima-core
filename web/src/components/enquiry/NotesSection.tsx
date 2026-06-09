@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import { usePractice } from "@/contexts/PracticeContext";
 
@@ -50,7 +51,7 @@ export function NotesSection({
       parent_id: entityId,
       body: newNote.trim(),
       note_type: "ADMIN",
-    });
+    } as TablesInsert<"note">);
 
     if (error) {
       toast.error("Failed to add note");

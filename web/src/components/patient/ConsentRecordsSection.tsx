@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { Button } from "@/components/ui/button";
@@ -461,7 +462,7 @@ function NewConsentSheet({
           guardian_relation:  grantedByPatient ? null : (guardianRelation.trim() || null),
           witnessed_by:       witnessedBy || null,
           valid_until:        validUntil ? new Date(validUntil).toISOString() : null,
-        })
+        } as TablesInsert<"consent_record">)
         .select("id")
         .single();
       if (error) throw error;

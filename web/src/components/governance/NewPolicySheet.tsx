@@ -11,6 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { useAuth } from "@/hooks/useAuth";
 import { logger } from "@/lib/logger";
 import { format } from "date-fns";
@@ -172,7 +173,7 @@ export function NewPolicySheet({ open, onOpenChange, onCreated }: NewPolicySheet
           next_review_date: nextReviewDate || null,
           is_active: true,
           document_id: documentId,
-        });
+        } as TablesInsert<"policy">);
       if (error) {
         // Roll back the orphaned document + storage object on failure.
         if (documentId) {

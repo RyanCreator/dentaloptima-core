@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import type { Enums } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { toast } from "sonner";
 import { PageLoading } from "@/components/PageLoading";
@@ -147,7 +148,7 @@ export function NHSClaimDetailSheet({
     setBusy(true);
     const { error } = await supabase
       .from("nhs_claim")
-      .update({ status: nextStatus, ...extras })
+      .update({ status: nextStatus as Enums<"nhs_claim_status">, ...extras })
       .eq("id", claim.id);
     setBusy(false);
 

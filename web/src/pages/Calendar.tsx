@@ -10,6 +10,8 @@ import { useStaff } from "@/hooks/useStaff";
 import { useServices } from "@/hooks/useServices";
 import { markNotificationPending } from "@/hooks/useNotificationQueue";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
+import { logger } from "@/lib/logger";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { toast } from "sonner";
 import NewAppointmentForm from "./NewAppointment";
@@ -338,7 +340,7 @@ export default function Calendar() {
             // Soft-fail: the new row is in, the old one is just hanging
             // around. Surface as a non-fatal warning so the operator
             // knows to retry or clean up; appointment is still usable.
-            logger.warn("New service attached but previous link not cleaned up", deleteErr);
+            logger.warn("New service attached but previous link not cleaned up", { error: deleteErr });
             toast.warning("Service updated, but old link couldn't be removed. Try again or contact support.");
           }
         }
@@ -488,7 +490,7 @@ export default function Calendar() {
                 }
                 const { error: undoErr } = await supabase
                   .from("appointment")
-                  .update(revert)
+                  .update(revert as unknown as TablesUpdate<"appointment">)
                   .eq("id", apptId);
                 if (undoErr) {
                   toast.error("Couldn't undo");

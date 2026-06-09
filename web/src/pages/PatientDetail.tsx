@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { useRequireAuth } from "@/hooks/useAuth";
 import { useNotifications } from "@/hooks/useNotifications";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { logger } from "@/lib/logger";
 import { usePractice } from "@/contexts/PracticeContext";
 import { format, isPast, differenceInYears, parseISO } from "date-fns";
@@ -613,7 +614,10 @@ export default function PatientDetail() {
       treatment_summary: isCompleting ? apptForm.notes || null : selectedAppt.treatment_summary,
     };
 
-    const { error } = await supabase.from("appointment").update(updates).eq("id", selectedAppt.id);
+    const { error } = await supabase
+      .from("appointment")
+      .update(updates as unknown as TablesUpdate<"appointment">)
+      .eq("id", selectedAppt.id);
 
     if (error) {
       toast.error("Failed to update appointment");
@@ -664,7 +668,7 @@ export default function PatientDetail() {
         if (deleteErr) {
           // Soft-fail: new row attached, old one orphaned. The
           // appointment is still bookable; just surface for cleanup.
-          logger.warn("New service attached but previous link not cleaned up", deleteErr);
+          logger.warn("New service attached but previous link not cleaned up", { error: deleteErr });
         }
       }
     }

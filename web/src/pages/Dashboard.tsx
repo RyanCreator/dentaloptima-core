@@ -454,7 +454,7 @@ export default function Dashboard() {
           .gte("created_at", new Date(Date.now() - 365 * 86_400_000).toISOString()),
       ]);
 
-      const apts = (todayApts.data ?? []) as UpcomingAppt[];
+      const apts = (todayApts.data ?? []) as unknown as UpcomingAppt[];
       // "Still to come" for the next-appointment stat = future scheduled
       // ones. Excludes ARRIVED/IN_PROGRESS (they're already here) and
       // past-start scheduled ones (they're late, not "next").
