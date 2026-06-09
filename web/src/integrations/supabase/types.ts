@@ -2577,6 +2577,10 @@ export type Database = {
           recall_months_override: number | null
           registered_at: string | null
           registration_status: Database["public"]["Enums"]["patient_registration_status"]
+          status_changed_at: string | null
+          status_changed_by: string | null
+          status_note: string | null
+          status_reason: string | null
           title: string | null
           updated_at: string
           updated_by: string | null
@@ -2624,6 +2628,10 @@ export type Database = {
           recall_months_override?: number | null
           registered_at?: string | null
           registration_status?: Database["public"]["Enums"]["patient_registration_status"]
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_note?: string | null
+          status_reason?: string | null
           title?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -2671,6 +2679,10 @@ export type Database = {
           recall_months_override?: number | null
           registered_at?: string | null
           registration_status?: Database["public"]["Enums"]["patient_registration_status"]
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          status_note?: string | null
+          status_reason?: string | null
           title?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -2693,6 +2705,13 @@ export type Database = {
           {
             foreignKeyName: "patient_preferred_dentist_id_fkey"
             columns: ["preferred_dentist_id"]
+            isOneToOne: false
+            referencedRelation: "practice_member"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_status_changed_by_fkey"
+            columns: ["status_changed_by"]
             isOneToOne: false
             referencedRelation: "practice_member"
             referencedColumns: ["id"]

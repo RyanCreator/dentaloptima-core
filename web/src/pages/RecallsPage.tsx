@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/Badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
-import { RotateCcw, Search, Check, X } from "lucide-react";
+import { RotateCcw, Search, Check, X, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { useSelection } from "@/hooks/useSelection";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState } from "@/components/EmptyState";
+import { PatientStatusDialog } from "@/components/patient/PatientStatusDialog";
 
 // `recall_status` enum from the DB: PENDING, REMINDED, BOOKED, COMPLETED,
 // MISSED, CANCELLED. The page treats PENDING and REMINDED together as
@@ -47,6 +48,7 @@ export default function RecallsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ACTIVE");
   const selection = useSelection();
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [inactiveTarget, setInactiveTarget] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!loading) loadRecalls();
@@ -354,6 +356,20 @@ export default function RecallsPage() {
                       <Button variant="ghost" size="sm" onClick={() => markComplete(recall.id)} className="h-7 text-xs text-green-700 hover:text-green-800 hover:bg-green-50" title="Mark as completed">
                         <Check className="h-3.5 w-3.5 mr-1" /> Done
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setInactiveTarget({
+                            id: recall.patient_id,
+                            name: recall.patient?.full_name ?? "this patient",
+                          })
+                        }
+                        className="h-7 text-xs text-muted-foreground hover:text-amber-700"
+                        title="Patient not returning — mark inactive & cancel their recalls"
+                      >
+                        <UserX className="h-3.5 w-3.5 mr-1" /> Not returning
+                      </Button>
                       <Button variant="ghost" size="sm" onClick={() => cancelRecall(recall.id)} className="h-7 text-xs text-muted-foreground" title="Cancel recall">
                         <X className="h-3.5 w-3.5" />
                       </Button>
@@ -383,6 +399,16 @@ export default function RecallsPage() {
           { key: "cancel",   label: "Cancel",                                          onClick: bulkCancel },
         ]}
       />
+      {inactiveTarget && (
+        <PatientStatusDialog
+          patientId={inactiveTarget.id}
+          patientName={inactiveTarget.name}
+          mode="inactive"
+          open={!!inactiveTarget}
+          onOpenChange={(o) => !o && setInactiveTarget(null)}
+          onDone={loadRecalls}
+        />
+      )}
     </Layout>
   );
 }

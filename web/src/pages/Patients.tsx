@@ -30,9 +30,12 @@ interface Patient {
   // surfaces are wired up.
   dob: string | null;
   nhs_number: string | null;
+  registration_status: string | null;
+  status_reason: string | null;
 }
 
 type ActivityFilter = "active" | "all";
+type PatientStatusFilter = "active" | "all" | "inactive" | "deceased";
 type AlphabetFilter = "all" | string;
 
 const PAGE_SIZE = 50;
@@ -63,6 +66,9 @@ export default function Patients() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  // Lifecycle status filter. Defaults to "active" so inactive/deceased patients
+  // are hidden from the everyday list (their records are still retained).
+  const [statusFilter, setStatusFilter] = useState<PatientStatusFilter>("active");
   const [alphabetFilter, setAlphabetFilter] = useState<AlphabetFilter>("all");
   const [hasMore, setHasMore] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
@@ -87,7 +93,7 @@ export default function Patients() {
       loadPatients(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, debouncedSearchTerm, activityFilter, alphabetFilter]);
+  }, [authLoading, debouncedSearchTerm, activityFilter, alphabetFilter, statusFilter]);
 
   const loadPatients = useCallback(async (resetList: boolean = false) => {
     const pageToLoad = resetList ? 0 : currentPage;
@@ -116,8 +122,18 @@ export default function Patients() {
       //                  (use medical_alert + marketing_consent_* instead)
       let query = supabase
         .from("patient")
-        .select("id, full_name, phone, email, dob, nhs_number", { count: 'exact' })
+        .select("id, full_name, phone, email, dob, nhs_number, registration_status, status_reason", { count: 'exact' })
         .is("deleted_at", null);
+
+      // Lifecycle status filter (separate from activity). Default "active"
+      // hides INACTIVE/DECEASED from the everyday list.
+      if (statusFilter === "active") {
+        query = query.in("registration_status", ["PROSPECT", "REGISTERED"]);
+      } else if (statusFilter === "inactive") {
+        query = query.eq("registration_status", "INACTIVE");
+      } else if (statusFilter === "deceased") {
+        query = query.eq("registration_status", "DECEASED");
+      }
 
       // Apply activity filter (patients with recent appointments)
       if (activityFilter === "active") {
@@ -307,6 +323,17 @@ export default function Patients() {
               <SelectItem value="active">Active (6 months)</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={statusFilter} onValueChange={(value: PatientStatusFilter) => setStatusFilter(value)}>
+            <SelectTrigger className="w-full sm:w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="deceased">Deceased</SelectItem>
+            </SelectContent>
+          </Select>
 
           {canImport && (
             <Button
@@ -430,8 +457,19 @@ export default function Patients() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <h3 className="font-medium">{patient.full_name}</h3>
-                        {/* Pregnant / anticoagulant pills will return when
-                            we wire medical_alert into the patient list. */}
+                        {(patient.registration_status === "INACTIVE" ||
+                          patient.registration_status === "DECEASED") && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0",
+                              patient.registration_status === "INACTIVE"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-slate-200 text-slate-700",
+                            )}
+                          >
+                            {patient.registration_status.toLowerCase()}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                         <span>{patient.phone ?? "—"}</span>

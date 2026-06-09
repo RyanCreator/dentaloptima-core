@@ -32,7 +32,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
-import { CalendarIcon, Pencil, AlertTriangle, Phone, Mail, Plus, ListPlus, X as XIcon, Download, Tablet } from "lucide-react";
+import { CalendarIcon, Pencil, AlertTriangle, Phone, Mail, Plus, ListPlus, X as XIcon, Download, Tablet, UserCog, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PatientStatusDialog, type PatientStatusMode } from "@/components/patient/PatientStatusDialog";
+import { inactiveReasonLabel } from "@/lib/setPatientStatus";
 import { useAuth } from "@/hooks/useAuth";
 import { buildDsarExport, downloadDsarJson } from "@/lib/dsarExport";
 import { useRecentPatients } from "@/hooks/useRecentPatients";
@@ -239,6 +247,7 @@ export default function PatientDetail() {
   const { track: trackRecentPatient } = useRecentPatients();
 
   const [patient, setPatient] = useState<any>(null);
+  const [statusDialog, setStatusDialog] = useState<PatientStatusMode | null>(null);
   const [loadingPatient, setLoadingPatient] = useState(true);
   const [showEditPatient, setShowEditPatient] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
@@ -742,8 +751,25 @@ export default function PatientDetail() {
                       </span>
                     )}
                     {patient.registration_status && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded",
+                          patient.registration_status === "REGISTERED"
+                            ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300"
+                            : patient.registration_status === "INACTIVE"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                              : patient.registration_status === "DECEASED"
+                                ? "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                : "bg-muted text-muted-foreground",
+                        )}
+                        title={
+                          patient.status_reason
+                            ? `${inactiveReasonLabel(patient.status_reason)}${patient.status_note ? ` — ${patient.status_note}` : ""}`
+                            : undefined
+                        }
+                      >
                         {patient.registration_status.toLowerCase()}
+                        {patient.status_reason ? ` · ${inactiveReasonLabel(patient.status_reason)}` : ""}
                       </span>
                     )}
                     {noShowCount >= 1 && (
@@ -813,7 +839,42 @@ export default function PatientDetail() {
                 <Button variant="ghost" size="sm" onClick={openEditPatient}>
                   <Pencil className="h-4 w-4 mr-1" /> Edit
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" title="Change the patient's active status">
+                      <UserCog className="h-4 w-4 mr-1" /> Status
+                      <ChevronDown className="h-3.5 w-3.5 ml-0.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {patient.registration_status === "INACTIVE" || patient.registration_status === "DECEASED" ? (
+                      <DropdownMenuItem onClick={() => setStatusDialog("reactivate")}>
+                        Reactivate (set to registered)
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuItem onClick={() => setStatusDialog("inactive")}>
+                          Mark inactive…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setStatusDialog("deceased")}>
+                          Mark deceased…
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
+
+              {statusDialog && (
+                <PatientStatusDialog
+                  patientId={id!}
+                  patientName={patient.full_name ?? "this patient"}
+                  mode={statusDialog}
+                  open={!!statusDialog}
+                  onOpenChange={(o) => !o && setStatusDialog(null)}
+                  onDone={loadPatient}
+                />
+              )}
 
               {/* Retention status row — quietly informative. Only shows the
                   pill when something interesting is true; an everyday active
