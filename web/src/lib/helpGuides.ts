@@ -83,6 +83,15 @@ export const HELP_GUIDES: HelpGuide[] = [
     category: "Enquiries",
     routes: ["/enquiries", "/enquiries/*"],
   },
+  {
+    id: "waiting-list-overview",
+    title: "Waiting list — add, prioritise and book from the queue",
+    description:
+      "Managing the waiting list: add a patient with their preferences, work the queue, and book someone in when a slot frees up.",
+    youtubeId: "XXY8J8wG3pI",
+    category: "Waiting list",
+    routes: ["/waiting-list", "/waiting-list/*"],
+  },
 ];
 
 /**
