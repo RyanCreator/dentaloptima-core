@@ -10,12 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/Badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
-import { RotateCcw, Search, Check, X, UserX } from "lucide-react";
+import { RotateCcw, Search, Check, X, UserX, Phone, Mail, BellRing, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { useSelection } from "@/hooks/useSelection";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { EmptyState } from "@/components/EmptyState";
 import { PatientStatusDialog } from "@/components/patient/PatientStatusDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // `recall_status` enum from the DB: PENDING, REMINDED, BOOKED, COMPLETED,
 // MISSED, CANCELLED. The page treats PENDING and REMINDED together as
@@ -33,8 +39,19 @@ interface RecallRow {
   completed_at: string | null;
   notes: string | null;
   created_at: string;
-  patient?: { full_name: string } | null;
+  patient?: {
+    full_name: string;
+    email: string | null;
+    phone: string | null;
+    phone_alt: string | null;
+  } | null;
   service?: { name: string } | null;
+}
+
+interface PracticeInfo {
+  name: string;
+  phone: string | null;
+  email: string | null;
 }
 
 export default function RecallsPage() {
@@ -50,25 +67,95 @@ export default function RecallsPage() {
   const selection = useSelection();
   const [bulkBusy, setBulkBusy] = useState(false);
   const [inactiveTarget, setInactiveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [practice, setPractice] = useState<PracticeInfo | null>(null);
 
   useEffect(() => {
-    if (!loading) loadRecalls();
+    if (!loading) {
+      loadRecalls();
+      loadPractice();
+    }
   }, [loading]);
+
+  // Practice name + phone power the recall email template (so patients know
+  // who's contacting them and how to book). RLS scopes this to the caller's
+  // own practice, so a single row comes back.
+  const loadPractice = async () => {
+    const { data } = await supabase
+      .from("practice")
+      .select("name, primary_phone, primary_email")
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      setPractice({ name: data.name, phone: data.primary_phone, email: data.primary_email });
+    }
+  };
 
   const loadRecalls = async () => {
     if (!hasLoadedOnce.current) setLoadingRecalls(true);
     const { data, error } = await supabase
       .from("recall")
-      .select("*, patient:patient_id(full_name), service:service_id(name)")
+      .select("*, patient:patient_id(full_name, email, phone, phone_alt), service:service_id(name)")
       .order("due_date", { ascending: true });
 
     if (error) {
       logger.error("Error loading recalls", error);
     } else {
-      setRecalls(data || []);
+      setRecalls((data as RecallRow[]) || []);
     }
     hasLoadedOnce.current = true;
     setLoadingRecalls(false);
+  };
+
+  // --- Contacting patients -------------------------------------------------
+  // The app has no patient-email backend, so "email" opens the operator's own
+  // mail client via a mailto: with a pre-filled recall template. Predictable
+  // by design: launching a call/email NEVER changes recall status — the
+  // operator explicitly marks "reminded" once they've actually made contact.
+
+  const buildRecallEmail = (patientName?: string): { subject: string; body: string } => {
+    const pname = practice?.name ?? "our practice";
+    const greeting = patientName ? `Dear ${patientName},` : "Hello,";
+    const bookLine = practice?.phone
+      ? `To book an appointment, please call us on ${practice.phone} or simply reply to this email.`
+      : "To book an appointment, please reply to this email and we'll find you a slot.";
+    const body = [
+      greeting,
+      "",
+      `Our records show you're due for your routine dental check-up at ${pname}.`,
+      bookLine,
+      "",
+      "We look forward to seeing you.",
+      "",
+      "Kind regards,",
+      pname,
+    ].join("\n");
+    return { subject: `Time for your dental check-up — ${pname}`, body };
+  };
+
+  const mailtoHref = (opts: { to?: string; bcc?: string[]; patientName?: string }): string => {
+    const { subject, body } = buildRecallEmail(opts.patientName);
+    const parts: string[] = [];
+    if (opts.bcc?.length) parts.push(`bcc=${encodeURIComponent(opts.bcc.join(","))}`);
+    parts.push(`subject=${encodeURIComponent(subject)}`);
+    parts.push(`body=${encodeURIComponent(body)}`);
+    return `mailto:${opts.to ?? ""}?${parts.join("&")}`;
+  };
+
+  const markReminded = async (recall: RecallRow) => {
+    const { error } = await supabase
+      .from("recall")
+      .update({
+        status: "REMINDED",
+        reminded_at: new Date().toISOString(),
+        reminder_count: recall.reminder_count + 1,
+      })
+      .eq("id", recall.id);
+    if (error) {
+      toast.error("Couldn't mark as reminded");
+    } else {
+      toast.success(`Marked ${recall.patient?.full_name ?? "patient"} as reminded`);
+      loadRecalls();
+    }
   };
 
   const markComplete = async (recallId: string) => {
@@ -103,34 +190,44 @@ export default function RecallsPage() {
   // round-trip. RLS scopes the .in() to the caller's practice; the UI
   // restricts selection to active (PENDING/REMINDED) rows.
   //
-  // Undo needs the original per-row status so we can flip PENDING rows
-  // back to PENDING and REMINDED rows back to REMINDED (the latter
-  // preserves the fact that a reminder was already sent).
-  const undoBulk = async (
-    snapshots: Array<{ id: string; status: string; completed_at: string | null }>,
-    label: string,
-  ) => {
+  // Undo restores each row's exact prior state. We snapshot status,
+  // completed_at, reminded_at and reminder_count and replay them per-row
+  // (reminder_count differs per row, so this can't be a single bulk update).
+  type RecallSnapshot = {
+    id: string;
+    status: string;
+    completed_at: string | null;
+    reminded_at: string | null;
+    reminder_count: number;
+  };
+  const snapshot = (r: RecallRow): RecallSnapshot => ({
+    id: r.id,
+    status: r.status,
+    completed_at: r.completed_at,
+    reminded_at: r.reminded_at,
+    reminder_count: r.reminder_count,
+  });
+
+  const undoBulk = async (snapshots: RecallSnapshot[], label: string) => {
     if (snapshots.length === 0) return;
-    // We can't bulk-update to different values in a single statement, so
-    // fan out one update per distinct status. Two API calls in the worst
-    // case (PENDING + REMINDED), which is fine at this scale.
-    const byStatus = new Map<string, string[]>();
-    for (const s of snapshots) {
-      const arr = byStatus.get(s.status) ?? [];
-      arr.push(s.id);
-      byStatus.set(s.status, arr);
+    const results = await Promise.all(
+      snapshots.map((s) =>
+        supabase
+          .from("recall")
+          .update({
+            status: s.status as Enums<"recall_status">,
+            completed_at: s.completed_at,
+            reminded_at: s.reminded_at,
+            reminder_count: s.reminder_count,
+          })
+          .eq("id", s.id),
+      ),
+    );
+    if (results.some((r) => r.error)) {
+      toast.error("Couldn't undo");
+    } else {
+      toast.success(`Restored ${snapshots.length} ${label}`);
     }
-    for (const [status, ids] of byStatus) {
-      const { error } = await supabase
-        .from("recall")
-        .update({ status: status as Enums<"recall_status">, completed_at: null })
-        .in("id", ids);
-      if (error) {
-        toast.error("Couldn't undo");
-        return;
-      }
-    }
-    toast.success(`Restored ${snapshots.length} ${label}`);
     loadRecalls();
   };
 
@@ -138,9 +235,7 @@ export default function RecallsPage() {
     const ids = Array.from(selection.selected);
     if (ids.length === 0) return;
     // Snapshot the pre-update state so undo can restore per-row.
-    const snapshots = recalls
-      .filter((r) => ids.includes(r.id))
-      .map((r) => ({ id: r.id, status: r.status, completed_at: r.completed_at }));
+    const snapshots = recalls.filter((r) => ids.includes(r.id)).map(snapshot);
     setBulkBusy(true);
     const { error } = await supabase
       .from("recall")
@@ -162,9 +257,7 @@ export default function RecallsPage() {
   const bulkCancel = async () => {
     const ids = Array.from(selection.selected);
     if (ids.length === 0) return;
-    const snapshots = recalls
-      .filter((r) => ids.includes(r.id))
-      .map((r) => ({ id: r.id, status: r.status, completed_at: r.completed_at }));
+    const snapshots = recalls.filter((r) => ids.includes(r.id)).map(snapshot);
     setBulkBusy(true);
     const { error } = await supabase
       .from("recall")
@@ -181,6 +274,66 @@ export default function RecallsPage() {
     });
     selection.clear();
     loadRecalls();
+  };
+
+  // Mark every selected row as reminded (contacted). reminder_count differs
+  // per row, so we fan out one update each rather than a single bulk update.
+  const bulkMarkReminded = async () => {
+    const ids = Array.from(selection.selected);
+    const rows = recalls.filter((r) => ids.includes(r.id));
+    if (rows.length === 0) return;
+    const snapshots = rows.map(snapshot);
+    const now = new Date().toISOString();
+    setBulkBusy(true);
+    const results = await Promise.all(
+      rows.map((r) =>
+        supabase
+          .from("recall")
+          .update({ status: "REMINDED", reminded_at: now, reminder_count: r.reminder_count + 1 })
+          .eq("id", r.id),
+      ),
+    );
+    setBulkBusy(false);
+    if (results.some((r) => r.error)) { toast.error("Some updates failed"); loadRecalls(); return; }
+    toast.success(`Marked ${rows.length} as reminded`, {
+      duration: 8000,
+      action: {
+        label: "Undo",
+        onClick: () => undoBulk(snapshots, rows.length === 1 ? "recall" : "recalls"),
+      },
+    });
+    selection.clear();
+    loadRecalls();
+  };
+
+  // Open one email to all selected patients who have an address on file, with
+  // them in BCC (each recipient only sees their own copy). No status change —
+  // the operator marks "reminded" after the email actually goes out. For very
+  // large batches a mailto: URL gets unwieldy, so we copy the addresses to the
+  // clipboard instead and let the operator paste them into their mail client.
+  const bulkEmailSelected = () => {
+    const rows = recalls.filter((r) => selection.selected.has(r.id));
+    const emails = [
+      ...new Set(
+        rows
+          .map((r) => r.patient?.email?.trim())
+          .filter((e): e is string => !!e),
+      ),
+    ];
+    if (emails.length === 0) {
+      toast.error("None of the selected patients have an email on file — call them instead");
+      return;
+    }
+    const without = rows.length - emails.length;
+    if (emails.length > 40) {
+      void navigator.clipboard?.writeText(emails.join(", "));
+      toast.success(`${emails.length} email addresses copied — paste into the BCC field of a new email`);
+      return;
+    }
+    window.location.href = mailtoHref({ bcc: emails });
+    if (without > 0) {
+      toast.info(`${without} selected patient${without === 1 ? " has" : "s have"} no email — call them instead`);
+    }
   };
 
   const today = startOfDay(new Date());
@@ -307,6 +460,8 @@ export default function RecallsPage() {
               const isOverdue = (ACTIVE_STATUSES as readonly string[]).includes(recall.status) && isBefore(parseISO(recall.due_date), today);
               const dueDate = parseISO(recall.due_date);
               const canSelect = (ACTIVE_STATUSES as readonly string[]).includes(recall.status);
+              const phone = recall.patient?.phone || recall.patient?.phone_alt || null;
+              const email = recall.patient?.email || null;
 
               return (
                 <div key={recall.id} className="flex items-center gap-3 p-4 hover:bg-muted/30 transition-colors">
@@ -350,30 +505,81 @@ export default function RecallsPage() {
                         </>
                       )}
                     </div>
+                    {/* Contact line — phone + email shown so the operator can
+                        read/copy them, and tap to call or open a recall email.
+                        Only on active rows (closed recalls don't get chased). */}
+                    {canSelect && (
+                      <div className="text-xs mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        {phone ? (
+                          <a
+                            href={`tel:${phone.replace(/\s+/g, "")}`}
+                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary hover:underline"
+                            title="Call patient"
+                          >
+                            <Phone className="h-3 w-3 shrink-0" /> {phone}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic">No phone</span>
+                        )}
+                        {email ? (
+                          <a
+                            href={mailtoHref({ to: email, patientName: recall.patient?.full_name })}
+                            className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary hover:underline truncate max-w-[220px]"
+                            title="Open a recall email to this patient"
+                          >
+                            <Mail className="h-3 w-3 shrink-0" /> <span className="truncate">{email}</span>
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground/60 italic">No email</span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {(ACTIVE_STATUSES as readonly string[]).includes(recall.status) && (
                     <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="sm" onClick={() => markComplete(recall.id)} className="h-7 text-xs text-green-700 hover:text-green-800 hover:bg-green-50" title="Mark as completed">
+                      {phone && (
+                        <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-primary" title="Call patient">
+                          <a href={`tel:${phone.replace(/\s+/g, "")}`}>
+                            <Phone className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )}
+                      {email && (
+                        <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-primary" title="Email a recall reminder">
+                          <a href={mailtoHref({ to: email, patientName: recall.patient?.full_name })}>
+                            <Mail className="h-3.5 w-3.5" />
+                          </a>
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => markReminded(recall)} className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-700" title="Mark as reminded (contacted)">
+                        <BellRing className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => markComplete(recall.id)} className="h-7 text-xs text-green-700 hover:text-green-800 hover:bg-green-50" title="Patient booked / done">
                         <Check className="h-3.5 w-3.5 mr-1" /> Done
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          setInactiveTarget({
-                            id: recall.patient_id,
-                            name: recall.patient?.full_name ?? "this patient",
-                          })
-                        }
-                        className="h-7 text-xs text-muted-foreground hover:text-amber-700"
-                        title="Patient not returning — mark inactive & cancel their recalls"
-                      >
-                        <UserX className="h-3.5 w-3.5 mr-1" /> Not returning
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => cancelRecall(recall.id)} className="h-7 text-xs text-muted-foreground" title="Cancel recall">
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground" title="More actions">
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              setInactiveTarget({
+                                id: recall.patient_id,
+                                name: recall.patient?.full_name ?? "this patient",
+                              })
+                            }
+                          >
+                            <UserX className="h-4 w-4 mr-2" /> Not returning
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => cancelRecall(recall.id)}>
+                            <X className="h-4 w-4 mr-2" /> Cancel recall
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
 
@@ -396,8 +602,10 @@ export default function RecallsPage() {
         busy={bulkBusy}
         onClear={selection.clear}
         actions={[
-          { key: "complete", label: "Mark complete", icon: Check, variant: "default", onClick: bulkMarkComplete },
-          { key: "cancel",   label: "Cancel",                                          onClick: bulkCancel },
+          { key: "email",    label: "Email selected", icon: Mail,     onClick: bulkEmailSelected },
+          { key: "reminded", label: "Mark reminded",  icon: BellRing, onClick: bulkMarkReminded },
+          { key: "complete", label: "Mark complete",  icon: Check, variant: "default", onClick: bulkMarkComplete },
+          { key: "cancel",   label: "Cancel",                          onClick: bulkCancel },
         ]}
       />
       {inactiveTarget && (

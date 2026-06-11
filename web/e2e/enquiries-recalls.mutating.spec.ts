@@ -18,7 +18,9 @@ test.describe("enquiries / waitlist / recalls (mutating · test practice)", () =
   async function reset() {
     if (!db) return;
     await db.from("booking_request").update({ status: "NEW" }).eq("id", ENQUIRY!);
-    await db.from("recall").update({ status: "PENDING" }).eq("id", RECALL!);
+    await db.from("recall")
+      .update({ status: "PENDING", reminded_at: null, reminder_count: 0 })
+      .eq("id", RECALL!);
     await db.from("waiting_list").delete().eq("practice_id", PRACTICE!);
     await db.from("patient").delete().eq("practice_id", PRACTICE!).eq("last_name", "Enquiry");
   }
@@ -64,5 +66,19 @@ test.describe("enquiries / waitlist / recalls (mutating · test practice)", () =
       const { data } = await db!.from("recall").select("status").eq("id", RECALL!);
       return data?.[0]?.status;
     }, { timeout: 15_000 }).toBe("COMPLETED");
+  });
+
+  test("mark a recall reminded (contacted)", async ({ page }) => {
+    await page.goto("/recalls");
+    await page.getByText("E2E Patient").first().waitFor({ state: "visible", timeout: 15_000 });
+    await page.getByTitle("Mark as reminded (contacted)").first().click();
+
+    await expect.poll(async () => {
+      const { data } = await db!
+        .from("recall")
+        .select("status, reminder_count")
+        .eq("id", RECALL!);
+      return data?.[0];
+    }, { timeout: 15_000 }).toMatchObject({ status: "REMINDED", reminder_count: 1 });
   });
 });
