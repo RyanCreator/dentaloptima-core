@@ -1138,7 +1138,16 @@ function UploadSheet({
       header: true,
       skipEmptyLines: true,
       complete: (results) => {
-        const parsedHeaders = results.meta.fields ?? [];
+        // Drop blank/whitespace-only header names. Spreadsheet exports
+        // (Excel, Google Sheets) routinely leave a trailing comma or empty
+        // trailing column, which PapaParse surfaces as an empty-string field
+        // name. Rendering that as a <SelectItem value=""> throws in Radix and
+        // white-screens the whole app, so we strip them here — they're always
+        // junk columns anyway. Non-empty names are kept verbatim so the row
+        // lookups (which key off the exact field name) still resolve.
+        const parsedHeaders = (results.meta.fields ?? []).filter(
+          (h): h is string => typeof h === "string" && h.trim() !== "",
+        );
         setHeaders(parsedHeaders);
         setRows(results.data);
         setMapping(autoMapColumns(parsedHeaders));
