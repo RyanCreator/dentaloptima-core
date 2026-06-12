@@ -204,7 +204,7 @@ function renderTable(node: MdNode): ReactNode {
         return (
           <View
             key={ri}
-            style={[styles.tableRow, isHeader ? styles.tableHeaderRow : null]}
+            style={[styles.tableRow, ...(isHeader ? [styles.tableHeaderRow] : [])]}
             wrap={false}
           >
             {cells.map((cell, ci) => (
@@ -212,7 +212,7 @@ function renderTable(node: MdNode): ReactNode {
                 key={ci}
                 style={[
                   styles.tableCell,
-                  ci === colCount - 1 ? styles.tableCellLast : null,
+                  ...(ci === colCount - 1 ? [styles.tableCellLast] : []),
                 ]}
               >
                 <Text style={isHeader ? styles.tableCellHeader : undefined}>

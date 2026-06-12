@@ -497,7 +497,9 @@ function ThreadSheet({
             : "Closes the thread for both sides. Use for spam or finished conversations."
         }
         confirmLabel={confirmStatus === "RESOLVED" ? "Mark resolved" : "Close"}
-        onConfirm={() => confirmStatus && applyStatus(confirmStatus)}
+        onConfirm={() => {
+          if (confirmStatus) applyStatus(confirmStatus);
+        }}
       />
     </>
   );

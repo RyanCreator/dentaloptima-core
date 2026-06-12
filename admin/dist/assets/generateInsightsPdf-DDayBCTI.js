@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/generateInsightsPdf.impl-D9cj8q39.js","assets/index-DVJwhD27.js","assets/index-BKSwymfY.css","assets/react-pdf.browser-DlNBh-qV.js"])))=>i.map(i=>d[i]);
+import{_ as e}from"./index-DVJwhD27.js";async function i(t){const{renderInsightsPdf:r}=await e(async()=>{const{renderInsightsPdf:n}=await import("./generateInsightsPdf.impl-D9cj8q39.js");return{renderInsightsPdf:n}},__vite__mapDeps([0,1,2,3]));return r(t)}export{i as generateInsightsPdf};
